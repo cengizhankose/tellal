@@ -4,7 +4,7 @@
 #![allow(unexpected_cfgs)]
 
 use gpui::Window;
-use objc::runtime::{BOOL, Object, YES};
+use objc::runtime::{BOOL, NO, Object, YES};
 use objc::{class, msg_send, sel, sel_impl};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
@@ -131,4 +131,87 @@ pub fn drag_window(window: &Window) -> bool {
         let _: () = msg_send![ns_window, performWindowDragWithEvent: event];
     }
     true
+}
+
+/// gpui's PopUp `NSPanel` keeps AppKit's panel default `hidesOnDeactivate = YES`. The panel now
+/// becomes key while replying (which activates the app), so it must survive deactivation.
+pub fn keep_visible_when_inactive(window: &Window) {
+    if let Some(ns_window) = ns_window(window) {
+        unsafe {
+            let _: () = msg_send![ns_window, setHidesOnDeactivate: NO];
+        }
+    }
+}
+
+/// The app that owns the menu bar / keyboard focus (`NSWorkspace.frontmostApplication`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct FrontApp {
+    pub pid: i32,
+    pub bundle_id: String,
+    pub name: String,
+}
+
+impl FrontApp {
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({"pid": self.pid, "bundle_id": self.bundle_id, "name": self.name})
+    }
+
+    pub fn is_self(&self) -> bool {
+        u32::try_from(self.pid).is_ok_and(|pid| pid == std::process::id())
+    }
+}
+
+pub fn frontmost_app() -> Option<FrontApp> {
+    unsafe {
+        let workspace: Id = msg_send![class!(NSWorkspace), sharedWorkspace];
+        let app: Id = msg_send![workspace, frontmostApplication];
+        if app.is_null() {
+            return None;
+        }
+        Some(FrontApp {
+            pid: msg_send![app, processIdentifier],
+            bundle_id: ns_string(msg_send![app, bundleIdentifier]),
+            name: ns_string(msg_send![app, localizedName]),
+        })
+    }
+}
+
+/// Re-activates a previously frontmost app. Returns AppKit's answer (false if it is gone).
+pub fn activate_app(pid: i32) -> bool {
+    const NS_APPLICATION_ACTIVATE_IGNORING_OTHER_APPS: usize = 1 << 1;
+    unsafe {
+        let app: Id = msg_send![class!(NSRunningApplication), runningApplicationWithProcessIdentifier: pid];
+        if app.is_null() {
+            return false;
+        }
+        let ok: BOOL = msg_send![app, activateWithOptions: NS_APPLICATION_ACTIVATE_IGNORING_OTHER_APPS];
+        ok == YES
+    }
+}
+
+/// Whether the panel is AppKit's key window (receives keystrokes and Wispr's paste).
+pub fn is_key_window(window: &Window) -> bool {
+    ns_window(window).is_some_and(|w| unsafe {
+        let key: BOOL = msg_send![w, isKeyWindow];
+        key == YES
+    })
+}
+
+/// The user's double-click interval (System Settings), used for the row double-click.
+pub fn double_click_interval() -> std::time::Duration {
+    let secs: f64 = unsafe { msg_send![class!(NSEvent), doubleClickInterval] };
+    std::time::Duration::from_secs_f64(if secs.is_finite() && secs > 0. { secs } else { 0.5 })
+}
+
+fn ns_string(s: Id) -> String {
+    if s.is_null() {
+        return String::new();
+    }
+    unsafe {
+        let utf8: *const std::os::raw::c_char = msg_send![s, UTF8String];
+        if utf8.is_null() {
+            return String::new();
+        }
+        std::ffi::CStr::from_ptr(utf8).to_string_lossy().into_owned()
+    }
 }

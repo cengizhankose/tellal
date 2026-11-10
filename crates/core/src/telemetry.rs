@@ -242,8 +242,12 @@ pub(crate) fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 
 /// `YYYY-MM-DDTHH:MM:SS.mmmZ` for now.
 pub fn rfc3339_now() -> String {
-    let d = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
-    let secs = d.as_secs() as i64;
+    rfc3339_from_ms(now_unix_ms())
+}
+
+/// Unix milliseconds → `YYYY-MM-DDTHH:MM:SS.mmmZ` (UTC; same shape as T3's `created_at`).
+pub fn rfc3339_from_ms(unix_ms: i64) -> String {
+    let secs = unix_ms.div_euclid(1000);
     let (y, mo, day) = civil_from_days(secs.div_euclid(86_400));
     let sod = secs.rem_euclid(86_400);
     format!(
@@ -251,7 +255,7 @@ pub fn rfc3339_now() -> String {
         sod / 3600,
         sod / 60 % 60,
         sod % 60,
-        d.subsec_millis()
+        unix_ms.rem_euclid(1000)
     )
 }
 

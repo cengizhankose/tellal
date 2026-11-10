@@ -1,6 +1,7 @@
 #[cfg(not(target_os = "macos"))]
 compile_error!("t3-panel is a macOS-only floating panel");
 
+mod input;
 mod mac;
 mod panel;
 
@@ -13,20 +14,21 @@ use gpui::{
 use serde_json::json;
 use t3_panel_core::{Config, Core};
 
-use crate::panel::Panel;
+use crate::panel::{Panel, SelfTestMode};
 
-const PANEL_WIDTH: f32 = 360.;
-const PANEL_HEIGHT: f32 = 520.;
+const PANEL_WIDTH: f32 = 380.;
+const PANEL_HEIGHT: f32 = 560.;
 const SCREEN_MARGIN: f32 = 16.;
 
 fn main() -> anyhow::Result<()> {
     let process_start = Instant::now();
-    let selftest = std::env::var_os("T3P_SELFTEST").is_some_and(|v| v == "1");
+    let selftest = SelfTestMode::from_env();
     let (core, events) = Core::start(Config::from_env())?;
 
     Application::new().run(move |cx: &mut App| {
         // Runs after gpui's applicationDidFinishLaunching set the policy to Regular.
         let activation_policy = mac::make_accessory_app();
+        input::bind_keys(cx);
         let insets = mac::primary_screen_insets();
         let (inset_top, inset_right) = insets.as_ref().map_or((0., 0.), |i| (i.top, i.right));
 
@@ -57,6 +59,7 @@ fn main() -> anyhow::Result<()> {
         let ui_core = core.clone();
         let opened = cx.open_window(options, |window, cx| {
             mac::hide_traffic_lights(window);
+            mac::keep_visible_when_inactive(window);
             let native = mac::native_window_info(window);
             ui_core.log_ui(
                 "ui.window",
@@ -71,10 +74,10 @@ fn main() -> anyhow::Result<()> {
                     "ns_collection_behavior": native.as_ref().map(|n| n.collection_behavior),
                     "ns_style_mask": native.as_ref().map(|n| n.style_mask),
                     "focus": false,
-                    "selftest": selftest,
+                    "selftest": selftest.to_json(),
                 }),
             );
-            cx.new(|cx| Panel::new(ui_core, events, process_start, selftest, cx))
+            cx.new(|cx| Panel::new(ui_core, events, process_start, selftest, window, cx))
         });
         if let Err(err) = opened {
             core.log_ui("ui.window_error", json!({"error": format!("{err:#}")}));

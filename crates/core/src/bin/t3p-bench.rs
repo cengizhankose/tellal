@@ -3,8 +3,8 @@
 //! * default: cold model load + synthesize a fixed Turkish corpus, per-sentence numbers.
 //! * `--play`: same, and play each sentence.
 //! * `--t3`: 3 rounds of listing every watched project.
-//! * `--e2e`: headless `Core::start` → first `ThreadsUpdated` → `speak_thread` on the first
-//!   completed thread → `SpeakingFinished`.
+//! * `--e2e`: headless `Core::start` → first `ThreadsUpdated` → `set_listening(id, true)` on the
+//!   first completed thread → its catch-up line's `SpeakingFinished` → `mute_all`.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -145,19 +145,20 @@ fn e2e(cfg: Config) -> anyhow::Result<()> {
         .iter()
         .find(|t| t.status == "completed")
         .ok_or_else(|| anyhow::anyhow!("no completed thread among {} rows", threads.len()))?;
-    println!("speaking: {} [{}] {}", target.id, target.status, target.title);
-    core.speak_thread(&target.id);
+    println!("listening: {} [{}] {}", target.id, target.status, target.title);
+    core.set_listening(&target.id, true);
     loop {
         match next("SpeakingFinished")? {
             CoreEvent::SpeakingStarted { thread_id } => println!("SpeakingStarted {thread_id}"),
-            CoreEvent::SpeakingFinished { thread_id } => {
+            CoreEvent::SpeakingFinished { thread_id } if thread_id == target.id => {
                 println!("SpeakingFinished {thread_id}");
                 break;
             }
             CoreEvent::Error(e) => eprintln!("core error: {e}"),
-            CoreEvent::ThreadsUpdated => {}
+            _ => {}
         }
     }
+    core.mute_all();
     let s = core.live_stats();
     println!(
         "click_to_audio_ms={:?} last_tts_ms={:?} last_rtf={:?} last_t3_poll_ms={:?} rss_mb={:.1} cpu_pct={:.1}",

@@ -1,5 +1,6 @@
-//! T3 thread source: project discovery (read-only state DB), `t3 thread list/show` subprocesses
-//! with per-call resource accounting, and the background poller that feeds `Core::threads`.
+//! T3 thread source: project discovery and message/request reads (read-only state DB through
+//! `sqlite3`), `t3 thread list|send` subprocesses with per-call resource accounting, and the
+//! background poller that feeds `Core::threads`.
 
 use std::collections::HashMap;
 use std::ffi::OsStr;
@@ -46,21 +47,28 @@ impl CmdOutput {
         })
     }
 
-    fn failure(&self) -> String {
+    pub(crate) fn failure(&self) -> String {
         let code = self.exit_code.map_or_else(|| "signal".to_owned(), |c| c.to_string());
         format!("exit {code}: {}", self.stderr.trim())
     }
 }
 
-/// Runs `argv` to completion, capturing stdout/stderr, and reaps it with `wait4` for its rusage.
-pub fn run_cmd<S: AsRef<OsStr>>(argv: &[S]) -> std::io::Result<CmdOutput> {
+/// Runs `argv` to completion (feeding `stdin`, if any), capturing stdout/stderr, and reaps it
+/// with `wait4` for its rusage.
+pub fn run_cmd<S: AsRef<OsStr>>(argv: &[S], stdin: Option<&[u8]>) -> std::io::Result<CmdOutput> {
     let start = Instant::now();
     let mut child = Command::new(&argv[0])
         .args(&argv[1..])
-        .stdin(Stdio::null())
+        .stdin(if stdin.is_some() { Stdio::piped() } else { Stdio::null() })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()?;
+    if let (Some(data), Some(mut pipe)) = (stdin, child.stdin.take()) {
+        use std::io::Write;
+        // Small payloads (replies); dropping the pipe sends EOF. A write error means the child
+        // already exited, which its exit code reports.
+        let _ = pipe.write_all(data);
+    }
     let pid = child.id() as libc::pid_t;
     let mut child_err = child.stderr.take().expect("stderr piped");
     let err_reader = std::thread::spawn(move || {
@@ -96,7 +104,7 @@ pub fn run_cmd<S: AsRef<OsStr>>(argv: &[S]) -> std::io::Result<CmdOutput> {
     })
 }
 
-fn argv_json<S: AsRef<OsStr>>(argv: &[S]) -> Value {
+pub(crate) fn argv_json<S: AsRef<OsStr>>(argv: &[S]) -> Value {
     argv.iter().map(|a| Value::String(a.as_ref().to_string_lossy().into_owned())).collect()
 }
 
@@ -121,7 +129,7 @@ impl Project {
     }
 }
 
-/// One row of `t3 thread list --json` (and the `thread` object of `t3 thread show --json`).
+/// One row of `t3 thread list --json`.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RawThread {
@@ -162,7 +170,7 @@ impl RawThread {
     }
 }
 
-/// One message of `t3 thread show --json`, oldest → newest.
+/// One thread message, oldest → newest (read from T3's state DB).
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Message {
@@ -173,14 +181,8 @@ pub struct Message {
     pub text: String,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct ShowResult {
-    pub thread: RawThread,
-    #[serde(default)]
-    pub messages: Vec<Message>,
-}
-
-fn state_db() -> PathBuf {
+/// Path of T3's state DB (opened read-only only).
+pub(crate) fn state_db() -> PathBuf {
     PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".t3/userdata/statev2.sqlite")
 }
 
@@ -210,7 +212,7 @@ pub fn discover(tel: &Telemetry, cfg: &Config) -> anyhow::Result<Vec<Project>> {
     }
     let sql = "SELECT project_id, title, workspace_root FROM projection_projects \
                WHERE deleted_at IS NULL AND archived_at IS NULL ORDER BY title";
-    let (input, res) = sqlite_json::<Row>(sql);
+    let (input, res) = sqlite_json::<Row>(&state_db(), sql);
     match res {
         Ok((o, rows)) => {
             let projects: Vec<Project> = rows
@@ -236,14 +238,13 @@ pub fn discover(tel: &Telemetry, cfg: &Config) -> anyhow::Result<Vec<Project>> {
     }
 }
 
-/// Runs one read-only query against T3's state DB through `/usr/bin/sqlite3 -readonly -json`.
+/// Runs one read-only query through `/usr/bin/sqlite3 -readonly -json <db>`.
 /// Returns the event `in` (source, db, argv) and the parsed rows.
-fn sqlite_json<T: DeserializeOwned>(sql: &str) -> (Value, anyhow::Result<(CmdOutput, Vec<T>)>) {
-    let db = state_db();
+pub(crate) fn sqlite_json<T: DeserializeOwned>(db: &Path, sql: &str) -> (Value, anyhow::Result<(CmdOutput, Vec<T>)>) {
     let argv: [&OsStr; 5] =
         ["/usr/bin/sqlite3".as_ref(), "-readonly".as_ref(), "-json".as_ref(), db.as_os_str(), sql.as_ref()];
     let input = json!({"source": "sqlite3 -readonly subprocess", "db": db, "argv": argv_json(&argv)});
-    let res = run_cmd(&argv).map_err(anyhow::Error::from).and_then(|o| {
+    let res = run_cmd(&argv, None).map_err(anyhow::Error::from).and_then(|o| {
         if !o.success() {
             return Err(anyhow::anyhow!(o.failure()));
         }
@@ -253,6 +254,37 @@ fn sqlite_json<T: DeserializeOwned>(sql: &str) -> (Value, anyhow::Result<(CmdOut
         Ok((o, rows))
     });
     (input, res)
+}
+
+/// SQL string literal (`'` doubled).
+pub(crate) fn sql_str(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "''"))
+}
+
+/// The latest `n` complete messages of a thread (oldest → newest) from T3's state DB, logged as
+/// `t3.messages`.
+pub fn latest_messages(tel: &Telemetry, thread: &str, n: u32) -> anyhow::Result<Vec<Message>> {
+    let sql = format!(
+        "select role, run_id as runId, coalesce(json_extract(payload_json,'$.text'),'') as text \
+         from orchestration_v2_projection_messages where thread_id = {} and streaming = 0 \
+         order by created_at desc, message_id desc limit {n};",
+        sql_str(thread)
+    );
+    let (mut input, res) = sqlite_json::<Message>(&state_db(), &sql);
+    input["thread"] = json!(thread);
+    match res {
+        Ok((o, mut rows)) => {
+            rows.reverse();
+            let mut out = o.telemetry();
+            out["messages"] = json!(rows.len());
+            tel.event("t3.messages", Some(o.wall_ms), true, input, out, None);
+            Ok(rows)
+        }
+        Err(e) => {
+            tel.event("t3.messages", None, false, input, Value::Null, Some(&format!("{e:#}")));
+            Err(e)
+        }
+    }
 }
 
 /// `max(updated_at)` per project from T3's thread projection (indexed on
@@ -266,7 +298,7 @@ pub fn project_changes() -> (Value, anyhow::Result<(CmdOutput, HashMap<String, S
     }
     let sql = "select project_id, max(updated_at) as u from orchestration_v2_projection_threads \
                where deleted_at is null group by project_id;";
-    let (input, res) = sqlite_json::<Row>(sql);
+    let (input, res) = sqlite_json::<Row>(&state_db(), sql);
     let res = res.map(|(o, rows)| (o, rows.into_iter().filter_map(|r| Some((r.project_id, r.u?))).collect()));
     (input, res)
 }
@@ -289,26 +321,6 @@ pub fn list_threads(tel: &Telemetry, t3_bin: &Path, project: &str) -> anyhow::Re
     })
 }
 
-/// `t3 thread show <id> --json --messages <n>`, logged as `t3.show`.
-pub fn show_thread(tel: &Telemetry, t3_bin: &Path, thread: &str, messages: u32) -> anyhow::Result<ShowResult> {
-    let n = messages.to_string();
-    let argv: [&OsStr; 7] = [
-        t3_bin.as_os_str(),
-        "thread".as_ref(),
-        "show".as_ref(),
-        thread.as_ref(),
-        "--json".as_ref(),
-        "--messages".as_ref(),
-        n.as_ref(),
-    ];
-    let input = json!({"thread": thread, "argv": argv_json(&argv)});
-    run_logged(tel, "t3.show", &argv, input, |stdout| {
-        let show: ShowResult = serde_json::from_slice(stdout)?;
-        let out = json!({"status": show.thread.status, "messages": show.messages.len()});
-        Ok((show, out))
-    })
-}
-
 /// Runs a subprocess and writes one `kind` event with argv, wall time, stdout bytes, exit code,
 /// child CPU and max RSS plus whatever `parse` adds.
 pub fn run_logged<S: AsRef<OsStr>, T>(
@@ -318,7 +330,7 @@ pub fn run_logged<S: AsRef<OsStr>, T>(
     input: Value,
     parse: impl FnOnce(&[u8]) -> anyhow::Result<(T, Value)>,
 ) -> anyhow::Result<T> {
-    let o = match run_cmd(argv) {
+    let o = match run_cmd(argv, None) {
         Ok(o) => o,
         Err(e) => {
             tel.event(kind, None, false, input, Value::Null, Some(&format!("spawn: {e}")));
@@ -384,11 +396,13 @@ fn newest(changes: &HashMap<String, String>, canonical: &HashMap<String, String>
 /// Spawns the poller thread: discover once, then every `poll_interval` run the cheap
 /// `t3.changes` query and `t3 thread list` only the projects whose newest `updated_at` moved
 /// (all projects on the first tick, every [`FULL_RELIST`], or when the query fails).
+/// `on_status(thread, to)` runs for every logged `state.change`.
 pub(crate) fn spawn_poller(
     tel: Arc<Telemetry>,
     cfg: Config,
     snapshot: Arc<RwLock<Vec<ThreadView>>>,
     tx: Sender<CoreEvent>,
+    on_status: impl Fn(&str, &str) + Send + 'static,
 ) -> std::io::Result<()> {
     std::thread::Builder::new().name("t3p-poller".into()).spawn(move || {
         let mut projects: Vec<Project> = Vec::new();
@@ -470,6 +484,7 @@ pub(crate) fn spawn_poller(
                         Value::Null,
                         None,
                     );
+                    on_status(&t.thread_id, &t.status);
                 }
             }
             first = false;

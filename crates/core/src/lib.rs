@@ -5,6 +5,7 @@
 //! The modules below are public for the `t3p-bench` / `t3p-report` tools.
 
 use std::collections::HashMap;
+use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -14,9 +15,11 @@ use crossbeam_channel::Sender;
 use serde_json::{Value, json};
 
 pub mod extract;
+mod live;
 mod speech;
 pub mod t3;
 pub mod telemetry;
+mod wispr;
 pub mod tts {
     //! TTS engine and audio helpers (used by `t3p-bench`).
     pub use crate::speech::{Synth, TtsEngine, open_output, samples_source, write_wav};
@@ -192,12 +195,16 @@ struct Inner {
     tel: Arc<Telemetry>,
     threads: Arc<RwLock<Vec<ThreadView>>>,
     speech: speech::Speech,
+    wispr: wispr::Wispr,
     events: Sender<CoreEvent>,
+    t3_bin: PathBuf,
+    reply_prefix: String,
 }
 
 impl Core {
-    /// Creates the run dir, starts the poller, TTS worker and metrics sampler.
+    /// Creates the run dir, starts the poller, live tail, TTS worker and metrics sampler.
     pub fn start(config: Config) -> anyhow::Result<(Core, Receiver<CoreEvent>)> {
+        let start_ms = telemetry::now_unix_ms();
         let tel = Telemetry::create(&config.log_root)?;
         tel.event(
             "app.start",
@@ -213,9 +220,18 @@ impl Core {
         tel.start_sampler()?;
         let (tx, rx) = crossbeam_channel::unbounded();
         let threads = Arc::new(RwLock::new(Vec::new()));
-        let speech = speech::Speech::start(tel.clone(), &config, tx.clone())?;
-        t3::spawn_poller(tel.clone(), config, threads.clone(), tx.clone())?;
-        Ok((Core { inner: Arc::new(Inner { tel, threads, speech, events: tx }) }, rx))
+        let speech = speech::Speech::start(tel.clone(), &config, tx.clone(), threads.clone())?;
+        live::spawn(tel.clone(), config.live_poll_interval, start_ms, threads.clone(), speech.clone())?;
+        let wispr = wispr::Wispr::new(tel.clone(), config.wispr_db.clone(), tx.clone());
+        let (t3_bin, reply_prefix) = (config.t3_bin.clone(), config.reply_prefix.clone());
+        let on_stop = speech.clone();
+        t3::spawn_poller(tel.clone(), config, threads.clone(), tx.clone(), move |thread, to| {
+            if matches!(to, "interrupted" | "cancelled") {
+                on_stop.notice(thread, "stopped", "Durduruldu.");
+            }
+        })?;
+        let inner = Inner { tel, threads, speech, wispr, events: tx, t3_bin, reply_prefix };
+        Ok((Core { inner: Arc::new(inner) }, rx))
     }
     /// Latest snapshot of threads (never blocks on I/O).
     pub fn threads(&self) -> Vec<ThreadView> {
@@ -223,47 +239,115 @@ impl Core {
     }
     /// Radio switch. `true`: speak one catch-up line now (starts the click-to-audio clock), then
     /// every new assistant message live. `false`: drop this channel's current utterance and queue.
-    pub fn set_listening(&self, _thread_id: &str, _on: bool) {}
+    pub fn set_listening(&self, thread_id: &str, on: bool) {
+        self.inner.speech.set_listening(thread_id, on);
+    }
     /// Video pause/resume of one channel; the paused utterance resumes mid-sentence.
-    pub fn toggle_pause(&self, _thread_id: &str) {}
+    pub fn toggle_pause(&self, thread_id: &str) {
+        self.inner.speech.toggle_pause(thread_id);
+    }
     /// "Okey, geç": drop this channel's current utterance; the next queued one plays (unpaused).
-    pub fn skip(&self, _thread_id: &str) {}
+    pub fn skip(&self, thread_id: &str) {
+        self.inner.speech.skip(thread_id);
+    }
     /// Drop this channel's current utterance and backlog; keep listening live.
-    pub fn jump_to_live(&self, _thread_id: &str) {}
+    pub fn jump_to_live(&self, thread_id: &str) {
+        self.inner.speech.jump_to_live(thread_id);
+    }
     /// Mute every channel and silence playback.
-    pub fn mute_all(&self) {}
+    pub fn mute_all(&self) {
+        self.inner.speech.mute_all();
+    }
     /// Snapshot of every channel that is not the default (muted, idle, nothing unheard).
     pub fn channels(&self) -> HashMap<String, ChannelView> {
-        HashMap::new()
+        self.inner.speech.channels()
     }
     /// Starts Wispr Flow hands-free dictation (`wispr-flow://start-hands-free`) for a reply to
     /// `thread_id` and watches Wispr's History DB for the transcript (→ `DictationTranscript`).
-    pub fn dictation_start(&self, _thread_id: &str) {}
+    pub fn dictation_start(&self, thread_id: &str) {
+        self.inner.wispr.start(thread_id);
+    }
     /// Ends hands-free dictation (`wispr-flow://stop-hands-free`); the transcript follows.
-    pub fn dictation_stop(&self) {}
+    pub fn dictation_stop(&self) {
+        self.inner.wispr.stop();
+    }
     /// Ends hands-free dictation and ignores its transcript.
-    pub fn dictation_cancel(&self) {}
-    /// Non-blocking `t3 thread send <id> -` (text prefixed with `Config.reply_prefix`), then
-    /// `set_listening(id, true)` so the agent's acknowledgement is heard. → `ReplySent`.
-    pub fn send_reply(&self, _thread_id: &str, _text: &str) {}
+    pub fn dictation_cancel(&self) {
+        self.inner.wispr.cancel();
+    }
+    /// Non-blocking `t3 thread send <id> - --json` (text prefixed with `Config.reply_prefix`).
+    /// Right before sending, the channel starts listening without a catch-up line, from the send
+    /// time on, so the agent's acknowledgement is the first thing heard. → `ReplySent`.
+    pub fn send_reply(&self, thread_id: &str, text: &str) {
+        let core = self.clone();
+        let thread_id = thread_id.to_owned();
+        let payload = format!("{}{text}", self.inner.reply_prefix);
+        let spawned = std::thread::Builder::new().name("t3p-reply".into()).spawn(move || core.reply(&thread_id, &payload));
+        if let Err(e) = spawned {
+            let _ = self.inner.events.send(CoreEvent::Error(format!("reply thread: {e}")));
+        }
+    }
+
+    fn reply(&self, thread: &str, payload: &str) {
+        let inner = &*self.inner;
+        let status = {
+            let threads = inner.threads.read().unwrap_or_else(|p| p.into_inner());
+            threads.iter().find(|t| t.id == thread).map(|t| t.status.clone()).unwrap_or_default()
+        };
+        let queued = status == "running";
+        inner.speech.listen_from(thread, telemetry::now_unix_ms());
+        let argv: [&OsStr; 6] =
+            [inner.t3_bin.as_os_str(), "thread".as_ref(), "send".as_ref(), thread.as_ref(), "-".as_ref(), "--json".as_ref()];
+        let input = json!({"thread": thread, "argv": t3::argv_json(&argv), "text_with_prefix": payload,
+                           "queued": queued, "status": status});
+        let (ok, detail) = match t3::run_cmd(&argv, Some(payload.as_bytes())) {
+            Ok(o) => {
+                let stdout = String::from_utf8_lossy(&o.stdout).trim().to_owned();
+                let mut out = o.telemetry();
+                out["exit"] = json!(o.exit_code);
+                out["json"] = serde_json::from_str(&stdout).unwrap_or(Value::Null);
+                out["stdout"] = json!(stdout);
+                out["stderr"] = json!(o.stderr.trim());
+                let err = (!o.success()).then(|| o.failure());
+                inner.tel.event("reply.send", Some(o.wall_ms), err.is_none(), input, out, err.as_deref());
+                match err {
+                    None => (true, stdout),
+                    Some(e) => (false, e),
+                }
+            }
+            Err(e) => {
+                let err = format!("spawn: {e}");
+                inner.tel.event("reply.send", None, false, input, Value::Null, Some(&err));
+                (false, err)
+            }
+        };
+        let _ = inner.events.send(CoreEvent::ReplySent { thread_id: thread.to_owned(), ok, queued, detail });
+    }
+
     /// Opens the thread inside the T3 desktop app (`t3code://threads/<env>/<thread>`).
     pub fn open_thread(&self, thread_id: &str) {
-        let link = self.threads().into_iter().find(|t| t.id == thread_id).map(|t| t.link);
-        let Some(link) = link.filter(|l| !l.is_empty()) else {
-            let err = format!("no link known for thread {thread_id}");
-            self.inner.tel.event("thread.open", None, false, json!({"thread": thread_id}), Value::Null, Some(&err));
+        let link = {
+            let threads = self.inner.threads.read().unwrap_or_else(|p| p.into_inner());
+            threads.iter().find(|t| t.id == thread_id).map(|t| t.link.clone()).unwrap_or_default()
+        };
+        let Some(app_url) = app_url(&link) else {
+            let err = format!("no T3 link known for thread {thread_id}");
+            self.inner.tel.event("thread.open", None, false, json!({"thread": thread_id, "link": link}), Value::Null, Some(&err));
             let _ = self.inner.events.send(CoreEvent::Error(err));
             return;
         };
         let core = self.clone();
         let thread_id = thread_id.to_owned();
-        std::thread::spawn(move || {
-            let argv = ["/usr/bin/open", link.as_str()];
-            let input = json!({"thread": thread_id, "link": link, "argv": argv});
+        let spawned = std::thread::Builder::new().name("t3p-open".into()).spawn(move || {
+            let argv = ["/usr/bin/open", app_url.as_str()];
+            let input = json!({"thread": thread_id, "link": link, "app_url": app_url, "argv": argv});
             if let Err(e) = t3::run_logged(&core.inner.tel, "thread.open", &argv, input, |_| Ok(((), Value::Null))) {
-                let _ = core.inner.events.send(CoreEvent::Error(format!("open {link}: {e:#}")));
+                let _ = core.inner.events.send(CoreEvent::Error(format!("open {app_url}: {e:#}")));
             }
         });
+        if let Err(e) = spawned {
+            let _ = self.inner.events.send(CoreEvent::Error(format!("open thread: {e}")));
+        }
     }
     pub fn live_stats(&self) -> LiveStats {
         self.inner.tel.live_stats()
@@ -273,6 +357,13 @@ impl Core {
         let kind = if kind.starts_with("ui.") { kind.to_owned() } else { format!("ui.{kind}") };
         self.inner.tel.event(&kind, None, true, input, Value::Null, None);
     }
+}
+
+/// `https://app.t3.codes/threads/<env>/<thread>` → `t3code://threads/<env>/<thread>` (the T3
+/// desktop app's deep link, so `open` never lands in a browser).
+fn app_url(link: &str) -> Option<String> {
+    let path = link.split_once("/threads/")?.1;
+    (!path.is_empty()).then(|| format!("t3code://threads/{path}"))
 }
 
 fn os_version() -> String {

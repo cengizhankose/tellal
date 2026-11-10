@@ -63,6 +63,18 @@ impl Dist {
 fn summarize(events: &[Value], metrics: &[Value]) -> Value {
     let mut kinds: BTreeMap<&str, (usize, usize, Dist)> = BTreeMap::new();
     let mut c2a = Dist::default();
+    let mut m2a = Dist::default();
+    // live.poll: count, errors, dur, child CPU, rows, new messages
+    let (mut live_n, mut live_err, mut live_dur, mut live_cpu, mut live_rows, mut live_new) =
+        (0usize, 0usize, Dist::default(), 0.0f64, 0u64, 0u64);
+    // audio.play: count, skipped, paused ms, label spoken
+    let (mut audio_n, mut audio_skipped, mut audio_paused, mut audio_label) = (0usize, 0usize, 0.0f64, 0usize);
+    // wispr.history: count, ok, latency from stop / from start, Wispr's e2eLatency
+    let (mut dict_n, mut dict_ok, mut dict_stop, mut dict_start, mut dict_e2e) =
+        (0usize, 0usize, Dist::default(), Dist::default(), Dist::default());
+    // reply.send: count, ok, queued, dur
+    let (mut reply_n, mut reply_ok, mut reply_queued, mut reply_dur) = (0usize, 0usize, 0usize, Dist::default());
+    let mut channels: BTreeMap<&str, usize> = BTreeMap::new();
     let mut t3_cost: BTreeMap<&str, (usize, f64, f64)> = BTreeMap::new();
     let mut db_cost: BTreeMap<&str, (usize, f64, f64)> = BTreeMap::new();
     for e in events {
@@ -73,14 +85,45 @@ fn summarize(events: &[Value], metrics: &[Value]) -> Value {
             entry.1 += 1;
         }
         entry.2.push(e["dur_ms"].as_f64());
-        if kind == "audio.play" {
-            c2a.push(e["out"]["click_to_audio_ms"].as_f64());
+        let (ok, inp, out) = (e["ok"] == true, &e["in"], &e["out"]);
+        match kind {
+            "live.poll" => {
+                live_n += 1;
+                live_err += usize::from(e["ok"] == false);
+                live_dur.push(e["dur_ms"].as_f64());
+                live_cpu += out["child_cpu_ms"].as_f64().unwrap_or(0.0);
+                live_rows += out["rows"].as_u64().unwrap_or(0);
+                live_new += out["new_msgs"].as_u64().unwrap_or(0);
+            }
+            "audio.play" => {
+                c2a.push(out["click_to_audio_ms"].as_f64());
+                m2a.push(out["msg_to_audio_ms"].as_f64());
+                audio_n += 1;
+                audio_skipped += usize::from(out["skipped"] == true);
+                audio_paused += out["paused_ms"].as_f64().unwrap_or(0.0);
+                audio_label += usize::from(out["label_spoken"] == true);
+            }
+            "wispr.history" => {
+                dict_n += 1;
+                dict_ok += usize::from(ok);
+                dict_stop.push(out["latency_from_stop_ms"].as_f64());
+                dict_start.push(out["latency_from_start_ms"].as_f64());
+                dict_e2e.push(out["e2eLatency"].as_f64());
+            }
+            "reply.send" => {
+                reply_n += 1;
+                reply_ok += usize::from(ok);
+                reply_queued += usize::from(inp["queued"] == true);
+                reply_dur.push(e["dur_ms"].as_f64());
+            }
+            k if k.starts_with("channel.") => *channels.entry(k).or_default() += 1,
+            _ => {}
         }
-        // T3 CLI processes vs. the cheap read-only sqlite3 queries (t3.discover, t3.changes).
-        if let Some(cpu) = e["out"]["child_cpu_ms"].as_f64() {
+        // T3 CLI processes vs. the cheap read-only sqlite3 queries on T3's state DB.
+        if let Some(cpu) = out["child_cpu_ms"].as_f64() {
             let bucket = match kind {
-                "t3.list" | "t3.show" => &mut t3_cost,
-                "t3.discover" | "t3.changes" => &mut db_cost,
+                "t3.list" | "reply.send" => &mut t3_cost,
+                "t3.discover" | "t3.changes" | "t3.messages" | "live.poll" => &mut db_cost,
                 _ => continue,
             };
             let c = bucket.entry(kind).or_default();
@@ -119,6 +162,15 @@ fn summarize(events: &[Value], metrics: &[Value]) -> Value {
                     "rss_mb": rss.json(), "cpu_pct": cpu.json(),
                     "children_cpu_ms_total": metrics.last().and_then(|m| m["children_cpu_ms_total"].as_f64()).map(round2)},
         "click_to_audio_ms": c2a.json(),
+        "msg_to_audio_ms": m2a.json(),
+        "live_poll": {"count": live_n, "errors": live_err, "dur_ms": live_dur.json(),
+                      "child_cpu_ms_total": round2(live_cpu), "rows_total": live_rows, "new_msgs_total": live_new},
+        "audio_play": {"count": audio_n, "skipped": audio_skipped, "paused_ms_total": round2(audio_paused),
+                       "label_spoken": audio_label},
+        "dictation": {"count": dict_n, "ok": dict_ok, "latency_from_stop_ms": dict_stop.json(),
+                      "latency_from_start_ms": dict_start.json(), "e2eLatency": dict_e2e.json()},
+        "reply_send": {"count": reply_n, "ok": reply_ok, "queued": reply_queued, "dur_ms": reply_dur.json()},
+        "channel_actions": {"total": channels.values().sum::<usize>(), "by_kind": channels},
         "t3_cli": totals(&t3_cost),
         "state_db": totals(&db_cost),
     })
@@ -132,14 +184,19 @@ fn f(v: &Value) -> String {
     v.as_f64().map_or_else(|| "-".into(), |x| format!("{x:.1}"))
 }
 
+/// `n=.. p50=.. p95=.. max=..` of a [`Dist`] JSON.
+fn dist(d: &Value) -> String {
+    format!("n={} p50={} p95={} max={}", d["n"], f(&d["p50"]), f(&d["p95"]), f(&d["max"]))
+}
+
 fn print_summary(dir: &Path, r: &Value) {
     println!("run: {}", dir.display());
     println!("events: {}", r["events"]);
-    println!("\n{:<16} {:>6} {:>6} {:>10} {:>10} {:>10}", "kind", "count", "errors", "p50_ms", "p95_ms", "max_ms");
+    println!("\n{:<24} {:>6} {:>6} {:>10} {:>10} {:>10}", "kind", "count", "errors", "p50_ms", "p95_ms", "max_ms");
     for (k, v) in r["kinds"].as_object().into_iter().flatten() {
         let d = &v["dur_ms"];
         let n = |x: &Value| x.as_u64().unwrap_or(0);
-        println!("{k:<16} {:>6} {:>6} {:>10} {:>10} {:>10}", n(&v["count"]), n(&v["errors"]), f(&d["p50"]), f(&d["p95"]), f(&d["max"]));
+        println!("{k:<24} {:>6} {:>6} {:>10} {:>10} {:>10}", n(&v["count"]), n(&v["errors"]), f(&d["p50"]), f(&d["p95"]), f(&d["max"]));
     }
     let m = &r["metrics"];
     println!(
@@ -148,8 +205,29 @@ fn print_summary(dir: &Path, r: &Value) {
     );
     println!("rss_mb: min={} avg={} max={}", f(&m["rss_mb"]["min"]), f(&m["rss_mb"]["avg"]), f(&m["rss_mb"]["max"]));
     println!("cpu_pct: avg={} max={}", f(&m["cpu_pct"]["avg"]), f(&m["cpu_pct"]["max"]));
-    let c = &r["click_to_audio_ms"];
-    println!("click_to_audio_ms: n={} p50={} p95={} max={}", c["n"], f(&c["p50"]), f(&c["p95"]), f(&c["max"]));
+    println!("click_to_audio_ms: {}", dist(&r["click_to_audio_ms"]));
+    println!("msg_to_audio_ms: {}", dist(&r["msg_to_audio_ms"]));
+    let a = &r["audio_play"];
+    println!(
+        "audio.play: count={} skipped={} paused_ms_total={} label_spoken={}",
+        a["count"], a["skipped"], f(&a["paused_ms_total"]), a["label_spoken"]
+    );
+    let l = &r["live_poll"];
+    println!(
+        "live.poll: count={} errors={} child_cpu_ms_total={} rows_total={} new_msgs_total={} dur_ms {}",
+        l["count"], l["errors"], f(&l["child_cpu_ms_total"]), l["rows_total"], l["new_msgs_total"], dist(&l["dur_ms"])
+    );
+    let w = &r["dictation"];
+    println!("dictation: count={} ok={}", w["count"], w["ok"]);
+    println!("  latency_from_stop_ms: {}", dist(&w["latency_from_stop_ms"]));
+    println!("  latency_from_start_ms: {}", dist(&w["latency_from_start_ms"]));
+    println!("  e2eLatency: {}", dist(&w["e2eLatency"]));
+    let s = &r["reply_send"];
+    println!("reply.send: count={} ok={} queued={} dur_ms {}", s["count"], s["ok"], s["queued"], dist(&s["dur_ms"]));
+    let ch = &r["channel_actions"];
+    let by_kind: Vec<String> =
+        ch["by_kind"].as_object().into_iter().flatten().map(|(k, v)| format!("{k}={v}")).collect();
+    println!("channel actions: total={} {}", ch["total"], by_kind.join(" "));
     let t = &r["t3_cli"];
     println!("t3 cli: calls={} wall_ms={} child_cpu_ms={}", t["calls"], f(&t["wall_ms"]), f(&t["child_cpu_ms"]));
     for (k, v) in t["by_kind"].as_object().into_iter().flatten() {
@@ -234,7 +312,7 @@ fn kind_bars(kinds: &Value) -> String {
     let max = rows.iter().map(|r| r.3).fold(1.0, f64::max);
     let row_h = 22.0;
     let h = 30.0 + row_h * rows.len() as f64;
-    let label_w = 130.0;
+    let label_w = 170.0;
     let scale = |v: f64| v / max * (W - label_w - 170.0);
     let mut s = format!(r#"<svg viewBox="0 0 {W} {h}" width="{W}" height="{h}" xmlns="http://www.w3.org/2000/svg"><text x="4" y="16" class="t">dur_ms per kind (light = max, mid = p95, dark = p50)</text>"#);
     for (i, (k, p50, p95, mx)) in rows.iter().enumerate() {
@@ -268,19 +346,65 @@ fn render_html(dir: &Path, report: &Value, events: &[Value], metrics: &[Value]) 
         .collect();
     let utterances: String = events
         .iter()
-        .filter(|e| e["kind"] == "speak.extract")
+        .filter(|e| e["kind"] == "speak.enqueue")
         .map(|e| {
             format!(
                 "<tr><td>{}</td><td>{}</td><td>{}</td></tr>",
                 esc(e["in"]["thread"].as_str().unwrap_or_default()),
-                esc(e["out"]["rule"].as_str().unwrap_or_default()),
-                esc(e["out"]["text"].as_str().unwrap_or_default())
+                esc(e["in"]["source"].as_str().unwrap_or_default()),
+                esc(e["in"]["text"].as_str().unwrap_or_default())
             )
         })
         .collect();
     let m = &report["metrics"];
     let c = &report["click_to_audio_ms"];
     let t = &report["t3_cli"];
+    let db = &report["state_db"];
+    let (lp, ap, dc, rs, ch) = (
+        &report["live_poll"],
+        &report["audio_play"],
+        &report["dictation"],
+        &report["reply_send"],
+        &report["channel_actions"],
+    );
+    let channel_kinds: Vec<String> =
+        ch["by_kind"].as_object().into_iter().flatten().map(|(k, v)| format!("{k}={v}")).collect();
+    let sections = [
+        ("click→audio ms", dist(c)),
+        ("msg→audio ms", dist(&report["msg_to_audio_ms"])),
+        (
+            "audio.play",
+            format!(
+                "count={} skipped={} paused_ms_total={} label_spoken={}",
+                ap["count"], ap["skipped"], f(&ap["paused_ms_total"]), ap["label_spoken"]
+            ),
+        ),
+        (
+            "live.poll",
+            format!(
+                "count={} errors={} child_cpu_ms_total={} rows_total={} new_msgs_total={}",
+                lp["count"], lp["errors"], f(&lp["child_cpu_ms_total"]), lp["rows_total"], lp["new_msgs_total"]
+            ),
+        ),
+        ("live.poll dur ms", dist(&lp["dur_ms"])),
+        ("dictation", format!("count={} ok={}", dc["count"], dc["ok"])),
+        ("dictation from stop ms", dist(&dc["latency_from_stop_ms"])),
+        ("dictation from start ms", dist(&dc["latency_from_start_ms"])),
+        ("Wispr e2eLatency ms", dist(&dc["e2eLatency"])),
+        ("reply.send", format!("count={} ok={} queued={}", rs["count"], rs["ok"], rs["queued"])),
+        ("reply.send dur ms", dist(&rs["dur_ms"])),
+        ("channel actions", format!("total={} {}", ch["total"], channel_kinds.join(" "))),
+        (
+            "T3 CLI",
+            format!("calls={} wall_ms={} child_cpu_ms={}", t["calls"], f(&t["wall_ms"]), f(&t["child_cpu_ms"])),
+        ),
+        (
+            "state DB (sqlite3)",
+            format!("calls={} wall_ms={} child_cpu_ms={}", db["calls"], f(&db["wall_ms"]), f(&db["child_cpu_ms"])),
+        ),
+    ];
+    let stats: String =
+        sections.iter().map(|(k, v)| format!("<tr><th>{}</th><td>{}</td></tr>", esc(k), esc(v))).collect();
     format!(
         r#"<!doctype html><html><head><meta charset="utf-8"><title>t3-panel report {run}</title><style>
 body{{font:13px -apple-system,system-ui,sans-serif;margin:24px;color:#222;max-width:820px}}
@@ -289,11 +413,13 @@ h1{{font-size:18px}} h2{{font-size:14px;margin-top:28px}} table{{border-collapse
 </style></head><body>
 <h1>t3-panel run {run}</h1>
 <p>{events} events · {rows} metric rows over {span}s ({rps} rows/s) · RSS min/avg/max {rmin}/{ravg}/{rmax} MB · CPU avg/max {cavg}/{cmax}%<br>
-click→audio p50/p95/max {c50}/{c95}/{cmax2} ms (n={cn}) · T3 CLI {calls} calls, {twall} ms wall, {tcpu} ms child CPU</p>
+click→audio p50/p95/max {c50}/{c95}/{cmax2} ms (n={cn}) · T3 CLI {calls} calls, {twall} ms wall, {tcpu} ms child CPU<br>
+msg→audio p50 {m50} ms · dictation {dn} ({dok} ok), from stop p50 {ds50} ms · replies {rn} ({rq} queued) · state DB {dbcalls} calls, {dbcpu} ms child CPU</p>
+<h2>Live, audio, dictation, replies</h2><table>{stats}</table>
 <h2>Memory &amp; CPU</h2>{rss_svg}<br>{cpu_svg}
 <h2>TTS synth_ms vs chars</h2>{scatter_svg}
 <h2>Duration by kind</h2>{bars_svg}
-<h2>Spoken texts</h2><table><tr><th>thread</th><th>rule</th><th>text</th></tr>{utterances}</table>
+<h2>Spoken texts (speak.enqueue)</h2><table><tr><th>thread</th><th>source</th><th>text</th></tr>{utterances}</table>
 <h2>report.json</h2><pre>{json}</pre>
 </body></html>"#,
         run = esc(&dir.file_name().unwrap_or_default().to_string_lossy()),
@@ -313,6 +439,14 @@ click→audio p50/p95/max {c50}/{c95}/{cmax2} ms (n={cn}) · T3 CLI {calls} call
         calls = t["calls"],
         twall = f(&t["wall_ms"]),
         tcpu = f(&t["child_cpu_ms"]),
+        m50 = f(&report["msg_to_audio_ms"]["p50"]),
+        dn = dc["count"],
+        dok = dc["ok"],
+        ds50 = f(&dc["latency_from_stop_ms"]["p50"]),
+        rn = rs["count"],
+        rq = rs["queued"],
+        dbcalls = db["calls"],
+        dbcpu = f(&db["child_cpu_ms"]),
         rss_svg = line_chart("RSS over time", "MB", &rss, "#1c4f9c"),
         cpu_svg = line_chart("CPU over time", "%", &cpu, "#2b8a3e"),
         scatter_svg = scatter("tts.synth: synth_ms vs chars", &synth),

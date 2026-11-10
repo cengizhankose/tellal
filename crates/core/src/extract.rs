@@ -1,15 +1,40 @@
-//! Pure speakable-text extraction: (thread status, title, messages) → (Turkish text, rule name).
+//! Pure speakable-text extraction: (thread status, title, messages) → (Turkish text, rule name),
+//! and one live assistant message → its spoken line.
 
 use crate::t3::Message;
 
 /// Max chars of the completed/idle summary.
 const SUMMARY_MAX_CHARS: usize = 220;
+/// Max chars spoken for one live message without a `🔊` line.
+const LIVE_MAX_CHARS: usize = 160;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Extracted {
     pub text: String,
-    /// `speaker_line` | `summary` | `running` | `stopped` | `empty`.
+    /// `speaker_line` | `summary` | `running` | `stopped` | `empty` (catch-up);
+    /// `speaker_line` | `first_sentence` | `empty` (live).
     pub rule: &'static str,
+}
+
+/// The normalized `🔊` line of a message, if it has a non-empty one.
+fn speaker_line(text: &str) -> Option<String> {
+    let line = text.lines().map(str::trim_start).find(|l| l.starts_with('🔊'))?;
+    Some(normalize(line.trim_start_matches('🔊'))).filter(|t| !t.is_empty())
+}
+
+/// What to say for one new assistant message: its `🔊` line, else its first sentence (at most
+/// [`LIVE_MAX_CHARS`] chars). `rule == "empty"` (empty text) when nothing is speakable.
+pub fn live_line(text: &str) -> Extracted {
+    if let Some(text) = speaker_line(text) {
+        return Extracted { text, rule: "speaker_line" };
+    }
+    match split_sentences(&normalize(text)).into_iter().next() {
+        Some(first) if first.chars().count() > LIVE_MAX_CHARS => {
+            Extracted { text: truncate_words(&first, LIVE_MAX_CHARS), rule: "first_sentence" }
+        }
+        Some(first) => Extracted { text: first, rule: "first_sentence" },
+        None => Extracted { text: String::new(), rule: "empty" },
+    }
 }
 
 /// Picks what to say about a thread. Messages are oldest → newest.
@@ -20,13 +45,8 @@ pub fn extract(status: &str, title: &str, messages: &[Message]) -> Extracted {
         .rev()
         .take_while(|m| latest_run.is_none() || m.run_id.as_deref() == latest_run)
         .find(|m| m.role == "assistant");
-    if let Some(m) = last_assistant_of_run
-        && let Some(line) = m.text.lines().map(str::trim_start).find(|l| l.starts_with('🔊'))
-    {
-        let text = normalize(line.trim_start_matches('🔊'));
-        if !text.is_empty() {
-            return Extracted { text, rule: "speaker_line" };
-        }
+    if let Some(text) = last_assistant_of_run.and_then(|m| speaker_line(&m.text)) {
+        return Extracted { text, rule: "speaker_line" };
     }
     let last_assistant = messages.iter().rev().find(|m| m.role == "assistant").map(|m| normalize(&m.text));
     let last_assistant = last_assistant.filter(|t| !t.is_empty());
