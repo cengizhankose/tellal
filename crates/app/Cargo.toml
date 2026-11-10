@@ -17,3 +17,5 @@ gpui = { version = "0.2.2", default-features = false, features = ["font-kit", "r
 # Both already in gpui's macOS dependency tree; used for the few AppKit calls gpui does not expose.
 objc = "0.2"
 raw-window-handle = "0.6"
+# Global show/hide shortcut (Carbon `RegisterEventHotKey`; needs no Accessibility permission).
+global-hotkey = "0.7"

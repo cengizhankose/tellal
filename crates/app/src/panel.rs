@@ -1,197 +1,172 @@
-//! The floating panel view: channel rows, header controls, reply dock, live HUD footer, core
-//! event pump and the `T3P_SELFTEST` drivers.
+//! The floating panel (DESIGN §5): state, the core event pump, window height and the top-level
+//! layout. Each region renders in its own child module.
 
-use std::collections::HashMap;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+mod dock;
+mod header;
+mod keys;
+mod list;
+mod metrics;
+mod player;
+mod selftest;
+
+use std::collections::{HashMap, HashSet};
+use std::time::{Duration, Instant};
 
 use gpui::{
-    AnyView, App, AppContext, Context, Div, ElementId, Entity, Focusable, FontWeight, MouseButton,
-    SharedString, Stateful, Window, div, prelude::*, px, rgb, rgba,
+    App, AppContext, Context, Entity, FocusHandle, Focusable, MouseButton, ScrollHandle, SharedString, Window, div,
+    prelude::*, px,
 };
 use serde_json::{Value, json};
 use t3_panel_core::{ChannelView, Core, CoreEvent, LiveStats, Receiver, ThreadView};
 
-use crate::input::{EditSource, InputEvent, TextInput};
-use crate::mac::{self, FrontApp};
+use crate::hotkey::Hotkey;
+use crate::input::{InputEvent, TextInput};
+use crate::mac::{self, FrontApp, NativeWindow};
+use crate::model::{self, Filter, Item, ListModel, Section};
+use crate::motion::{self, Motion};
+use crate::theme::Theme;
+use crate::time;
+
+pub use keys::bind_keys;
+pub use selftest::SelfTestMode;
+
+use dock::ReplyDock;
+use metrics::Sparks;
+use selftest::SelfTest;
 
 const PUMP_INTERVAL: Duration = Duration::from_millis(150);
 const STATS_INTERVAL: Duration = Duration::from_secs(1);
-const SELFTEST_TIMEOUT: Duration = Duration::from_secs(60);
-const SELFTEST_QUIT_DELAY: Duration = Duration::from_secs(1);
-const SELFTEST_REPLY_QUIT_DELAY: Duration = Duration::from_secs(3);
-const SELFTEST_DEFAULT_STOP_AFTER: Duration = Duration::from_millis(8000);
-/// Wispr pastes into the focused field itself; only fill from its History DB if nothing came.
-const TRANSCRIPT_FILL_DELAY: Duration = Duration::from_millis(600);
-const DOCK_CLOSE_DELAY: Duration = Duration::from_millis(1200);
 /// Delay before recording which app ended up frontmost after an activate / restore.
 const FOCUS_CHECK_DELAY: Duration = Duration::from_millis(500);
+const TOAST_FOR: Duration = Duration::from_millis(1800);
 
-const TEXT: u32 = 0xe8e8ed;
-const TEXT_DIM: u32 = 0x9a9aa2;
-const BLUE: u32 = 0x0a84ff;
-const GREEN: u32 = 0x30d158;
-const AMBER: u32 = 0xffb340;
-const GRAY: u32 = 0x8e8e93;
-const RED: u32 = 0xff6961;
-
-struct Row {
-    id: SharedString,
-    title: SharedString,
-    status_color: u32,
-    project: String,
-    provider: String,
-    /// Unix seconds parsed from `updated_at`, `None` if T3 sent something unparseable.
-    updated_unix: Option<i64>,
-}
-
-impl Row {
-    fn new(thread: &ThreadView) -> Row {
-        Row {
-            id: thread.id.clone().into(),
-            title: thread.title.clone().into(),
-            status_color: status_color(&thread.status),
-            project: thread.project.clone(),
-            provider: thread.provider.clone(),
-            updated_unix: parse_rfc3339_unix(&thread.updated_at),
-        }
-    }
-}
-
-/// `T3P_SELFTEST` value.
-#[derive(Clone, Debug)]
-pub enum SelfTestMode {
-    Off,
-    /// `1`: listen to the first completed thread, wait for its audio to finish, mute all, quit.
-    Listen,
-    /// `reply:<thread_id>`: the Cevapla flow, then the Gönder path after `stop_after`.
-    Reply { thread_id: String, stop_after: Duration, nosend: bool },
-}
-
-impl SelfTestMode {
-    pub fn from_env() -> SelfTestMode {
-        let Ok(value) = std::env::var("T3P_SELFTEST") else {
-            return SelfTestMode::Off;
-        };
-        if value == "1" {
-            return SelfTestMode::Listen;
-        }
-        let Some(thread_id) = value.strip_prefix("reply:").map(str::trim).filter(|t| !t.is_empty()) else {
-            return SelfTestMode::Off;
-        };
-        let stop_after = std::env::var("T3P_SELFTEST_STOP_AFTER_MS")
-            .ok()
-            .and_then(|v| v.trim().parse().ok())
-            .map_or(SELFTEST_DEFAULT_STOP_AFTER, Duration::from_millis);
-        let nosend = std::env::var_os("T3P_SELFTEST_NOSEND").is_some_and(|v| v == "1");
-        SelfTestMode::Reply { thread_id: thread_id.to_owned(), stop_after, nosend }
-    }
-
-    pub fn to_json(&self) -> Value {
-        match self {
-            SelfTestMode::Off => Value::Null,
-            SelfTestMode::Listen => json!({"mode": "listen"}),
-            SelfTestMode::Reply { thread_id, stop_after, nosend } => json!({
-                "mode": "reply", "thread": thread_id,
-                "stop_after_ms": stop_after.as_millis() as u64, "nosend": nosend,
-            }),
-        }
-    }
-}
-
-enum SelfTest {
-    Off,
-    WaitingForThreads { deadline: Instant },
-    Listening { thread_id: String, deadline: Instant },
-    /// Dock open; take the Gönder path at `stop_at`.
-    Replying { stop_at: Instant, deadline: Instant },
-    /// Gönder taken; waiting for the send (or the no-send log) to finish.
-    ReplySubmitted { deadline: Instant },
-    Quitting { at: Instant },
-}
-
-#[derive(Clone, Debug, PartialEq)]
-enum ReplyPhase {
-    /// Wispr hands-free dictation was requested and has not delivered a transcript yet.
-    Dictating,
-    /// No dictation running; the user edits/types. `note` explains why (failure, transcript in).
-    Editing { note: Option<SharedString> },
-    /// Gönder pressed while dictating: `dictation_stop` sent, send as soon as text exists.
-    WaitingText,
-    Sending,
-    Sent { queued: bool },
-}
-
-impl ReplyPhase {
-    fn name(&self) -> &'static str {
-        match self {
-            ReplyPhase::Dictating => "dictating",
-            ReplyPhase::Editing { .. } => "editing",
-            ReplyPhase::WaitingText => "waiting_text",
-            ReplyPhase::Sending => "sending",
-            ReplyPhase::Sent { .. } => "sent",
-        }
-    }
-
-    fn dictation_active(&self) -> bool {
-        matches!(self, ReplyPhase::Dictating | ReplyPhase::WaitingText)
-    }
-}
-
-struct ReplyDock {
-    thread_id: String,
-    title: SharedString,
-    phase: ReplyPhase,
-    /// Wispr History transcript waiting for the fill-or-compare decision.
-    transcript: Option<(String, Instant)>,
-    /// Every source that edited the text, in first-seen order (`ui.selftest_reply.source`).
-    sources: Vec<EditSource>,
-    /// App to re-activate when the dock closes (`None` if we were already frontmost).
-    prev_app: Option<FrontApp>,
-    opened_at: Instant,
-    close_at: Option<Instant>,
-}
-
-impl ReplyDock {
-    fn chip(&self) -> (SharedString, u32) {
-        match &self.phase {
-            ReplyPhase::Dictating => ("🎙 Wispr dinliyor — bitince Caps Lock ya da Gönder".into(), BLUE),
-            ReplyPhase::Editing { note: Some(note) } => (note.clone(), AMBER),
-            ReplyPhase::Editing { note: None } => ("✎ yaz ya da düzenle · Enter gönderir".into(), TEXT_DIM),
-            ReplyPhase::WaitingText => ("⏳ metin bekleniyor".into(), AMBER),
-            ReplyPhase::Sending => ("⏳ gönderiliyor".into(), AMBER),
-            ReplyPhase::Sent { queued: false } => ("✓ gönderildi".into(), GREEN),
-            ReplyPhase::Sent { queued: true } => ("✓ gönderildi · sıraya alındı".into(), GREEN),
-        }
-    }
-
-    fn source_label(&self) -> String {
-        let names: Vec<&str> = self.sources.iter().map(|s| s.as_str()).collect();
-        names.join("+")
-    }
-}
+// Fixed region heights (px). The window is as tall as its content (DESIGN §5: 160–640).
+pub const WIDTH: f32 = 380.;
+const MIN_H: f32 = 160.;
+const MAX_H: f32 = 640.;
+const HEADER_H: f32 = 40.;
+const BANNER_H: f32 = 76.;
+const ATTENTION_H: f32 = 48.;
+const SEARCH_H: f32 = 44.;
+const SECTION_H: f32 = 32.;
+const ROW_H: f32 = 36.;
+const ROW2_H: f32 = 56.;
+const LIST_PAD: f32 = 8.;
+const STATE_BLOCK_H: f32 = 132.;
+const PLAYER_H: f32 = 112.;
+const COMPACT_IDLE_H: f32 = 44.;
+const DOCK_H: f32 = 116.;
+const STATUS_H: f32 = 32.;
+const DRAWER_H: f32 = 236.;
+const RADIUS: f32 = 14.;
 
 /// A row-body click remembered to detect the second click of a double-click.
 struct BodyClick {
-    thread_id: SharedString,
+    thread_id: String,
     at: Instant,
+}
+
+/// Error banner under the header (DESIGN §5 States).
+struct ErrorBanner {
+    message: SharedString,
+    retry: Option<Retry>,
+    seq: usize,
+}
+
+/// What `Tekrar dene` re-runs.
+#[derive(Clone, Debug)]
+enum Retry {
+    Open(String),
+}
+
+struct Toast {
+    text: SharedString,
+    until: Instant,
+    seq: usize,
+}
+
+struct Search {
+    open: bool,
+    input: Entity<TextInput>,
+    /// Lowercased query.
+    query: String,
+}
+
+/// Window height animation (content height changes: dock, player, compact, drawer…).
+struct Height {
+    from: f32,
+    to: f32,
+    start: Instant,
+    dur: Duration,
+    applied: f32,
+    /// `Panel::compact` when `to` was set.
+    compact: bool,
+}
+
+impl Height {
+    fn at(&self, now: Instant) -> f32 {
+        let elapsed = now.duration_since(self.start);
+        if self.dur.is_zero() || elapsed >= self.dur {
+            return self.to;
+        }
+        let t = elapsed.as_secs_f32() / self.dur.as_secs_f32();
+        self.from + (self.to - self.from) * motion::ease_in_out(t)
+    }
 }
 
 pub struct Panel {
     core: Core,
     process_start: Instant,
     ready_logged: bool,
-    rows: Vec<Row>,
+    native: Option<NativeWindow>,
+    focus: FocusHandle,
+
+    threads: Vec<ThreadView>,
+    /// `updated_at` of each thread as Unix seconds (parsed once per snapshot).
+    updated: Vec<Option<i64>>,
+    /// The first thread snapshot arrived (else the list shows the loading state).
+    loaded: bool,
     channels: HashMap<String, ChannelView>,
     stats: LiveStats,
     stats_at: Instant,
-    last_error: Option<SharedString>,
-    selected: Option<SharedString>,
+    sparks: Sparks,
+    now_unix: i64,
+
+    model: ListModel,
+    /// Sections the user collapsed/expanded away from T3's default.
+    toggled: HashSet<Section>,
+    /// Threads the user has seen this session (listened, opened or selected): their completion
+    /// no longer shows the green check (T3's "unseen completion").
+    seen: HashSet<String>,
+    start_unix: i64,
+    /// Last thread `open_thread` was called for (the error banner's `Tekrar dene`).
+    last_open: Option<String>,
+    selected: Option<String>,
+    hovered: Option<String>,
+    hover_seq: usize,
+    /// Row highlighted once after the attention card jumped to it.
+    pulse: Option<(String, usize)>,
+    attention_cursor: usize,
     last_body_click: Option<BodyClick>,
     double_click_interval: Duration,
+    scroll: ScrollHandle,
+    compact: bool,
+    drawer_open: bool,
+    search: Search,
+    error: Option<ErrorBanner>,
+    toast: Option<Toast>,
+    seq: usize,
+
     input: Entity<TextInput>,
     reply: Option<ReplyDock>,
     /// Pending `ui.focus {action: "check"}` (records which app actually ended up frontmost).
     focus_check: Option<(Instant, &'static str)>,
+
+    height: Height,
+    hotkey: Option<Hotkey>,
+    /// App that was frontmost when the global shortcut showed the panel.
+    hotkey_prev_app: Option<FrontApp>,
+
     selftest_mode: SelfTestMode,
     selftest: SelfTest,
 }
@@ -208,29 +183,65 @@ impl Panel {
         let now = Instant::now();
         let input = cx.new(|cx| TextInput::new("yaz, yapıştır ya da Wispr ile dikte et…", cx));
         cx.subscribe_in(&input, window, Panel::on_input_event).detach();
-        let selftest = match selftest_mode {
-            SelfTestMode::Off => SelfTest::Off,
-            _ => SelfTest::WaitingForThreads { deadline: now + SELFTEST_TIMEOUT },
-        };
+        let search_input = cx.new(|cx| TextInput::new("Ara: başlık ya da proje", cx));
+        cx.subscribe_in(&search_input, window, Panel::on_search_event).detach();
+        let native = NativeWindow::of(window);
+        if let Some(native) = native {
+            native.round_corners(f64::from(RADIUS));
+        }
+        let hotkey = Hotkey::register(&core);
+        let selftest = SelfTest::new(&selftest_mode, now);
+        let height = f32::from(window.bounds().size.height);
         let mut panel = Panel {
             stats: core.live_stats(),
             channels: core.channels(),
             core,
             process_start,
             ready_logged: false,
-            rows: Vec::new(),
+            native,
+            focus: cx.focus_handle(),
+            threads: Vec::new(),
+            updated: Vec::new(),
+            loaded: false,
             stats_at: now,
-            last_error: None,
+            sparks: Sparks::default(),
+            now_unix: time::now_unix(),
+            model: ListModel::default(),
+            toggled: HashSet::new(),
+            seen: HashSet::new(),
+            start_unix: time::now_unix(),
+            last_open: None,
             selected: None,
+            hovered: None,
+            hover_seq: 0,
+            pulse: None,
+            attention_cursor: 0,
             last_body_click: None,
             double_click_interval: mac::double_click_interval(),
+            scroll: ScrollHandle::new(),
+            compact: false,
+            drawer_open: false,
+            search: Search { open: false, input: search_input, query: String::new() },
+            error: None,
+            toast: None,
+            seq: 0,
             input,
             reply: None,
             focus_check: None,
+            height: Height {
+                from: height,
+                to: height,
+                start: now,
+                dur: Duration::ZERO,
+                applied: height,
+                compact: false,
+            },
+            hotkey,
+            hotkey_prev_app: None,
             selftest_mode,
             selftest,
         };
-        panel.refresh_rows();
+        panel.refresh_threads();
         cx.spawn_in(window, async move |this, cx| {
             loop {
                 cx.background_executor().timer(PUMP_INTERVAL).await;
@@ -243,15 +254,60 @@ impl Panel {
         panel
     }
 
-    fn refresh_rows(&mut self) -> Vec<ThreadView> {
-        let threads = self.core.threads();
-        self.rows.clear();
-        self.rows.extend(threads.iter().map(Row::new));
-        threads
+    fn next_seq(&mut self) -> usize {
+        self.seq += 1;
+        self.seq
     }
 
-    /// Drains core events, refreshes cached state, advances the reply dock and the self-test;
-    /// re-renders on change.
+    /// Marks a thread seen (its unseen-completion check disappears).
+    fn mark_seen(&mut self, thread_id: &str) {
+        if !self.seen.contains(thread_id) {
+            self.seen.insert(thread_id.to_owned());
+        }
+    }
+
+    fn refresh_threads(&mut self) {
+        self.threads = self.core.threads();
+        self.updated = self.threads.iter().map(|t| time::parse_rfc3339_unix(&t.updated_at)).collect();
+        if !self.threads.is_empty() {
+            self.loaded = true;
+        }
+        self.rebuild_model();
+    }
+
+    fn rebuild_model(&mut self) {
+        let filter = Filter { query: &self.search.query, toggled: &self.toggled };
+        self.model = model::build(&self.threads, &self.channels, &filter);
+    }
+
+    fn thread(&self, id: &str) -> Option<&ThreadView> {
+        self.threads.iter().find(|t| t.id == id)
+    }
+
+    fn channel(&self, id: &str) -> Option<&ChannelView> {
+        self.channels.get(id)
+    }
+
+    /// Threads waiting for the user, in list order.
+    fn waiting(&self) -> Vec<&ThreadView> {
+        self.threads.iter().filter(|t| self.channel(&t.id).is_some_and(|c| c.waiting_for_user)).collect()
+    }
+
+    /// Writes `ui.click` / `ui.key` with the action, its target and the state around it.
+    fn log_action(&self, source: &str, action: &str, target: Option<&str>, extra: Value) {
+        let kind = match source {
+            "key" => "ui.key",
+            "hotkey" => "ui.hotkey",
+            _ => "ui.click",
+        };
+        let mut input = json!({"action": action, "source": source, "thread": target});
+        if let (Value::Object(map), Value::Object(more)) = (&mut input, extra) {
+            map.extend(more);
+        }
+        self.core.log_ui(kind, input);
+    }
+
+    /// Drains core events, refreshes cached state, advances the dock, toast and self-test.
     fn pump(&mut self, events: &Receiver<CoreEvent>, window: &mut Window, cx: &mut Context<Panel>) {
         let mut changed = false;
         let mut threads_updated = false;
@@ -261,43 +317,69 @@ impl Panel {
             match event {
                 CoreEvent::ThreadsUpdated => threads_updated = true,
                 CoreEvent::ChannelsUpdated => channels_updated = true,
-                CoreEvent::SpeakingStarted { .. } => {
+                CoreEvent::SpeakingStarted { thread_id } => {
                     self.stats = self.core.live_stats();
                     channels_updated = true;
+                    self.selftest_speaking_started(&thread_id);
                 }
                 CoreEvent::SpeakingFinished { thread_id } => {
                     self.stats = self.core.live_stats();
                     channels_updated = true;
-                    if matches!(&self.selftest, SelfTest::Listening { thread_id: t, .. } if *t == thread_id) {
-                        self.core.log_ui("ui.selftest_mute_all", json!({"thread": thread_id}));
-                        self.core.mute_all();
-                        self.selftest = SelfTest::Quitting { at: Instant::now() + SELFTEST_QUIT_DELAY };
-                    }
+                    self.selftest_speaking_finished(&thread_id);
                 }
                 CoreEvent::DictationTranscript { thread_id, text } => self.on_transcript(thread_id, text),
                 CoreEvent::DictationFailed { thread_id, error } => self.on_dictation_failed(&thread_id, error),
                 CoreEvent::ReplySent { thread_id, ok, queued, detail } => {
-                    self.on_reply_sent(&thread_id, ok, queued, detail)
+                    self.on_reply_sent(&thread_id, ok, queued, detail, cx)
                 }
-                CoreEvent::Error(message) => self.last_error = Some(message.into()),
-                CoreEvent::ThemeChanged => {}
+                CoreEvent::Error(message) => {
+                    let retry = self.last_open.as_ref().filter(|id| message.contains(id.as_str())).cloned();
+                    self.show_error(message.into(), retry.map(Retry::Open));
+                }
+                CoreEvent::ThemeChanged => self.apply_theme(cx),
             }
         }
         if threads_updated {
-            let threads = self.refresh_rows();
-            if matches!(self.selftest, SelfTest::WaitingForThreads { .. }) && !threads.is_empty() {
-                self.start_selftest(&threads, window, cx);
-            }
+            self.refresh_threads();
+            self.loaded = true;
+            self.selftest_threads_ready(window, cx);
         }
         let now = Instant::now();
         if now.duration_since(self.stats_at) >= STATS_INTERVAL {
             self.stats = self.core.live_stats();
             self.stats_at = now;
-            channels_updated = true;
+            self.sparks.push(&self.stats);
+            let reduce = mac::reduce_motion();
+            if reduce != motion::reduced(cx) {
+                self.core.log_ui("ui.reduce_motion", json!({"reduce": reduce}));
+                cx.set_global(Motion { reduce });
+                changed = true;
+            }
+            let now_unix = time::now_unix();
+            if now_unix / 60 != self.now_unix / 60 {
+                changed = true;
+            }
+            self.now_unix = now_unix;
+            // Only the open drawer shows per-second numbers; otherwise stay idle.
+            changed |= self.drawer_open;
+        }
+        // Playback position is only in `channels()` (no event per tick): poll while audible.
+        channels_updated |= self.channels.values().any(|c| c.speaking && !c.paused);
+        if channels_updated {
+            let channels = self.core.channels();
+            if channels != self.channels {
+                self.channels = channels;
+                self.rebuild_model();
+                changed = true;
+            }
+        }
+        if self.hotkey.as_ref().is_some_and(Hotkey::pressed) {
+            self.toggle_visible(window, cx);
             changed = true;
         }
-        if channels_updated {
-            self.channels = self.core.channels();
+        if self.toast.as_ref().is_some_and(|t| now >= t.until) {
+            self.toast = None;
+            changed = true;
         }
         changed |= self.advance_reply(now, cx);
         if let Some((at, phase)) = self.focus_check
@@ -313,7 +395,7 @@ impl Panel {
                 }),
             );
         }
-        if self.advance_selftest(now, cx) {
+        if self.advance_selftest(now, window, cx) {
             return;
         }
         if changed {
@@ -321,352 +403,238 @@ impl Panel {
         }
     }
 
-    // ── reply dock ──────────────────────────────────────────────────────────────────────────
+    fn apply_theme(&mut self, cx: &mut Context<Panel>) {
+        let view = self.core.theme();
+        let fade = motion::fade(cx, motion::NORMAL);
+        let theme = cx.global_mut::<Theme>();
+        if *theme.view() == view {
+            return;
+        }
+        theme.apply(view, fade);
+        let payload = theme.to_json();
+        self.core.log_ui("ui.theme", payload);
+    }
 
-    /// "Cevapla": open (or retarget) the dock, make the panel key, focus the input and start
-    /// Wispr dictation for `thread_id`.
-    fn open_reply(&mut self, thread_id: &str, source: &str, window: &mut Window, cx: &mut Context<Panel>) {
-        let title = self
-            .rows
-            .iter()
-            .find(|r| r.id.as_ref() == thread_id)
-            .map_or_else(|| SharedString::from(thread_id.to_owned()), |r| r.title.clone());
-        let mut retarget_from = None;
-        let prev_app = match self.reply.take() {
-            Some(dock) if dock.thread_id == thread_id => {
-                // Same row again: just bring the focus back.
-                self.core.log_ui("ui.reply_open", json!({"thread": thread_id, "source": source, "refocus": true}));
-                self.reply = Some(dock);
-                self.focus_input(window, cx);
-                return;
-            }
-            Some(dock) => {
-                if dock.phase.dictation_active() {
-                    self.core.dictation_cancel();
-                }
-                retarget_from = Some(dock.thread_id);
-                dock.prev_app
-            }
-            None => mac::frontmost_app().filter(|a| !a.is_self()),
-        };
+    fn show_error(&mut self, message: SharedString, retry: Option<Retry>) {
+        let seq = self.next_seq();
         self.core.log_ui(
-            "ui.reply_open",
+            "ui.error_banner",
+            json!({"message": message.as_ref(), "retry": retry.as_ref().map(|r| format!("{r:?}"))}),
+        );
+        self.error = Some(ErrorBanner { message, retry, seq });
+    }
+
+    fn show_toast(&mut self, text: impl Into<SharedString>) {
+        let seq = self.next_seq();
+        self.toast = Some(Toast { text: text.into(), until: Instant::now() + TOAST_FOR, seq });
+    }
+
+    /// Global shortcut: hide, or show and take the keyboard (without activating the app).
+    fn toggle_visible(&mut self, window: &mut Window, cx: &mut Context<Panel>) {
+        let Some(native) = self.native else {
+            return;
+        };
+        let visible = native.is_visible();
+        if visible {
+            native.hide();
+            if let Some(app) = self.hotkey_prev_app.take() {
+                mac::activate_app(app.pid);
+            }
+        } else {
+            self.hotkey_prev_app = mac::frontmost_app().filter(|a| !a.is_self());
+            native.show_key();
+            window.focus(&self.focus);
+            if self.selected.is_none() {
+                self.selected = self.model.row_ids.first().cloned();
+            }
+        }
+        self.log_action(
+            "hotkey",
+            if visible { "hide" } else { "show" },
+            None,
             json!({
-                "thread": thread_id, "title": title.as_ref(), "source": source,
-                "retarget_from": retarget_from, "prev_app": prev_app.as_ref().map(FrontApp::to_json),
+                "spec": self.hotkey.as_ref().map(|h| h.spec.clone()),
+                "frontmost": mac::frontmost_app().map(|a| a.to_json()),
             }),
         );
-        if retarget_from.is_none() {
-            self.core.log_ui(
-                "ui.focus",
-                json!({"action": "activate", "prev_app": prev_app.as_ref().map(FrontApp::to_json)}),
-            );
-        }
-        let now = Instant::now();
-        self.reply = Some(ReplyDock {
-            thread_id: thread_id.to_owned(),
-            title,
-            phase: ReplyPhase::Dictating,
-            transcript: None,
-            sources: Vec::new(),
-            prev_app,
-            opened_at: now,
-            close_at: None,
-        });
-        self.focus_input(window, cx);
-        self.focus_check = Some((now + FOCUS_CHECK_DELAY, "opened"));
-        self.core.dictation_start(thread_id);
+        self.focus_check =
+            Some((Instant::now() + FOCUS_CHECK_DELAY, if visible { "hotkey_hide" } else { "hotkey_show" }));
         cx.notify();
     }
 
-    fn focus_input(&self, window: &mut Window, cx: &mut Context<Panel>) {
-        cx.activate(true);
-        window.activate_window();
-        let handle = self.input.read(cx).focus_handle(cx);
-        window.focus(&handle);
+    fn set_compact(&mut self, compact: bool, source: &str, cx: &mut Context<Panel>) {
+        if self.compact == compact {
+            return;
+        }
+        self.log_action(source, "compact", None, json!({"before": self.compact, "after": compact}));
+        self.compact = compact;
+        cx.notify();
     }
 
-    fn on_input_event(
+    fn set_drawer(&mut self, open: bool, source: &str, cx: &mut Context<Panel>) {
+        if self.drawer_open == open {
+            return;
+        }
+        self.log_action(source, "metrics_drawer", None, json!({"before": self.drawer_open, "after": open}));
+        self.drawer_open = open;
+        cx.notify();
+    }
+
+    fn open_search(&mut self, source: &str, window: &mut Window, cx: &mut Context<Panel>) {
+        self.log_action(source, "search_open", None, json!({"before": self.search.open}));
+        self.search.open = true;
+        self.set_compact(false, source, cx);
+        let handle = self.search.input.read(cx).focus_handle(cx);
+        window.focus(&handle);
+        cx.notify();
+    }
+
+    fn close_search(&mut self, source: &str, window: &mut Window, cx: &mut Context<Panel>) {
+        if !self.search.open {
+            return;
+        }
+        self.log_action(source, "search_close", None, json!({"query": self.search.query}));
+        self.search.open = false;
+        self.search.query.clear();
+        self.search.input.update(cx, |input, cx| input.clear(cx));
+        self.rebuild_model();
+        window.focus(&self.focus);
+        cx.notify();
+    }
+
+    fn on_search_event(
         &mut self,
         input: &Entity<TextInput>,
         event: &InputEvent,
-        _window: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Panel>,
     ) {
         match event {
-            InputEvent::Edited(source) => {
-                let chars = input.read(cx).text().chars().count();
-                let Some(dock) = self.reply.as_mut() else {
-                    return;
-                };
-                if !dock.sources.contains(source) {
-                    dock.sources.push(*source);
+            InputEvent::Edited(_) => {
+                let query = input.read(cx).text().trim().to_lowercase();
+                if query != self.search.query {
+                    self.search.query = query;
+                    self.rebuild_model();
+                    if self.selected.as_ref().is_none_or(|s| !self.model.row_ids.contains(s)) {
+                        self.selected = self.model.row_ids.first().cloned();
+                    }
+                    self.core.log_ui(
+                        "ui.search",
+                        json!({"query": self.search.query, "matched": self.model.matched, "rows": self.model.row_ids.len()}),
+                    );
+                    cx.notify();
                 }
-                self.core.log_ui(
-                    "ui.reply_text",
-                    json!({"thread": dock.thread_id, "chars": chars, "source": source.as_str(), "phase": dock.phase.name()}),
-                );
+            }
+            // Enter: keep the filter, hand the keyboard to the list (first match selected).
+            InputEvent::Submit => {
+                self.selected = self.model.row_ids.first().cloned();
+                self.log_action("key", "search_submit", self.selected.as_deref(), json!({"query": self.search.query}));
+                window.focus(&self.focus);
                 cx.notify();
             }
-            InputEvent::Submit => self.submit_reply("enter", cx),
-            InputEvent::Cancel => self.cancel_reply("escape", cx),
+            InputEvent::Cancel => self.close_search("key", window, cx),
         }
     }
 
-    /// Gönder / Enter.
-    fn submit_reply(&mut self, source: &str, cx: &mut Context<Panel>) {
-        let chars = self.input.read(cx).text().trim().chars().count();
-        let Some(dock) = self.reply.as_mut() else {
-            return;
-        };
-        self.core.log_ui(
-            "ui.reply_submit",
-            json!({"thread": dock.thread_id, "source": source, "phase": dock.phase.name(), "chars": chars}),
-        );
-        let send = match dock.phase {
-            ReplyPhase::Dictating => {
-                self.core.dictation_stop();
-                dock.phase = ReplyPhase::WaitingText;
-                chars > 0
-            }
-            ReplyPhase::Editing { .. } | ReplyPhase::WaitingText => chars > 0,
-            ReplyPhase::Sending | ReplyPhase::Sent { .. } => false,
-        };
-        if send {
-            self.send_reply(cx);
-        }
-        if matches!(self.selftest, SelfTest::Replying { .. }) {
-            self.selftest = SelfTest::ReplySubmitted { deadline: self.selftest_deadline() };
-        }
-        cx.notify();
+    fn input_focused(&self, window: &Window, cx: &App) -> bool {
+        self.input.read(cx).focus_handle(cx).is_focused(window)
+            || self.search.input.read(cx).focus_handle(cx).is_focused(window)
     }
 
-    fn send_reply(&mut self, cx: &mut Context<Panel>) {
-        let text = self.input.read(cx).text().trim().to_owned();
-        let Some(dock) = self.reply.as_mut() else {
-            return;
-        };
-        if text.is_empty() {
-            return;
-        }
-        let nosend = matches!(self.selftest_mode, SelfTestMode::Reply { nosend: true, .. });
-        self.core.log_ui(
-            "ui.reply_send",
-            json!({
-                "thread": dock.thread_id, "chars": text.chars().count(), "source": dock.source_label(),
-                "nosend": nosend, "open_ms": ms(dock.opened_at.elapsed()),
-            }),
-        );
-        if nosend {
-            self.core.log_ui(
-                "ui.selftest_reply",
-                json!({"thread": dock.thread_id, "text": text, "source": dock.source_label()}),
-            );
-            dock.phase = ReplyPhase::Sent { queued: false };
-            dock.close_at = Some(Instant::now() + DOCK_CLOSE_DELAY);
-            self.selftest = SelfTest::Quitting { at: Instant::now() + SELFTEST_REPLY_QUIT_DELAY };
-        } else {
-            dock.phase = ReplyPhase::Sending;
-            self.core.send_reply(&dock.thread_id, &text);
-        }
-    }
-
-    /// İptal / Esc.
-    fn cancel_reply(&mut self, source: &str, cx: &mut Context<Panel>) {
-        let chars = self.input.read(cx).text().chars().count();
-        let Some(dock) = self.reply.as_ref() else {
-            return;
-        };
-        if dock.phase.dictation_active() {
-            self.core.dictation_cancel();
-        }
-        self.core.log_ui(
-            "ui.reply_cancel",
-            json!({"thread": dock.thread_id, "source": source, "phase": dock.phase.name(), "chars": chars}),
-        );
-        self.close_reply(cx);
-    }
-
-    /// Hides the dock, clears the input and gives the keyboard back to the previous app.
-    fn close_reply(&mut self, cx: &mut Context<Panel>) {
-        let Some(dock) = self.reply.take() else {
-            return;
-        };
-        self.input.update(cx, |input, cx| input.clear(cx));
-        let restored = dock.prev_app.as_ref().map(|app| mac::activate_app(app.pid));
-        self.core.log_ui(
-            "ui.focus",
-            json!({
-                "action": "restore", "thread": dock.thread_id,
-                "prev_app": dock.prev_app.as_ref().map(FrontApp::to_json), "ok": restored,
-            }),
-        );
-        self.focus_check = Some((Instant::now() + FOCUS_CHECK_DELAY, "restored"));
-        cx.notify();
-    }
-
-    fn on_transcript(&mut self, thread_id: String, text: String) {
-        let Some(dock) = self.reply.as_mut().filter(|d| d.thread_id == thread_id) else {
-            return;
-        };
-        if dock.phase == ReplyPhase::Dictating {
-            dock.phase = ReplyPhase::Editing { note: Some("✓ Wispr metni geldi · Enter gönderir".into()) };
-        }
-        dock.transcript = Some((text, Instant::now() + TRANSCRIPT_FILL_DELAY));
-    }
-
-    fn on_dictation_failed(&mut self, thread_id: &str, error: String) {
-        let Some(dock) = self.reply.as_mut().filter(|d| d.thread_id == thread_id) else {
-            self.last_error = Some(error.into());
-            return;
-        };
-        if dock.phase.dictation_active() {
-            dock.phase = ReplyPhase::Editing { note: Some(format!("⚠ Wispr: {error} — yazabilirsin").into()) };
-        }
-    }
-
-    fn on_reply_sent(&mut self, thread_id: &str, ok: bool, queued: bool, detail: String) {
-        let Some(dock) = self.reply.as_mut().filter(|d| d.thread_id == thread_id) else {
-            if !ok {
-                self.last_error = Some(format!("cevap gönderilemedi: {detail}").into());
-            }
-            return;
-        };
-        self.core.log_ui(
-            "ui.reply_sent",
-            json!({"thread": thread_id, "ok": ok, "queued": queued, "detail": detail, "open_ms": ms(dock.opened_at.elapsed())}),
-        );
-        if ok {
-            dock.phase = ReplyPhase::Sent { queued };
-            dock.close_at = Some(Instant::now() + DOCK_CLOSE_DELAY);
-        } else {
-            // Keep the dock (and the dictated text) so the user can retry with Gönder.
-            dock.phase = ReplyPhase::Editing { note: Some(format!("✗ gönderilemedi: {detail}").into()) };
-        }
-        if matches!(self.selftest, SelfTest::ReplySubmitted { .. }) {
-            self.selftest = SelfTest::Quitting { at: Instant::now() + SELFTEST_REPLY_QUIT_DELAY };
-        }
-    }
-
-    /// Transcript fill-or-compare, auto-send after Gönder, delayed close. Returns true on change.
-    fn advance_reply(&mut self, now: Instant, cx: &mut Context<Panel>) -> bool {
-        let Some(dock) = self.reply.as_mut() else {
-            return false;
-        };
-        let mut changed = false;
-        if dock.transcript.as_ref().is_some_and(|(_, due)| now >= *due)
-            && let Some((transcript, _)) = dock.transcript.take()
-        {
-            let current = self.input.read(cx).text().trim().to_owned();
-            if current.is_empty() {
-                // Recorded now: an auto-send below runs before the Edited event is delivered.
-                if !dock.sources.contains(&EditSource::History) {
-                    dock.sources.push(EditSource::History);
-                }
-                self.input.update(cx, |input, cx| input.set_text(transcript.trim(), EditSource::History, cx));
+    /// Channel shown in the Now playing bar: the audible one, else a paused or queued one.
+    fn player_channel(&self) -> Option<(&str, &ChannelView)> {
+        let mut best: Option<(&str, &ChannelView, u8)> = None;
+        for (id, c) in &self.channels {
+            let rank = if c.speaking {
+                3
+            } else if c.paused && c.now_text.is_some() {
+                2
+            } else if c.listening && c.queued > 0 {
+                1
             } else {
-                self.core.log_ui(
-                    "ui.reply_compare",
-                    json!({
-                        "thread": dock.thread_id, "equal": current == transcript.trim(),
-                        "input_chars": current.chars().count(), "transcript_chars": transcript.trim().chars().count(),
-                    }),
-                );
+                continue;
+            };
+            if best.is_none_or(|(_, _, r)| rank > r) {
+                best = Some((id.as_str(), c, rank));
             }
-            changed = true;
         }
-        let Some(dock) = self.reply.as_ref() else {
-            return changed;
-        };
-        if dock.phase == ReplyPhase::WaitingText && !self.input.read(cx).text().trim().is_empty() {
-            self.send_reply(cx);
-            changed = true;
-        }
-        if self.reply.as_ref().and_then(|d| d.close_at).is_some_and(|at| now >= at) {
-            self.close_reply(cx);
-            changed = true;
-        }
-        changed
+        best.map(|(id, c, _)| (id, c))
     }
 
-    // ── self-tests ──────────────────────────────────────────────────────────────────────────
-
-    fn selftest_deadline(&self) -> Instant {
-        match self.selftest {
-            SelfTest::WaitingForThreads { deadline }
-            | SelfTest::Listening { deadline, .. }
-            | SelfTest::Replying { deadline, .. }
-            | SelfTest::ReplySubmitted { deadline } => deadline,
-            SelfTest::Off | SelfTest::Quitting { .. } => Instant::now() + SELFTEST_TIMEOUT,
+    fn list_height(&self) -> f32 {
+        if !self.loaded {
+            return 3. * ROW_H + LIST_PAD;
         }
+        if self.model.items.is_empty() {
+            return STATE_BLOCK_H;
+        }
+        LIST_PAD
+            + self
+                .model
+                .items
+                .iter()
+                .map(|item| match item {
+                    Item::Header { .. } => SECTION_H,
+                    Item::Row { state_line: true, .. } => ROW2_H,
+                    Item::Row { .. } => ROW_H,
+                })
+                .sum::<f32>()
     }
 
-    fn start_selftest(&mut self, threads: &[ThreadView], window: &mut Window, cx: &mut Context<Panel>) {
-        let deadline = self.selftest_deadline();
-        match self.selftest_mode.clone() {
-            SelfTestMode::Off => {}
-            SelfTestMode::Listen => {
-                let chosen = threads.iter().find(|t| t.status == "completed").unwrap_or(&threads[0]);
-                self.core.log_ui(
-                    "ui.selftest",
-                    json!({
-                        "mode": "listen", "threads": threads.len(), "thread": chosen.id,
-                        "status": chosen.status, "title": chosen.title,
-                    }),
-                );
-                self.core.log_ui("ui.click", json!({"thread": chosen.id, "action": "listen", "source": "selftest"}));
-                self.core.set_listening(&chosen.id, true);
-                self.selftest = SelfTest::Listening { thread_id: chosen.id.clone(), deadline };
-            }
-            SelfTestMode::Reply { thread_id, stop_after, nosend } => {
-                let listed = threads.iter().any(|t| t.id == thread_id);
-                self.core.log_ui(
-                    "ui.selftest",
-                    json!({
-                        "mode": "reply", "threads": threads.len(), "thread": thread_id, "listed": listed,
-                        "stop_after_ms": stop_after.as_millis() as u64, "nosend": nosend,
-                        "frontmost_before": mac::frontmost_app().map(|a| a.to_json()),
-                    }),
-                );
-                self.selftest = SelfTest::Replying { stop_at: Instant::now() + stop_after, deadline };
-                self.open_reply(&thread_id, "selftest", window, cx);
-            }
+    fn content_height(&self) -> f32 {
+        let mut h = HEADER_H + 2.;
+        if self.compact {
+            h += if self.player_channel().is_some() { PLAYER_H } else { COMPACT_IDLE_H };
+            return h;
         }
+        if self.error.is_some() {
+            h += BANNER_H;
+        }
+        if self.search.open {
+            h += SEARCH_H;
+        }
+        if !self.waiting().is_empty() {
+            h += ATTENTION_H;
+        }
+        h += self.list_height();
+        if self.player_channel().is_some() {
+            h += PLAYER_H;
+        }
+        if self.reply.is_some() {
+            h += DOCK_H;
+        }
+        h += STATUS_H;
+        if self.drawer_open {
+            h += DRAWER_H;
+        }
+        h.clamp(MIN_H, MAX_H)
     }
 
-    /// Returns true if the app is quitting.
-    fn advance_selftest(&mut self, now: Instant, cx: &mut Context<Panel>) -> bool {
-        match &self.selftest {
-            SelfTest::Off => false,
-            SelfTest::Quitting { at } => {
-                if now >= *at {
-                    self.quit("selftest_done", cx);
-                    return true;
-                }
-                false
+    /// Animates the window toward the content height (`slow` for compact, else `normal`).
+    fn update_height(&mut self, window: &mut Window, cx: &mut Context<Panel>) {
+        let now = Instant::now();
+        let target = self.content_height();
+        if (target - self.height.to).abs() >= 0.5 {
+            // Compact ↔ full is the one `slow` change; everything else moves at `normal`.
+            let base = if self.compact != self.height.compact { motion::SLOW } else { motion::NORMAL };
+            self.height = Height {
+                from: self.height.at(now),
+                to: target,
+                start: now,
+                dur: motion::movement(cx, base),
+                applied: self.height.applied,
+                compact: self.compact,
+            };
+        }
+        let h = self.height.at(now).round();
+        if (h - self.height.applied).abs() >= 0.5 {
+            self.height.applied = h;
+            if let Some(native) = self.native {
+                cx.spawn(async move |_, _| native.set_height_keep_top(h)).detach();
             }
-            SelfTest::Replying { stop_at, .. } if now >= *stop_at => {
-                self.core.log_ui("ui.selftest_stop", json!({"after_ms": ms(now.duration_since(self.process_start))}));
-                self.submit_reply("selftest", cx);
-                false
-            }
-            SelfTest::WaitingForThreads { deadline }
-            | SelfTest::Listening { deadline, .. }
-            | SelfTest::Replying { deadline, .. }
-            | SelfTest::ReplySubmitted { deadline }
-                if now >= *deadline =>
-            {
-                let phase = match &self.selftest {
-                    SelfTest::WaitingForThreads { .. } => "waiting_for_threads",
-                    SelfTest::Listening { .. } => "listening",
-                    SelfTest::Replying { .. } => "replying",
-                    _ => "reply_submitted",
-                };
-                self.core.log_ui("ui.selftest_timeout", json!({"phase": phase, "timeout_s": SELFTEST_TIMEOUT.as_secs()}));
-                self.quit("selftest_timeout", cx);
-                true
-            }
-            _ => false,
+        }
+        if (h - self.height.to).abs() >= 0.5 {
+            window.request_animation_frame();
         }
     }
 
@@ -677,536 +645,83 @@ impl Panel {
         self.core.log_ui("ui.quit", json!({"reason": reason, "uptime_ms": ms(self.process_start.elapsed())}));
         cx.quit();
     }
-
-    // ── rendering ───────────────────────────────────────────────────────────────────────────
-
-    fn render_header(&self, cx: &mut Context<Panel>) -> Div {
-        let any_listening = self.channels.values().any(|c| c.listening);
-        let mute_all = div()
-            .id("mute_all")
-            .flex_none()
-            .flex()
-            .items_center()
-            .gap_1()
-            .h(px(24.))
-            .px_2()
-            .rounded_md()
-            .text_size(px(11.5))
-            .cursor_pointer()
-            .when(!any_listening, |this| this.opacity(0.4))
-            .hover(|this| this.bg(rgba(0xffffff1f)))
-            .active(|this| this.bg(rgba(0xffffff33)))
-            .tooltip(tip("tüm kanalları sustur"))
-            .child("🔇")
-            .child("hepsini sustur")
-            .on_click(cx.listener(|panel, _, _, _| {
-                panel.last_body_click = None;
-                panel.core.log_ui("ui.click", json!({"action": "mute_all"}));
-                panel.core.mute_all();
-            }));
-        let quit = icon_button("quit", "✕").tooltip(tip("kapat")).on_click(cx.listener(|panel, _, _, cx| {
-            panel.core.log_ui("ui.click", json!({"action": "quit"}));
-            panel.quit("user", cx);
-        }));
-        let core = self.core.clone();
-        let handle = div()
-            .flex_1()
-            .h_full()
-            .flex()
-            .items_center()
-            .pl_3()
-            .font_weight(FontWeight::SEMIBOLD)
-            .text_size(px(13.))
-            .child("T3 Panel")
-            .on_mouse_down(MouseButton::Left, move |event, window, _| {
-                let dragging = mac::drag_window(window);
-                core.log_ui(
-                    "ui.drag",
-                    json!({"x": f32::from(event.position.x), "y": f32::from(event.position.y), "native_drag": dragging}),
-                );
-            });
-        div()
-            .flex()
-            .flex_none()
-            .items_center()
-            .h(px(34.))
-            .pr_2()
-            .gap_1()
-            .border_b_1()
-            .border_color(rgba(0xffffff14))
-            .child(handle)
-            .child(mute_all)
-            .child(quit)
-    }
-
-    fn render_row(
-        &self,
-        ix: usize,
-        row: &Row,
-        ch: Option<&ChannelView>,
-        now_unix: i64,
-        cx: &mut Context<Panel>,
-    ) -> Stateful<Div> {
-        let listening = ch.is_some_and(|c| c.listening);
-        let speaking = ch.is_some_and(|c| c.speaking);
-        let selected = self.selected.as_ref() == Some(&row.id);
-        let mut meta = String::with_capacity(row.project.len() + row.provider.len() + 16);
-        meta.push_str(&row.project);
-        meta.push_str(" · ");
-        push_relative_time(&mut meta, row.updated_unix, now_unix);
-        if !row.provider.is_empty() {
-            meta.push_str(" · ");
-            meta.push_str(&row.provider);
-        }
-
-        let mut title_line = div()
-            .flex()
-            .items_center()
-            .gap_1p5()
-            .min_w(px(0.))
-            .child(div().flex_1().min_w(px(0.)).text_size(px(13.)).truncate().child(row.title.clone()));
-        if let Some(c) = ch {
-            if c.waiting_for_user {
-                title_line = title_line.child(chip("seni bekliyor", AMBER, 0xffb34033));
-            }
-            if !c.listening && c.unheard > 0 {
-                title_line = title_line.child(chip(format!("{} yeni", c.unheard), BLUE, 0x0a84ff33));
-            }
-        }
-
-        let body_id = row.id.clone();
-        let body = div()
-            .id(("body", ix))
-            .flex()
-            .flex_1()
-            .min_w(px(0.))
-            .items_center()
-            .gap_2()
-            .tooltip(tip("çift tık: T3'te aç"))
-            .child(div().flex_none().size(px(8.)).rounded_full().bg(rgb(row.status_color)))
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .flex_1()
-                    .min_w(px(0.))
-                    .child(title_line)
-                    .child(div().text_size(px(11.)).text_color(rgb(TEXT_DIM)).truncate().child(meta)),
-            )
-            .on_click(cx.listener(move |panel, _, _, cx| panel.on_body_click(&body_id, cx)));
-
-        let listen_id = row.id.clone();
-        let listen = icon_button(("listen", ix), if listening { "🔊" } else { "🔈" })
-            .when(!listening, |this| this.opacity(0.45))
-            .when(listening && !speaking, |this| this.bg(rgba(0x0a84ff26)))
-            .when(speaking, |this| this.bg(rgba(0x0a84ff8c)).border_1().border_color(rgb(BLUE)))
-            .tooltip(tip(if listening { "dinliyorsun · tıkla: sustur" } else { "sessiz · tıkla: dinle" }))
-            .on_click(cx.listener(move |panel, _, _, _| {
-                panel.last_body_click = None;
-                panel.core.log_ui(
-                    "ui.click",
-                    json!({"thread": listen_id.as_ref(), "action": if listening { "mute" } else { "listen" }}),
-                );
-                panel.core.set_listening(&listen_id, !listening);
-            }));
-
-        let reply_id = row.id.clone();
-        let replying_here = self.reply.as_ref().is_some_and(|d| d.thread_id == row.id.as_ref());
-        let reply = div()
-            .id(("reply", ix))
-            .flex_none()
-            .flex()
-            .items_center()
-            .gap_1()
-            .h(px(24.))
-            .px_1p5()
-            .rounded_md()
-            .text_size(px(11.5))
-            .cursor_pointer()
-            .when(replying_here, |this| this.bg(rgba(0x0a84ff38)))
-            .hover(|this| this.bg(rgba(0xffffff1f)))
-            .active(|this| this.bg(rgba(0xffffff33)))
-            .child("💬")
-            .child("Cevapla")
-            .on_click(cx.listener(move |panel, _, window, cx| {
-                panel.last_body_click = None;
-                panel.core.log_ui("ui.click", json!({"thread": reply_id.as_ref(), "action": "reply"}));
-                panel.open_reply(&reply_id, "click", window, cx);
-            }));
-
-        div()
-            .id(("row", ix))
-            .flex()
-            .flex_col()
-            .px_2()
-            .py_1p5()
-            .rounded_md()
-            .when(speaking, |this| this.bg(rgba(0x0a84ff38)))
-            .when(!speaking && selected, |this| this.bg(rgba(0xffffff12)))
-            .when(!speaking, |this| this.hover(|this| this.bg(rgba(0xffffff0d))))
-            .child(div().flex().items_center().gap_1().child(body).child(listen).child(reply))
-            .when_some(ch.filter(|c| c.listening && (c.speaking || c.paused || c.queued > 0)), |this, c| {
-                this.child(self.render_now_line(ix, &row.id, c, cx))
-            })
-    }
-
-    /// Third row line of a listening channel with something current: what it says + controls.
-    fn render_now_line(&self, ix: usize, id: &SharedString, c: &ChannelView, cx: &mut Context<Panel>) -> Div {
-        let text: SharedString = match &c.now_text {
-            Some(t) => t.clone().into(),
-            None if c.queued > 0 => "sırada bekleyen var".into(),
-            None => "…".into(),
-        };
-        let pause_id = id.clone();
-        let pause = icon_button(("pause", ix), if c.paused { "▶" } else { "⏸" })
-            .tooltip(tip(if c.paused { "devam et" } else { "duraklat" }))
-            .on_click(cx.listener(move |panel, _, _, _| {
-                panel.last_body_click = None;
-                panel.core.log_ui("ui.click", json!({"thread": pause_id.as_ref(), "action": "toggle_pause"}));
-                panel.core.toggle_pause(&pause_id);
-            }));
-        let skip_id = id.clone();
-        let skip = icon_button(("skip", ix), "⏭").tooltip(tip("okey, geç")).on_click(cx.listener(move |panel, _, _, _| {
-            panel.last_body_click = None;
-            panel.core.log_ui("ui.click", json!({"thread": skip_id.as_ref(), "action": "skip"}));
-            panel.core.skip(&skip_id);
-        }));
-        let live_id = id.clone();
-        let live = (c.queued > 0).then(|| {
-            div()
-                .id(("live", ix))
-                .flex_none()
-                .px_1p5()
-                .py_0p5()
-                .rounded_md()
-                .text_size(px(10.5))
-                .text_color(rgb(BLUE))
-                .bg(rgba(0x0a84ff26))
-                .cursor_pointer()
-                .hover(|this| this.bg(rgba(0x0a84ff4d)))
-                .child(format!("{} sırada · canlıya geç", c.queued))
-                .on_click(cx.listener(move |panel, _, _, _| {
-                    panel.last_body_click = None;
-                    panel.core.log_ui("ui.click", json!({"thread": live_id.as_ref(), "action": "jump_to_live"}));
-                    panel.core.jump_to_live(&live_id);
-                }))
-        });
-        div()
-            .flex()
-            .items_center()
-            .gap_1()
-            .pl(px(16.))
-            .pt_0p5()
-            .child(
-                div()
-                    .flex_1()
-                    .min_w(px(0.))
-                    .text_size(px(11.))
-                    .text_color(rgb(if c.paused { TEXT_DIM } else { TEXT }))
-                    .truncate()
-                    .child(text),
-            )
-            .child(pause)
-            .child(skip)
-            .children(live)
-    }
-
-    /// Single click selects; a second click on the same row body within the system
-    /// double-click interval opens the thread in T3. Clicks on row buttons reset the pair.
-    fn on_body_click(&mut self, thread_id: &SharedString, cx: &mut Context<Panel>) {
-        let now = Instant::now();
-        let is_double = self
-            .last_body_click
-            .as_ref()
-            .is_some_and(|c| c.thread_id == *thread_id && now.duration_since(c.at) <= self.double_click_interval);
-        self.selected = Some(thread_id.clone());
-        if is_double {
-            self.last_body_click = None;
-            self.core.log_ui("ui.dblclick", json!({"thread": thread_id.as_ref()}));
-            self.core.open_thread(thread_id);
-        } else {
-            self.last_body_click = Some(BodyClick { thread_id: thread_id.clone(), at: now });
-        }
-        cx.notify();
-    }
-
-    fn render_reply_dock(&self, dock: &ReplyDock, cx: &mut Context<Panel>) -> Div {
-        let (chip_text, chip_color) = dock.chip();
-        let busy = matches!(dock.phase, ReplyPhase::Sending | ReplyPhase::Sent { .. });
-        let send = dock_button("send", "Gönder", true, busy).on_click(cx.listener(|panel, _, _, cx| {
-            panel.submit_reply("button", cx);
-        }));
-        let cancel = dock_button("cancel", "İptal", false, false).on_click(cx.listener(|panel, _, _, cx| {
-            panel.cancel_reply("button", cx);
-        }));
-        div()
-            .flex()
-            .flex_none()
-            .flex_col()
-            .gap_1p5()
-            .px_3()
-            .py_2()
-            .border_t_1()
-            .border_color(rgba(0xffffff14))
-            .bg(rgba(0x0a84ff14))
-            .child(
-                div()
-                    .text_size(px(11.5))
-                    .text_color(rgb(TEXT_DIM))
-                    .truncate()
-                    .child(format!("→ {}", dock.title)),
-            )
-            .child(self.input.clone())
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap_1p5()
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w(px(0.))
-                            .text_size(px(11.))
-                            .text_color(rgb(chip_color))
-                            .line_clamp(2)
-                            .child(chip_text),
-                    )
-                    .child(send)
-                    .child(cancel),
-            )
-    }
-
-    fn render_footer(&self, cx: &mut Context<Panel>) -> Stateful<Div> {
-        let s = &self.stats;
-        let line1 = format!(
-            "RSS {:.0}MB · CPU {:.0}% · t3 {} · live {} · tts {} · RTF {}",
-            s.rss_mb,
-            s.cpu_pct,
-            fmt_ms(s.last_t3_poll_ms),
-            fmt_ms(s.last_live_poll_ms),
-            fmt_ms(s.last_tts_ms),
-            s.last_rtf.map_or_else(|| "–".to_owned(), |r| format!("{r:.2}")),
-        );
-        let line2 = format!(
-            "click→audio {} · msg→audio {} · dict {} · 🔊 {} · q {}",
-            fmt_ms(s.last_click_to_audio_ms),
-            fmt_ms(s.last_msg_to_audio_ms),
-            fmt_ms(s.last_dictation_ms),
-            s.listening,
-            s.queue_len,
-        );
-        let run_dir: SharedString = format!("{} (tıkla: Finder)", s.run_dir.display()).into();
-        div()
-            .id("footer")
-            .flex()
-            .flex_none()
-            .flex_col()
-            .px_3()
-            .py_1p5()
-            .border_t_1()
-            .border_color(rgba(0xffffff14))
-            .text_size(px(10.5))
-            .text_color(rgb(TEXT_DIM))
-            .cursor_pointer()
-            .hover(|this| this.text_color(rgb(TEXT)))
-            .tooltip(move |_, cx| cx.new(|_| Tip(run_dir.clone())).into())
-            .child(div().truncate().child(line1))
-            .child(div().truncate().child(line2))
-            .on_click(cx.listener(|panel, _, _, _| {
-                let run_dir = panel.core.live_stats().run_dir;
-                panel.core.log_ui("ui.click", json!({"action": "open_run_dir", "path": run_dir.display().to_string()}));
-                open_in_finder(run_dir);
-            }))
-    }
 }
 
 impl Render for Panel {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if !self.ready_logged {
             self.ready_logged = true;
+            let theme = cx.global::<Theme>().to_json();
             self.core.log_ui(
                 "ui.ready",
-                json!({"startup_ms": ms(self.process_start.elapsed()), "rows": self.rows.len()}),
+                json!({
+                    "startup_ms": ms(self.process_start.elapsed()), "rows": self.threads.len(),
+                    "assets": crate::assets::count(), "missing_icons": crate::icons::missing(),
+                    "providers": crate::icons::provider_count(), "reduce_motion": motion::reduced(cx),
+                    "window_number": self.native.map(|n| n.number()), "theme": theme,
+                }),
             );
         }
-        let now_unix = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs() as i64);
+        if cx.global_mut::<Theme>().tick() {
+            window.request_animation_frame();
+        }
+        self.update_height(window, cx);
+        let theme = cx.global::<Theme>();
+        let t = theme.current;
+        let ty = theme.ty.clone();
 
-        let rows: Vec<Stateful<Div>> = self
-            .rows
-            .iter()
-            .enumerate()
-            .map(|(ix, row)| self.render_row(ix, row, self.channels.get(row.id.as_ref()), now_unix, cx))
-            .collect();
-        let list = div()
-            .id("threads")
-            .flex()
-            .flex_col()
-            .flex_1()
-            .min_h(px(0.))
-            .p_1()
-            .overflow_y_scroll()
-            .when(self.rows.is_empty(), |this| {
-                this.child(div().p_3().text_size(px(12.)).text_color(rgb(TEXT_DIM)).child("No recent threads yet…"))
-            })
-            .children(rows);
-        let dock = self.reply.as_ref().map(|dock| self.render_reply_dock(dock, cx));
-
-        div()
+        let mut root = div()
+            .id("panel")
+            .key_context(keys::KEY_CONTEXT)
+            .track_focus(&self.focus)
             .size_full()
+            .relative()
             .flex()
             .flex_col()
             .overflow_hidden()
-            .rounded_xl()
+            .rounded(px(RADIUS))
             .border_1()
-            .border_color(rgba(0xffffff1f))
-            .bg(rgba(0x141418f2))
-            .text_color(rgb(TEXT))
-            .text_size(px(12.))
-            .child(self.render_header(cx))
-            .child(list)
-            .when_some(self.last_error.clone(), |this, err| {
-                this.child(div().flex_none().px_3().py_1().text_size(px(10.5)).text_color(rgb(RED)).truncate().child(err))
-            })
-            .children(dock)
-            .child(self.render_footer(cx))
+            .border_color(t.border)
+            .bg(t.window_bg())
+            .text_color(t.text)
+            .text_size(px(ty.body))
+            .when_some(ty.family.clone(), |d, f| d.font_family(f))
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|panel, _, window, cx| {
+                    if !panel.input_focused(window, cx) {
+                        window.focus(&panel.focus);
+                    }
+                }),
+            );
+        root = keys::on_actions(root, cx);
+        root = root.child(self.render_header(&t, &ty, cx));
+        if self.compact {
+            root = root.child(match self.player_channel() {
+                Some((id, c)) => self.render_player(id, c, &t, &ty, cx).into_any_element(),
+                None => self.render_compact_idle(&t, &ty, cx).into_any_element(),
+            });
+        } else {
+            root = root
+                .when_some(self.error.as_ref(), |d, e| d.child(self.render_error(e, &t, &ty, cx)))
+                .when(self.search.open, |d| d.child(self.render_search(&t, &ty, cx)))
+                .children(self.render_attention(&t, &ty, cx))
+                .child(self.render_list(&t, &ty, cx))
+                .children(self.player_channel().map(|(id, c)| self.render_player(id, c, &t, &ty, cx)))
+                .children(self.reply.as_ref().map(|dock| self.render_reply_dock(dock, &t, &ty, cx)))
+                .child(self.render_status_line(&t, &ty, cx))
+                .when(self.drawer_open, |d| d.child(self.render_drawer(&t, &ty, cx)));
+        }
+        root.children(self.toast.as_ref().map(|toast| header::render_toast(toast, &t, &ty, cx)))
     }
 }
 
-/// Tooltip bubble.
-struct Tip(SharedString);
-
-impl Render for Tip {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        div()
-            .px_2()
-            .py_1()
-            .rounded_md()
-            .border_1()
-            .border_color(rgba(0xffffff26))
-            .bg(rgb(0x2a2a30))
-            .text_size(px(11.))
-            .text_color(rgb(TEXT))
-            .child(self.0.clone())
+impl Focusable for Panel {
+    fn focus_handle(&self, _: &App) -> FocusHandle {
+        self.focus.clone()
     }
-}
-
-fn tip(text: &'static str) -> impl Fn(&mut Window, &mut App) -> AnyView + 'static {
-    move |_, cx| cx.new(|_| Tip(text.into())).into()
-}
-
-fn icon_button(id: impl Into<ElementId>, label: &'static str) -> Stateful<Div> {
-    div()
-        .id(id)
-        .flex_none()
-        .flex()
-        .items_center()
-        .justify_center()
-        .size(px(24.))
-        .rounded_md()
-        .text_size(px(12.))
-        .cursor_pointer()
-        .hover(|this| this.bg(rgba(0xffffff1f)))
-        .active(|this| this.bg(rgba(0xffffff33)))
-        .child(label)
-}
-
-fn dock_button(id: &'static str, label: &'static str, primary: bool, disabled: bool) -> Stateful<Div> {
-    div()
-        .id(id)
-        .flex_none()
-        .px_2p5()
-        .py_0p5()
-        .rounded_md()
-        .text_size(px(12.))
-        .cursor_pointer()
-        .when(primary, |this| this.bg(rgb(BLUE)).text_color(rgb(0xffffff)))
-        .when(!primary, |this| this.bg(rgba(0xffffff1a)))
-        .when(disabled, |this| this.opacity(0.5))
-        .hover(|this| this.opacity(0.85))
-        .child(label)
-}
-
-fn chip(label: impl Into<SharedString>, color: u32, bg: u32) -> Div {
-    div()
-        .flex_none()
-        .px_1p5()
-        .rounded_md()
-        .text_size(px(10.5))
-        .text_color(rgb(color))
-        .bg(rgba(bg))
-        .child(label.into())
-}
-
-fn status_color(status: &str) -> u32 {
-    match status {
-        "running" => BLUE,
-        "completed" | "idle" => GREEN,
-        "interrupted" | "cancelled" => AMBER,
-        _ => GRAY,
-    }
-}
-
-fn open_in_finder(path: std::path::PathBuf) {
-    std::thread::spawn(move || {
-        // `open` returns as soon as Finder has the request; waiting just reaps the child.
-        let _ = std::process::Command::new("/usr/bin/open").arg(path).status();
-    });
 }
 
 fn ms(d: Duration) -> f64 {
     d.as_secs_f64() * 1000.0
-}
-
-fn fmt_ms(v: Option<f64>) -> String {
-    v.map_or_else(|| "–".to_owned(), |v| format!("{v:.0}ms"))
-}
-
-fn push_relative_time(out: &mut String, updated_unix: Option<i64>, now_unix: i64) {
-    use std::fmt::Write;
-    let Some(updated) = updated_unix else {
-        out.push('?');
-        return;
-    };
-    let secs = (now_unix - updated).max(0);
-    let _ = match secs {
-        0..60 => write!(out, "{secs}s ago"),
-        60..3600 => write!(out, "{}m ago", secs / 60),
-        3600..86400 => write!(out, "{}h ago", secs / 3600),
-        _ => write!(out, "{}d ago", secs / 86400),
-    };
-}
-
-/// Parses `YYYY-MM-DDTHH:MM:SS[.fff](Z|±HH:MM)` into Unix seconds.
-fn parse_rfc3339_unix(s: &str) -> Option<i64> {
-    let num = |start: usize, len: usize| -> Option<i64> { s.get(start..start + len)?.parse().ok() };
-    let (year, month, day) = (num(0, 4)?, num(5, 2)?, num(8, 2)?);
-    let (hour, minute, second) = (num(11, 2)?, num(14, 2)?, num(17, 2)?);
-    let bytes = s.as_bytes();
-    let mut i = 19;
-    if bytes.get(i) == Some(&b'.') {
-        i += 1;
-        while bytes.get(i).is_some_and(u8::is_ascii_digit) {
-            i += 1;
-        }
-    }
-    let offset = match *bytes.get(i)? {
-        b'Z' | b'z' => 0,
-        sign @ (b'+' | b'-') => {
-            let offset = num(i + 1, 2)? * 3600 + num(i + 4, 2)? * 60;
-            if sign == b'+' { offset } else { -offset }
-        }
-        _ => return None,
-    };
-    Some(days_from_civil(year, month, day) * 86400 + hour * 3600 + minute * 60 + second - offset)
-}
-
-/// Days since 1970-01-01 for a proleptic Gregorian date (Howard Hinnant's algorithm).
-fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
-    let y = if month <= 2 { year - 1 } else { year };
-    let era = y.div_euclid(400);
-    let yoe = y - era * 400;
-    let mp = (month + 9) % 12;
-    let doy = (153 * mp + 2) / 5 + day - 1;
-    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    era * 146097 + doe - 719468
 }

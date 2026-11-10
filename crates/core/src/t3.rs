@@ -16,7 +16,7 @@ use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
 use crate::telemetry::{self, Telemetry, ms, round2};
-use crate::{Config, CoreEvent, ThreadView};
+use crate::{Config, CoreEvent, ProjectIcon, ThreadView};
 
 /// Max concurrent `t3 thread list` processes per poll (each one boots the T3 runtime).
 const LIST_CONCURRENCY: usize = 4;
@@ -145,6 +145,12 @@ pub struct RawThread {
     #[serde(default)]
     pub updated_at: String,
     #[serde(default)]
+    pub created_at: String,
+    #[serde(default)]
+    pub snoozed: bool,
+    #[serde(default)]
+    pub snoozed_until: Option<String>,
+    #[serde(default)]
     pub link: Option<String>,
     #[serde(default)]
     pub provider_instance_id: Option<String>,
@@ -155,25 +161,82 @@ pub struct RawThread {
 }
 
 impl RawThread {
-    fn view(&self) -> ThreadView {
+    /// The panel row: list fields plus the project, pin and snooze state from `meta`.
+    fn into_view(self, meta: &Meta, now_ms: i64) -> ThreadView {
+        let project = meta.projects.get(&self.project_id);
+        let until = meta.snoozed_until.get(&self.thread_id).or(self.snoozed_until.as_ref());
+        let snoozed = match until.and_then(|u| telemetry::parse_rfc3339_ms(u)) {
+            Some(until_ms) => until_ms > now_ms,
+            None => self.snoozed,
+        };
         ThreadView {
-            id: self.thread_id.clone(),
-            project: self.project_id.clone(),
-            project_id: self.project_id.clone(),
-            project_icon: None,
-            project_pinned: false,
-            title: self.title.clone(),
-            status: self.status.clone(),
+            project: project
+                .filter(|p| !p.name.trim().is_empty())
+                .map_or_else(|| self.project_id.clone(), |p| p.name.clone()),
+            project_icon: project.and_then(|p| p.icon.clone()),
+            project_pinned: project.is_some_and(|p| p.pinned),
+            pinned: meta.pins.contains_key(&self.thread_id),
+            snoozed,
+            running_since: meta.running_since.get(&self.thread_id).cloned(),
+            id: self.thread_id,
+            project_id: self.project_id,
+            title: self.title,
+            status: self.status,
             settled: self.settled,
-            snoozed: false,
-            pinned: false,
-            created_at: String::new(),
-            updated_at: self.updated_at.clone(),
-            link: self.link.clone().unwrap_or_default(),
-            provider: self.provider_instance_id.clone().unwrap_or_default(),
-            model: self.model.clone().unwrap_or_default(),
+            created_at: self.created_at,
+            updated_at: self.updated_at,
+            link: self.link.unwrap_or_default(),
+            provider: self.provider_instance_id.unwrap_or_default(),
+            model: self.model.unwrap_or_default(),
         }
     }
+}
+
+/// Sidebar state of a T3 project (`projection_projects`).
+#[derive(Clone, Debug, Default)]
+pub struct ProjectMeta {
+    /// Display name: the T3 title; the poller fills an empty one from the discovered project
+    /// ([`Project::display_name`]).
+    pub name: String,
+    pub icon: Option<ProjectIcon>,
+    pub pinned: bool,
+}
+
+/// Sidebar state that `t3 thread list` does not print, read from T3's state DB every tick.
+#[derive(Clone, Debug, Default)]
+pub struct Meta {
+    /// T3 project id → title, icon, pinned.
+    pub projects: HashMap<String, ProjectMeta>,
+    /// Pinned thread id → its `pinOrderKey` (T3 orders pins by it, ascending string compare;
+    /// `None` when T3 stored no key).
+    pub pins: HashMap<String, Option<String>>,
+    /// Thread id → `snoozedUntil` (RFC3339) for threads that have one.
+    pub snoozed_until: HashMap<String, String>,
+    /// Thread id → start (RFC3339 `startedAt`, else `requestedAt`) of its earliest active run
+    /// (queued/preparing/starting/running/waiting): what T3's "Working 16m" counts from.
+    pub running_since: HashMap<String, String>,
+}
+
+/// One `t3.changes` query result.
+pub struct Changes {
+    /// T3 project id → newest thread `updated_at`.
+    pub updated: HashMap<String, String>,
+    pub meta: Meta,
+    /// Non-null `project_icon_json` values that are not a valid icon (those projects get none).
+    pub invalid_icons: usize,
+}
+
+/// A `project_icon_json` value; `Ok(None)` for JSON null, `Err` for anything unparsable.
+fn parse_icon(json: &str) -> Result<Option<ProjectIcon>, serde_json::Error> {
+    #[derive(Deserialize)]
+    struct Raw {
+        kind: String,
+        name: String,
+        #[serde(default)]
+        color: Option<String>,
+    }
+    let raw: Option<Raw> = serde_json::from_str(json)?;
+    Ok(raw.map(|r| ProjectIcon { kind: r.kind, name: r.name, color: r.color.filter(|c| !c.is_empty()) }))
 }
 
 /// One thread message, oldest → newest (read from T3's state DB).
@@ -293,19 +356,82 @@ pub fn latest_messages(tel: &Telemetry, thread: &str, n: u32) -> anyhow::Result<
     }
 }
 
-/// `max(updated_at)` per project from T3's thread projection (indexed on
-/// `(project_id, updated_at)`). A thread's `updated_at` moves on every run start/finish, so a
-/// changed value means that project's `t3 thread list` output may have changed.
-pub fn project_changes() -> (Value, anyhow::Result<(CmdOutput, HashMap<String, String>)>) {
+/// One read-only query per poll tick, three row kinds:
+/// - `u`: `max(updated_at)` per project from T3's thread projection (indexed on
+///   `(project_id, updated_at)`). A thread's `updated_at` moves on every run start/finish, so a
+///   changed value means that project's `t3 thread list` output may have changed.
+/// - `p`: every live project's title, icon and pin.
+/// - `t`: threads whose payload has `pinnedAt` or `snoozedUntil` (pin order key, snooze end).
+/// - `r`: active runs (partial index on `status`) with their start time.
+pub fn project_changes() -> (Value, anyhow::Result<(CmdOutput, Changes)>) {
     #[derive(Deserialize)]
     struct Row {
-        project_id: String,
-        u: Option<String>,
+        kind: char,
+        id: String,
+        a: Option<String>,
+        b: Option<String>,
+        c: Option<String>,
     }
-    let sql = "select project_id, max(updated_at) as u from orchestration_v2_projection_threads \
-               where deleted_at is null group by project_id;";
+    let sql = "select 'u' as kind, project_id as id, max(updated_at) as a, null as b, null as c \
+               from orchestration_v2_projection_threads where deleted_at is null group by project_id \
+               union all \
+               select 'p', project_id, title, project_icon_json, pinned_at \
+               from projection_projects where deleted_at is null \
+               union all \
+               select 't', thread_id, cast(json_extract(p, '$.pinnedAt') as text), \
+               cast(json_extract(p, '$.pinOrderKey') as text), cast(json_extract(p, '$.snoozedUntil') as text) \
+               from (select thread_id, case when json_valid(payload_json) then payload_json else '{}' end as p \
+               from orchestration_v2_projection_threads where deleted_at is null) \
+               where json_extract(p, '$.pinnedAt') is not null or json_extract(p, '$.snoozedUntil') is not null \
+               union all \
+               select 'r', thread_id, coalesce(case when json_valid(payload_json) \
+               then json_extract(payload_json, '$.startedAt') end, requested_at), null, null \
+               from orchestration_v2_projection_runs \
+               where status in ('queued', 'preparing', 'starting', 'running', 'waiting');";
     let (input, res) = sqlite_json::<Row>(&state_db(), sql);
-    let res = res.map(|(o, rows)| (o, rows.into_iter().filter_map(|r| Some((r.project_id, r.u?))).collect()));
+    let res = res.map(|(o, rows)| {
+        let mut ch = Changes { updated: HashMap::new(), meta: Meta::default(), invalid_icons: 0 };
+        for r in rows {
+            match r.kind {
+                'u' => {
+                    if let Some(u) = r.a {
+                        ch.updated.insert(r.id, u);
+                    }
+                }
+                'p' => {
+                    let icon = r.b.as_deref().map_or(Ok(None), parse_icon).unwrap_or_else(|_| {
+                        ch.invalid_icons += 1;
+                        None
+                    });
+                    let meta = ProjectMeta { name: r.a.unwrap_or_default(), icon, pinned: r.c.is_some() };
+                    ch.meta.projects.insert(r.id, meta);
+                }
+                't' => match (r.a.is_some(), r.c) {
+                    (true, Some(until)) => {
+                        ch.meta.snoozed_until.insert(r.id.clone(), until);
+                        ch.meta.pins.insert(r.id, r.b);
+                    }
+                    (true, None) => {
+                        ch.meta.pins.insert(r.id, r.b);
+                    }
+                    (false, Some(until)) => {
+                        ch.meta.snoozed_until.insert(r.id, until);
+                    }
+                    (false, None) => {}
+                },
+                'r' => {
+                    if let Some(since) = r.a {
+                        let slot = ch.meta.running_since.entry(r.id).or_insert_with(|| since.clone());
+                        if since < *slot {
+                            *slot = since;
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        (o, ch)
+    });
     (input, res)
 }
 
@@ -380,18 +506,43 @@ pub fn list_all(tel: &Telemetry, cfg: &Config, projects: &[Project]) -> Vec<anyh
     results.into_iter().map(|r| r.expect("every project listed")).collect()
 }
 
-/// Filters (unsettled or updated within `recent_window`), sorts (unsettled first, newest first)
-/// and caps to `max_threads`.
-pub fn select(cfg: &Config, threads: impl IntoIterator<Item = RawThread>, now_ms: i64) -> Vec<ThreadView> {
+/// Filters (unsettled, pinned, or updated within `recent_window`), fills project/pin/snooze
+/// state from `meta`, sorts in T3's sidebar order and caps to `max_threads`:
+/// 1. pinned threads by `pinOrderKey` ascending (missing keys last), then newest `created_at`;
+/// 2. active threads (not settled, not snoozed), newest `created_at` first;
+/// 3. settled or snoozed threads, newest `created_at` first.
+///
+/// Ties break on thread id. `updated_at` never affects the order.
+pub fn select(cfg: &Config, threads: impl IntoIterator<Item = RawThread>, now_ms: i64, meta: &Meta) -> Vec<ThreadView> {
     let window_ms = cfg.recent_window.as_millis() as i64;
-    let mut rows: Vec<(i64, RawThread)> = threads
+    let mut rows: Vec<(u8, Option<&str>, i64, ThreadView)> = threads
         .into_iter()
-        .map(|t| (telemetry::parse_rfc3339_ms(&t.updated_at).unwrap_or(0), t))
-        .filter(|(upd, t)| !t.settled || now_ms - upd <= window_ms)
+        .filter_map(|t| {
+            let pin = meta.pins.get(&t.thread_id);
+            if pin.is_none() && t.settled && now_ms - telemetry::parse_rfc3339_ms(&t.updated_at).unwrap_or(0) > window_ms {
+                return None;
+            }
+            let created_ms = telemetry::parse_rfc3339_ms(&t.created_at).unwrap_or(0);
+            let v = t.into_view(meta, now_ms);
+            let group = if v.pinned {
+                0
+            } else if v.settled || v.snoozed {
+                2
+            } else {
+                1
+            };
+            Some((group, pin.and_then(Option::as_deref), created_ms, v))
+        })
         .collect();
-    rows.sort_by(|(ua, a), (ub, b)| a.settled.cmp(&b.settled).then(ub.cmp(ua)));
+    rows.sort_by(|(ga, ka, ca, a), (gb, kb, cb, b)| {
+        ga.cmp(gb)
+            .then_with(|| ka.is_none().cmp(&kb.is_none()))
+            .then_with(|| ka.cmp(kb))
+            .then_with(|| cb.cmp(ca))
+            .then_with(|| a.id.cmp(&b.id))
+    });
     rows.truncate(cfg.max_threads);
-    rows.iter().map(|(_, t)| t.view()).collect()
+    rows.into_iter().map(|(.., v)| v).collect()
 }
 
 /// Newest `updated_at` of a watched project in a `t3.changes` result.
@@ -421,6 +572,8 @@ pub(crate) fn spawn_poller(
         let mut statuses: HashMap<String, String> = HashMap::new();
         let mut last_full: Option<Instant> = None;
         let mut first = true;
+        // Last good `t3.changes` sidebar state (project titles/icons/pins, thread pins/snoozes).
+        let mut meta = Meta::default();
         loop {
             let tick = Instant::now();
             if projects.is_empty() {
@@ -433,12 +586,24 @@ pub(crate) fn spawn_poller(
             }
             let (input, changes) = project_changes();
             let (reason, full_cause, to_list): (&str, Option<&str>, Vec<usize>) = match &changes {
-                Ok((o, map)) => {
+                Ok((o, ch)) => {
                     let changed: Vec<usize> = (0..projects.len())
-                        .filter(|&i| listed_at.get(&projects[i].id) != Some(&newest(map, &canonical, &projects[i])))
+                        .filter(|&i| listed_at.get(&projects[i].id) != Some(&newest(&ch.updated, &canonical, &projects[i])))
                         .collect();
+                    let now = telemetry::now_unix_ms();
+                    let snoozed = ch
+                        .meta
+                        .snoozed_until
+                        .values()
+                        .filter(|u| telemetry::parse_rfc3339_ms(u).is_some_and(|u| u > now))
+                        .count();
                     let mut out = o.telemetry();
-                    out["projects"] = json!(map.len());
+                    out["projects"] = json!(ch.meta.projects.len());
+                    out["thread_projects"] = json!(ch.updated.len());
+                    out["pinned_threads"] = json!(ch.meta.pins.len());
+                    out["active_runs"] = json!(ch.meta.running_since.len());
+                    out["snoozed_threads"] = json!(snoozed);
+                    out["invalid_icons"] = json!(ch.invalid_icons);
                     out["changed"] = changed.iter().map(|&i| Value::String(projects[i].id.clone())).collect();
                     tel.event("t3.changes", Some(o.wall_ms), true, input, out, None);
                     if listed_at.is_empty() {
@@ -457,6 +622,11 @@ pub(crate) fn spawn_poller(
                     (reason, Some("changes_query_failed"), (0..projects.len()).collect())
                 }
             };
+            // A failed query keeps the last known project meta, pins and snoozes.
+            let changes = changes.map(|(_, ch)| {
+                meta = ch.meta;
+                ch.updated
+            });
             let listing: Vec<Project> = to_list.iter().map(|&i| projects[i].clone()).collect();
             let results = list_all(&tel, &cfg, &listing);
             let mut failed = Vec::new();
@@ -467,7 +637,7 @@ pub(crate) fn spawn_poller(
                             canonical.insert(p.id.clone(), t.project_id.clone());
                         }
                         // Value read *before* listing: a change racing the list is caught next tick.
-                        let seen = changes.as_ref().ok().and_then(|(_, map)| newest(map, &canonical, p));
+                        let seen = changes.as_ref().ok().and_then(|map| newest(map, &canonical, p));
                         listed_at.insert(p.id.clone(), seen);
                         by_project.insert(p.id.clone(), list);
                     }
@@ -478,6 +648,17 @@ pub(crate) fn spawn_poller(
             }
             if listing.len() == projects.len() {
                 last_full = Some(Instant::now());
+            }
+            for p in &projects {
+                let id = canonical.get(&p.id).unwrap_or(&p.id);
+                match meta.projects.get_mut(id) {
+                    Some(m) if !m.name.trim().is_empty() => {}
+                    Some(m) => m.name = p.display_name().to_owned(),
+                    None => {
+                        let m = ProjectMeta { name: p.display_name().to_owned(), ..ProjectMeta::default() };
+                        meta.projects.insert(id.clone(), m);
+                    }
+                }
             }
             for t in by_project.values().flatten() {
                 let prev = statuses.insert(t.thread_id.clone(), t.status.clone());
@@ -495,12 +676,7 @@ pub(crate) fn spawn_poller(
             }
             first = false;
             let total = by_project.values().map(Vec::len).sum::<usize>();
-            let mut views = select(&cfg, by_project.values().flatten().cloned(), telemetry::now_unix_ms());
-            for v in &mut views {
-                if let Some(p) = projects.iter().find(|p| canonical.get(&p.id).unwrap_or(&p.id) == &v.project) {
-                    v.project = p.display_name().to_owned();
-                }
-            }
+            let views = select(&cfg, by_project.values().flatten().cloned(), telemetry::now_unix_ms(), &meta);
             let poll_ms = ms(tick.elapsed());
             tel.event(
                 "t3.poll",
@@ -513,7 +689,11 @@ pub(crate) fn spawn_poller(
                 (!failed.is_empty()).then(|| failed.join("; ")).as_deref(),
             );
             *snapshot.write().unwrap_or_else(|p| p.into_inner()) = views;
-            tel.update_stats(|s| s.last_t3_poll_ms = Some(poll_ms));
+            let connected = failed.is_empty();
+            tel.update_stats(|s| {
+                s.last_t3_poll_ms = Some(poll_ms);
+                s.t3_connected = connected;
+            });
             if !failed.is_empty() {
                 let _ = tx.send(CoreEvent::Error(format!("t3 list failed: {}", failed.join("; "))));
             }
@@ -522,4 +702,88 @@ pub(crate) fn spawn_poller(
         }
     })?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn raw(id: &str, created: &str, updated: &str, settled: bool) -> RawThread {
+        RawThread {
+            thread_id: id.into(),
+            project_id: "p".into(),
+            title: String::new(),
+            status: String::new(),
+            settled,
+            updated_at: updated.into(),
+            created_at: created.into(),
+            snoozed: false,
+            snoozed_until: None,
+            link: None,
+            provider_instance_id: None,
+            model: None,
+            latest_run_id: None,
+        }
+    }
+
+    fn ids(views: &[ThreadView]) -> Vec<&str> {
+        views.iter().map(|v| v.id.as_str()).collect()
+    }
+
+    #[test]
+    fn select_orders_like_t3_sidebar() {
+        let mut cfg = Config::from_env();
+        cfg.max_threads = 100;
+        cfg.recent_window = Duration::from_secs(6 * 3600);
+        let now = telemetry::parse_rfc3339_ms("2026-11-11T12:00:00.000Z").expect("valid");
+        let mut meta = Meta::default();
+        meta.pins.insert("pin-b".into(), Some("a1".into()));
+        meta.pins.insert("pin-a".into(), Some("a0".into()));
+        meta.pins.insert("pin-nokey".into(), None);
+        meta.snoozed_until.insert("snoozed".into(), "2026-11-12T06:00:00.000Z".into());
+        meta.snoozed_until.insert("woke".into(), "2026-11-10T06:00:00.000Z".into());
+        meta.projects.insert("p".into(), ProjectMeta { name: "Proj".into(), icon: None, pinned: true });
+        let old = "2026-11-01T00:00:00.000Z";
+        let threads = |busy: &[&str]| {
+            let upd = |id: &str, base: &'static str| if busy.contains(&id) { "2026-11-11T11:59:59.000Z" } else { base };
+            let mut list_snoozed = raw("list-snoozed", "2026-11-11T11:50:00.000Z", upd("list-snoozed", old), false);
+            list_snoozed.snoozed = true;
+            vec![
+                raw("old-active", "2026-11-11T08:00:00.000Z", upd("old-active", old), false),
+                raw("settled-recent", "2026-11-11T10:30:00.000Z", upd("settled-recent", "2026-11-11T11:00:00.000Z"), true),
+                raw("pin-nokey", "2026-11-11T10:00:00.000Z", upd("pin-nokey", old), true),
+                raw("snoozed", "2026-11-11T11:45:00.000Z", upd("snoozed", old), false),
+                raw("settled-old", "2026-11-11T11:55:00.000Z", old, true),
+                raw("pin-b", "2026-11-11T11:00:00.000Z", upd("pin-b", old), false),
+                list_snoozed,
+                raw("woke", "2026-11-11T07:00:00.000Z", upd("woke", old), false),
+                raw("new-active", "2026-11-11T11:30:00.000Z", upd("new-active", old), false),
+                raw("pin-a", "2026-11-11T09:00:00.000Z", upd("pin-a", old), false),
+            ]
+        };
+        let expected = [
+            "pin-a",
+            "pin-b",
+            "pin-nokey",
+            "new-active",
+            "old-active",
+            "woke",
+            "list-snoozed",
+            "snoozed",
+            "settled-recent",
+        ];
+        let views = select(&cfg, threads(&[]), now, &meta);
+        assert_eq!(ids(&views), expected);
+        // Activity never reorders.
+        let busy = select(&cfg, threads(&["old-active", "woke", "settled-recent", "pin-b", "snoozed"]), now, &meta);
+        assert_eq!(ids(&busy), expected);
+
+        let v = |id: &str| views.iter().find(|v| v.id == id).expect("listed");
+        assert!(v("pin-nokey").pinned && v("pin-nokey").settled);
+        assert!(!v("woke").snoozed && v("snoozed").snoozed && v("list-snoozed").snoozed);
+        assert!(v("new-active").project == "Proj" && v("new-active").project_id == "p" && v("new-active").project_pinned);
+
+        cfg.max_threads = 2;
+        assert_eq!(ids(&select(&cfg, threads(&[]), now, &meta)), ["pin-a", "pin-b"]);
+    }
 }

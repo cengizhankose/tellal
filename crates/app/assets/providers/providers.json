@@ -1,0 +1,114 @@
+{
+ "lookup": "instance id -> instances[id].driver (else treat the id itself as a driver kind) -> drivers[driver].file; missing -> 2-letter monogram of the display name (T3: providerInstanceInitials). color null = theme foreground.",
+ "drivers": {
+  "codex": {
+   "file": "providers/openai.svg",
+   "label": "Codex",
+   "color": null
+  },
+  "claudeAgent": {
+   "file": "providers/claude.svg",
+   "label": "Claude",
+   "color": {
+    "light": "#d97757",
+    "dark": "#d97757"
+   }
+  },
+  "openai": {
+   "file": "providers/openai.svg",
+   "label": "OpenAI",
+   "color": null
+  },
+  "anthropic": {
+   "file": "providers/anthropic.svg",
+   "label": "Anthropic",
+   "color": null
+  },
+  "openrouter": {
+   "file": "providers/openrouter.svg",
+   "label": "OpenRouter",
+   "color": null
+  },
+  "ollama": {
+   "file": "providers/ollama.svg",
+   "label": "Ollama",
+   "color": null
+  },
+  "acpRegistry": {
+   "file": "providers/acp-registry.svg",
+   "label": "ACP Registry",
+   "color": null
+  },
+  "cursor": {
+   "file": "providers/cursor.svg",
+   "label": "Cursor",
+   "color": {
+    "light": "#26251E",
+    "dark": "#EDECEC"
+   }
+  },
+  "grok": {
+   "file": "providers/grok.svg",
+   "label": "Grok",
+   "color": null
+  },
+  "fx": {
+   "file": "providers/fx.svg",
+   "label": "fx",
+   "color": null
+  },
+  "opencode": {
+   "file": "providers/opencode.svg",
+   "label": "OpenCode",
+   "color": null
+  },
+  "kiro": {
+   "file": "providers/kiro.svg",
+   "label": "Kiro",
+   "color": {
+    "light": "#9046FF",
+    "dark": "#9046FF"
+   }
+  },
+  "muse": {
+   "file": "providers/muse.svg",
+   "label": "Muse",
+   "color": {
+    "light": "#0081fb",
+    "dark": "#0081fb"
+   }
+  },
+  "pi": {
+   "file": "providers/pi.svg",
+   "label": "Pi",
+   "color": null
+  }
+ },
+ "monogramOnly": {
+  "antigravity": "T3 ships Antigravity as a raster PNG (Icons.tsx:451-456); no vector mark to tint",
+  "openaiCompatible": "T3 draws the endpoint's initials in a bordered tile with a tiny OpenAI badge (ProviderInstanceIcon.tsx:139-161)"
+ },
+ "instances": {
+  "codex": {
+   "driver": "codex"
+  },
+  "claudeAgent": {
+   "driver": "claudeAgent"
+  },
+  "claude": {
+   "driver": "claudeAgent"
+  },
+  "omp": {
+   "driver": "acpRegistry",
+   "displayName": "omp"
+  },
+  "omp-firstmate": {
+   "driver": "acpRegistry",
+   "displayName": "omp (firstmate)"
+  },
+  "claude-proxy": {
+   "driver": "claudeAgent",
+   "displayName": "Claude (proxy)"
+  }
+ }
+}

@@ -1,0 +1,131 @@
+{
+ "lucide": "lucide-static 0.564.0 (T3 pins lucide-react ^0.564.0, apps/web/package.json:72)",
+ "lookup": "file = icons/<name>.svg; if missing use aliases[name]; else normalise by deleting '-' and matching case-insensitively (T3 resolves names through PascalCase, lib/lucideIconByName.ts:10-26)",
+ "popular": [
+  "folder-code",
+  "code-2",
+  "terminal",
+  "globe-2",
+  "server",
+  "database",
+  "bot",
+  "sparkles",
+  "smartphone",
+  "monitor",
+  "cloud-cog",
+  "package",
+  "book-open",
+  "flask-conical",
+  "shield-check",
+  "rocket",
+  "gamepad-2",
+  "music",
+  "image",
+  "shopping-bag",
+  "git-branch",
+  "workflow",
+  "wrench",
+  "layers-3"
+ ],
+ "colors": {
+  "gray": {
+   "dark": "#99a1af",
+   "light": "#4a5565",
+   "swatch": "#6a7282"
+  },
+  "red": {
+   "dark": "#ff6467",
+   "light": "#e7000b",
+   "swatch": "#fb2c36"
+  },
+  "orange": {
+   "dark": "#ff8904",
+   "light": "#f54900",
+   "swatch": "#ff6900"
+  },
+  "amber": {
+   "dark": "#ffb900",
+   "light": "#e17100",
+   "swatch": "#fe9a00"
+  },
+  "yellow": {
+   "dark": "#fdc700",
+   "light": "#d08700",
+   "swatch": "#f0b100"
+  },
+  "lime": {
+   "dark": "#9ae600",
+   "light": "#5ea500",
+   "swatch": "#7ccf00"
+  },
+  "green": {
+   "dark": "#05df72",
+   "light": "#00a63e",
+   "swatch": "#00c950"
+  },
+  "emerald": {
+   "dark": "#00d492",
+   "light": "#009966",
+   "swatch": "#00bc7d"
+  },
+  "teal": {
+   "dark": "#00d5be",
+   "light": "#009689",
+   "swatch": "#00bba7"
+  },
+  "cyan": {
+   "dark": "#00d3f2",
+   "light": "#0092b8",
+   "swatch": "#00b8db"
+  },
+  "sky": {
+   "dark": "#00bcff",
+   "light": "#0084d1",
+   "swatch": "#00a6f4"
+  },
+  "blue": {
+   "dark": "#51a2ff",
+   "light": "#155dfc",
+   "swatch": "#2b7fff"
+  },
+  "indigo": {
+   "dark": "#7c86ff",
+   "light": "#4f39f6",
+   "swatch": "#615fff"
+  },
+  "violet": {
+   "dark": "#a684ff",
+   "light": "#7f22fe",
+   "swatch": "#8e51ff"
+  },
+  "purple": {
+   "dark": "#c27aff",
+   "light": "#9810fa",
+   "swatch": "#ad46ff"
+  },
+  "fuchsia": {
+   "dark": "#ed6aff",
+   "light": "#c800de",
+   "swatch": "#e12afb"
+  },
+  "pink": {
+   "dark": "#fb64b6",
+   "light": "#e60076",
+   "swatch": "#f6339a"
+  },
+  "rose": {
+   "dark": "#ff637e",
+   "light": "#ec003f",
+   "swatch": "#ff2056"
+  }
+ },
+ "colorNote": "icon tint: dark theme = <color>-400, light theme = <color>-600 (projectIconColors.ts); swatch = <color>-500. Hex = Tailwind v4 OKLCH values from T3's bundle CSS, gamut-mapped to sRGB.",
+ "aliases": {
+  "grid-2x-2": "grid-2x2",
+  "grid-2x-2-check": "grid-2x2-check",
+  "grid-2x-2-plus": "grid-2x2-plus",
+  "grid-2x-2-x": "grid-2x2-x",
+  "grid-3x-2": "grid-3x2",
+  "grid-3x-3": "grid-3x3"
+ }
+}

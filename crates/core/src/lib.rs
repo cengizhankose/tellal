@@ -21,6 +21,7 @@ mod live;
 mod speech;
 pub mod t3;
 pub mod telemetry;
+pub mod theme;
 mod wispr;
 pub mod tts {
     //! TTS engine and audio helpers (used by `t3p-bench`).
@@ -65,6 +66,13 @@ pub struct Config {
     /// Wispr Flow History DB (read-only). Default
     /// `~/Library/Application Support/Wispr Flow/flow.sqlite`. Env `T3P_WISPR_DB`.
     pub wispr_db: PathBuf,
+    /// T3 Code desktop app bundle whose built-in theme palettes are read. `None` = the most
+    /// recently updated of `/Applications` / `~/Applications` `T3 Code (Nightly).app` /
+    /// `T3 Code.app`. Env `T3P_T3_APP`.
+    pub t3_app: Option<PathBuf>,
+    /// The T3 desktop app's Electron userData dir (its `Local Storage` holds the selected theme;
+    /// read-only). Default `~/Library/Application Support/t3code-v2`. Env `T3P_T3_APP_DATA`.
+    pub t3_app_data: PathBuf,
 }
 
 impl Config {
@@ -96,6 +104,9 @@ impl Config {
             reply_prefix: std::env::var("T3P_REPLY_PREFIX").unwrap_or_else(|_| "$sesli ".to_owned()),
             wispr_db: var("T3P_WISPR_DB")
                 .map_or_else(|| home.join("Library/Application Support/Wispr Flow/flow.sqlite"), PathBuf::from),
+            t3_app: var("T3P_T3_APP").map(PathBuf::from),
+            t3_app_data: var("T3P_T3_APP_DATA")
+                .map_or_else(|| home.join("Library/Application Support/t3code-v2"), PathBuf::from),
         }
     }
 
@@ -109,6 +120,7 @@ impl Config {
             "recent_window_s": self.recent_window.as_secs(), "max_threads": self.max_threads,
             "live_poll_interval_ms": self.live_poll_interval.as_millis() as u64,
             "reply_prefix": self.reply_prefix, "wispr_db": self.wispr_db,
+            "t3_app": self.t3_app, "t3_app_data": self.t3_app_data,
         })
     }
 }
@@ -136,6 +148,9 @@ pub struct ThreadView {
     pub created_at: String,
     /// RFC3339 from T3.
     pub updated_at: String,
+    /// RFC3339 start of the thread's current run (T3's `startedAt`, else `requestedAt`) while a
+    /// run is active; what T3's "Working 1h 9m" label counts from. `None` when no run is active.
+    pub running_since: Option<String>,
     /// `https://app.t3.codes/threads/<env>/<thread>`; opening it focuses the thread in T3.
     pub link: String,
     /// T3 provider instance id (e.g. `omp`, `omp-firstmate`, `claude`, `codex`).
@@ -157,12 +172,13 @@ pub struct ProjectIcon {
 /// built-in dark palette). Colors are `0xRRGGBB`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ThemeView {
-    /// Where the palette came from: `t3:<theme-id>` (the T3 app's selected theme),
-    /// `t3-env:<theme-id>` (`t3 theme set`), or `default`.
+    /// Where the palette came from: `t3:<theme-id>` (the T3 app's selected built-in or custom
+    /// theme; `t3:system|light|dark` = T3's neutral palette), `t3-env:<theme-id>` (an environment
+    /// theme from `~/.t3/userdata/themes`), or `default`.
     pub source: String,
     pub name: String,
     pub dark: bool,
-    /// Window background.
+    /// Window background (T3's sidebar background: the panel mirrors T3's sidebar).
     pub canvas: u32,
     /// Raised surfaces (cards, docks, popovers).
     pub surface: u32,
@@ -173,6 +189,7 @@ pub struct ThemeView {
     pub text: u32,
     /// Secondary text (≥ 4.5:1 on canvas).
     pub text_muted: u32,
+    /// Progress, focus and selection marks (≥ 3:1 on canvas).
     pub accent: u32,
     /// Text/icon color on an `accent` fill (≥ 4.5:1).
     pub accent_text: u32,
@@ -230,7 +247,9 @@ pub struct ChannelView {
     pub unheard: usize,
     /// Text of the current (playing or paused) utterance.
     pub now_text: Option<String>,
-    /// Playback position and length of the current utterance (ms), for a progress bar.
+    /// Playback position and length of the current utterance (ms), for a progress bar. Live on
+    /// every `Core::channels()` call (no event per tick: poll while `speaking`); frozen while
+    /// paused; the total grows until the utterance is fully synthesized.
     pub now_elapsed_ms: Option<u64>,
     pub now_total_ms: Option<u64>,
     /// The thread waits for the user (approval / question / secret request).
@@ -261,6 +280,12 @@ pub struct LiveStats {
     pub listening: usize,
     /// This run's telemetry directory (events.jsonl, metrics.jsonl, audio/).
     pub run_dir: PathBuf,
+    /// The voice (EMA model + lexicon) loaded on the speech thread; until then nothing can be
+    /// spoken.
+    pub voice_ready: bool,
+    /// The last T3 poll listed every project without a failure (`t3.poll` ok); false before the
+    /// first poll and after a failed one.
+    pub t3_connected: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -289,6 +314,7 @@ pub struct Core {
 struct Inner {
     tel: Arc<Telemetry>,
     threads: Arc<RwLock<Vec<ThreadView>>>,
+    theme: Arc<RwLock<ThemeView>>,
     speech: speech::Speech,
     wispr: wispr::Wispr,
     events: Sender<CoreEvent>,
@@ -318,6 +344,7 @@ impl Core {
         let speech = speech::Speech::start(tel.clone(), &config, tx.clone(), threads.clone())?;
         live::spawn(tel.clone(), config.live_poll_interval, start_ms, threads.clone(), speech.clone())?;
         let wispr = wispr::Wispr::new(tel.clone(), config.wispr_db.clone(), tx.clone());
+        let theme = theme::start(tel.clone(), &config, tx.clone())?;
         let (t3_bin, reply_prefix) = (config.t3_bin.clone(), config.reply_prefix.clone());
         let on_stop = speech.clone();
         t3::spawn_poller(tel.clone(), config, threads.clone(), tx.clone(), move |thread, to| {
@@ -325,19 +352,20 @@ impl Core {
                 on_stop.notice(thread, "stopped", "Durduruldu.");
             }
         })?;
-        let inner = Inner { tel, threads, speech, wispr, events: tx, t3_bin, reply_prefix };
+        let inner = Inner { tel, threads, theme, speech, wispr, events: tx, t3_bin, reply_prefix };
         Ok((Core { inner: Arc::new(inner) }, rx))
     }
     /// Latest snapshot of threads (never blocks on I/O). Order mirrors T3's sidebar and is
-    /// stable: activity never moves a row (newest `created_at` first; pinned threads first;
-    /// settled and snoozed threads last).
+    /// stable: activity (`updated_at`) never moves a row. Pinned threads first, in T3's pin order
+    /// (`pinOrderKey` ascending; the newest pin is on top); then active threads, newest
+    /// `created_at` first; then settled or snoozed threads, newest `created_at` first.
     pub fn threads(&self) -> Vec<ThreadView> {
         self.inner.threads.read().unwrap_or_else(|p| p.into_inner()).clone()
     }
     /// The palette resolved from T3's selected theme (never blocks on I/O). `ThemeChanged`
     /// fires when it changes.
     pub fn theme(&self) -> ThemeView {
-        ThemeView::default()
+        self.inner.theme.read().unwrap_or_else(|p| p.into_inner()).clone()
     }
     /// Radio switch. `true`: speak one catch-up line now (starts the click-to-audio clock), then
     /// every new assistant message live. `false`: drop this channel's current utterance and queue.

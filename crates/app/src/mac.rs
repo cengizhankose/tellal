@@ -85,6 +85,84 @@ fn ns_window(window: &Window) -> Option<Id> {
     (!ns_window.is_null()).then_some(ns_window)
 }
 
+/// The panel's `NSWindow`, for AppKit calls made outside gpui's window borrow (resize and
+/// show/hide run from a foreground task so AppKit's synchronous resize callback can re-enter gpui).
+#[derive(Clone, Copy)]
+pub struct NativeWindow(Id);
+
+impl NativeWindow {
+    pub fn of(window: &Window) -> Option<NativeWindow> {
+        ns_window(window).map(NativeWindow)
+    }
+
+    /// Sets the content height, keeping the window's top edge where it is (AppKit frames grow
+    /// from the bottom-left corner).
+    pub fn set_height_keep_top(self, height: f32) {
+        unsafe {
+            let frame: NSRect = msg_send![self.0, frame];
+            let content: NSRect = msg_send![self.0, contentRectForFrameRect: frame];
+            let chrome = frame.h - content.h;
+            let h = f64::from(height) + chrome;
+            if (h - frame.h).abs() < 0.5 {
+                return;
+            }
+            let next = NSRect { x: frame.x, y: frame.y + frame.h - h, w: frame.w, h };
+            let _: () = msg_send![self.0, setFrame: next display: YES];
+        }
+    }
+
+    pub fn is_visible(self) -> bool {
+        let visible: BOOL = unsafe { msg_send![self.0, isVisible] };
+        visible == YES
+    }
+
+    /// Shows the panel and makes it key; a non-activating panel takes the keyboard without
+    /// activating the app, so the frontmost app stays frontmost.
+    pub fn show_key(self) {
+        unsafe {
+            let _: () = msg_send![self.0, makeKeyAndOrderFront: std::ptr::null_mut::<Object>()];
+        }
+    }
+
+    pub fn hide(self) {
+        unsafe {
+            let _: () = msg_send![self.0, orderOut: std::ptr::null_mut::<Object>()];
+        }
+    }
+
+    /// `CGWindowID` (what `screencapture -l` takes).
+    pub fn number(self) -> isize {
+        unsafe { msg_send![self.0, windowNumber] }
+    }
+
+    /// Clips the content view (gpui's Metal layer and its blur view) to `radius`, so the
+    /// `Blurred` backdrop follows the panel's rounded corners.
+    pub fn round_corners(self, radius: f64) {
+        unsafe {
+            let view: Id = msg_send![self.0, contentView];
+            if view.is_null() {
+                return;
+            }
+            let _: () = msg_send![view, setWantsLayer: YES];
+            let layer: Id = msg_send![view, layer];
+            if !layer.is_null() {
+                let _: () = msg_send![layer, setCornerRadius: radius];
+                let _: () = msg_send![layer, setMasksToBounds: YES];
+            }
+            let _: () = msg_send![self.0, invalidateShadow];
+        }
+    }
+}
+
+/// macOS Accessibility › Display › Reduce motion.
+pub fn reduce_motion() -> bool {
+    unsafe {
+        let workspace: Id = msg_send![class!(NSWorkspace), sharedWorkspace];
+        let reduce: BOOL = msg_send![workspace, accessibilityDisplayShouldReduceMotion];
+        reduce == YES
+    }
+}
+
 /// Hides the close/minimize/zoom buttons AppKit draws for gpui's titled-but-titlebarless windows.
 pub fn hide_traffic_lights(window: &Window) {
     let Some(ns_window) = ns_window(window) else {

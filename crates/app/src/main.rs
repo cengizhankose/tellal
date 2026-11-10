@@ -1,9 +1,17 @@
 #[cfg(not(target_os = "macos"))]
 compile_error!("t3-panel is a macOS-only floating panel");
 
+mod assets;
+mod hotkey;
+mod icons;
 mod input;
 mod mac;
+mod model;
+mod motion;
 mod panel;
+mod theme;
+mod time;
+mod widgets;
 
 use std::time::Instant;
 
@@ -14,10 +22,13 @@ use gpui::{
 use serde_json::json;
 use t3_panel_core::{Config, Core};
 
+use crate::motion::Motion;
 use crate::panel::{Panel, SelfTestMode};
+use crate::theme::Theme;
 
-const PANEL_WIDTH: f32 = 380.;
-const PANEL_HEIGHT: f32 = 560.;
+const PANEL_WIDTH: f32 = panel::WIDTH;
+/// First frame only; the panel then sizes itself to its content.
+const PANEL_HEIGHT: f32 = 480.;
 const SCREEN_MARGIN: f32 = 16.;
 
 fn main() -> anyhow::Result<()> {
@@ -25,10 +36,13 @@ fn main() -> anyhow::Result<()> {
     let selftest = SelfTestMode::from_env();
     let (core, events) = Core::start(Config::from_env())?;
 
-    Application::new().run(move |cx: &mut App| {
+    Application::new().with_assets(assets::Assets).run(move |cx: &mut App| {
         // Runs after gpui's applicationDidFinishLaunching set the policy to Regular.
         let activation_policy = mac::make_accessory_app();
         input::bind_keys(cx);
+        panel::bind_keys(cx);
+        cx.set_global(Theme::new(core.theme()));
+        cx.set_global(Motion { reduce: mac::reduce_motion() });
         let insets = mac::primary_screen_insets();
         let (inset_top, inset_right) = insets.as_ref().map_or((0., 0.), |i| (i.top, i.right));
 
@@ -52,7 +66,7 @@ fn main() -> anyhow::Result<()> {
             is_resizable: false,
             is_minimizable: false,
             display_id: display.as_ref().map(|d| d.id()),
-            window_background: WindowBackgroundAppearance::Transparent,
+            window_background: WindowBackgroundAppearance::Blurred,
             ..Default::default()
         };
 

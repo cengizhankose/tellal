@@ -5,12 +5,14 @@
 
 use std::ops::Range;
 
+use crate::theme::{Theme, alpha};
+
 use gpui::{
     App, Bounds, ClipboardItem, ContentMask, Context, CursorStyle, ElementId, ElementInputHandler,
     Entity, EntityInputHandler, EventEmitter, FocusHandle, Focusable, GlobalElementId, KeyBinding,
     LayoutId, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad, Pixels, Point,
     ShapedLine, SharedString, Style, TextRun, UTF16Selection, UnderlineStyle, Window, actions,
-    div, fill, point, prelude::*, px, relative, rgb, rgba, size,
+    div, fill, point, prelude::*, px, relative, size,
 };
 
 actions!(
@@ -19,9 +21,6 @@ actions!(
 );
 
 const KEY_CONTEXT: &str = "ReplyInput";
-const CURSOR_COLOR: u32 = 0x0a84ff;
-const SELECTION_COLOR: u32 = 0x0a84ff55;
-const PLACEHOLDER_COLOR: u32 = 0x8e8e93;
 
 pub fn bind_keys(cx: &mut App) {
     let ctx = Some(KEY_CONTEXT);
@@ -492,9 +491,10 @@ impl Element for TextElement {
         let selected_range = input.selected_range.clone();
         let cursor = input.cursor_offset();
         let style = window.text_style();
+        let t = cx.global::<Theme>().current;
 
         let (display_text, text_color) = if input.content.is_empty() {
-            (input.placeholder.clone(), rgb(PLACEHOLDER_COLOR).into())
+            (input.placeholder.clone(), t.text_muted.into())
         } else {
             (input.content.clone(), style.color)
         };
@@ -541,7 +541,7 @@ impl Element for TextElement {
         let (selection, cursor) = if selected_range.is_empty() {
             let cursor = fill(
                 Bounds::new(point(left + cursor_x, bounds.top()), size(px(2.), bounds.size.height)),
-                rgb(CURSOR_COLOR),
+                t.accent,
             );
             (None, Some(cursor))
         } else {
@@ -550,7 +550,7 @@ impl Element for TextElement {
                     point(left + line.x_for_index(selected_range.start), bounds.top()),
                     point(left + line.x_for_index(selected_range.end), bounds.bottom()),
                 ),
-                rgba(SELECTION_COLOR),
+                alpha(t.accent, 0.33),
             );
             (Some(selection), None)
         };
@@ -595,7 +595,9 @@ impl Element for TextElement {
 }
 
 impl Render for TextInput {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let t = cx.global::<Theme>().current;
+        let focused = self.focus_handle.is_focused(window);
         div()
             .flex()
             .w_full()
@@ -624,8 +626,8 @@ impl Render for TextInput {
             .py_1()
             .rounded_md()
             .border_1()
-            .border_color(rgba(0xffffff26))
-            .bg(rgba(0x00000059))
+            .border_color(if focused { t.accent } else { t.border })
+            .bg(t.canvas)
             .line_height(px(20.))
             .text_size(px(13.))
             .child(TextElement { input: cx.entity() })

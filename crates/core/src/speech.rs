@@ -204,7 +204,10 @@ struct Playing {
     synth_done: bool,
     sentences: usize,
     synth_ms: f64,
+    /// Sum of `clips_ms` (grows until synthesis finishes).
     audio_ms: f64,
+    /// Duration of every source appended to `player`, in order (label clip, then sentences).
+    clips_ms: Vec<f64>,
     prefetched: bool,
     device_open_ms: Option<f64>,
     first_audio: Option<Instant>,
@@ -230,6 +233,7 @@ impl Playing {
             sentences: 0,
             synth_ms: 0.0,
             audio_ms: 0.0,
+            clips_ms: Vec::new(),
             device_open_ms: None,
             first_audio: None,
             msg_to_audio_ms: None,
@@ -254,6 +258,17 @@ impl Playing {
                 s.last_click_to_audio_ms = c2a;
             }
         });
+    }
+
+    /// `(elapsed, total)` playback ms. `Player::get_pos` restarts with every appended source and
+    /// `Player::len` counts the sources not yet finished, so the finished clips plus the position
+    /// in the current one is the elapsed time. A paused player freezes `get_pos`.
+    fn progress(&self) -> (u64, u64) {
+        let done = self.clips_ms.len().saturating_sub(self.player.len());
+        let finished: f64 = self.clips_ms[..done].iter().sum();
+        let pos = self.clips_ms.get(done).map_or(0.0, |&clip| (self.player.get_pos().as_secs_f64() * 1000.0).min(clip));
+        let elapsed = (finished + pos).min(self.audio_ms);
+        (elapsed.round() as u64, self.audio_ms.round() as u64)
     }
 }
 
@@ -381,12 +396,21 @@ impl State {
         }
     }
 
-    fn views(&self) -> HashMap<String, ChannelView> {
+    /// Non-default channels. `progress` adds the live playback position (`now_elapsed_ms`,
+    /// `now_total_ms`); change detection in `commit` compares views without it.
+    fn views(&self, progress: bool) -> HashMap<String, ChannelView> {
         self.chans
             .iter()
             .filter_map(|(id, c)| {
                 let speaking = self.is_current(id);
                 let playing = if speaking { self.current.as_ref() } else { self.held.get(id) };
+                let (now_elapsed_ms, now_total_ms) = match playing {
+                    Some(p) if progress => {
+                        let (elapsed, total) = p.progress();
+                        (Some(elapsed), Some(total))
+                    }
+                    _ => (None, None),
+                };
                 let v = ChannelView {
                     listening: c.listening,
                     paused: c.paused,
@@ -394,8 +418,8 @@ impl State {
                     queued: c.queue.len(),
                     unheard: c.unheard,
                     now_text: playing.map(|p| p.item.text.clone()),
-                    now_elapsed_ms: None,
-                    now_total_ms: None,
+                    now_elapsed_ms,
+                    now_total_ms,
                     waiting_for_user: c.waiting_for_user,
                 };
                 (v != ChannelView::default()).then(|| (id.clone(), v))
@@ -418,9 +442,10 @@ impl Shared {
         telemetry::lock(&self.state)
     }
 
-    /// Publishes view changes (→ `ChannelsUpdated`) and HUD numbers, and wakes the player.
+    /// Publishes view changes (→ `ChannelsUpdated`; playback progress excluded) and HUD numbers,
+    /// and wakes the player.
     fn commit(&self, st: &mut State) {
-        let views = st.views();
+        let views = st.views(false);
         if views != st.views {
             st.views = views;
             let _ = self.events.send(CoreEvent::ChannelsUpdated);
@@ -488,7 +513,9 @@ impl Shared {
         let mut st = self.lock();
         let audible = st.current.as_ref().is_some_and(|p| p.item.id == id);
         let Some(p) = st.playing_mut(id) else { return false };
-        p.audio_ms += samples.len() as f64 * 1000.0 / f64::from(sample_rate);
+        let clip_ms = samples.len() as f64 * 1000.0 / f64::from(sample_rate);
+        p.audio_ms += clip_ms;
+        p.clips_ms.push(clip_ms);
         if let Some(s) = synth_ms {
             p.synth_ms += s;
             p.sentences += 1;
@@ -780,8 +807,9 @@ impl Speech {
         }
     }
 
+    /// Fresh views, including the playback position of current/held utterances.
     pub(crate) fn channels(&self) -> HashMap<String, ChannelView> {
-        self.shared.lock().views.clone()
+        self.shared.lock().views(true)
     }
 
     /// A new complete assistant message from the live tail. Returns the `live.message` action:
@@ -969,6 +997,7 @@ fn prefetch(tel: &Telemetry, engine: &TtsEngine, text: &str) -> Prefetch {
 fn player_loop(sh: &Shared, cfg: &Config) {
     let tel = &*sh.tel;
     let engine = TtsEngine::load(tel, cfg)
+        .inspect(|_| tel.update_stats(|s| s.voice_ready = true))
         .inspect_err(|e| {
             let _ = sh.events.send(CoreEvent::Error(format!("TTS model load failed: {e:#}")));
         })
@@ -1242,13 +1271,17 @@ mod tests {
         item(&mut st, "a", 1);
         item(&mut st, "a", 2);
         start_next(&mut st);
-        let v = st.views();
+        let v = st.views(false);
         assert_eq!(v.len(), 1);
         let a = &v["a"];
         assert!(a.listening && a.speaking && !a.paused);
         assert_eq!((a.queued, a.now_text.as_deref()), (1, Some("t1")));
+        assert_eq!((a.now_elapsed_ms, a.now_total_ms), (None, None));
+        // Nothing appended yet: position 0 of 0 ms.
+        let a = &st.views(true)["a"];
+        assert_eq!((a.now_elapsed_ms, a.now_total_ms), (Some(0), Some(0)));
         st.pause("a");
-        let a = &st.views()["a"];
+        let a = &st.views(false)["a"];
         assert!(a.paused && !a.speaking);
         assert_eq!(a.now_text.as_deref(), Some("t1"));
     }
