@@ -394,6 +394,8 @@ impl State {
                     queued: c.queue.len(),
                     unheard: c.unheard,
                     now_text: playing.map(|p| p.item.text.clone()),
+                    now_elapsed_ms: None,
+                    now_total_ms: None,
                     waiting_for_user: c.waiting_for_user,
                 };
                 (v != ChannelView::default()).then(|| (id.clone(), v))

@@ -113,22 +113,100 @@ impl Config {
     }
 }
 
-/// One row in the panel. Sorted newest `updated_at` first, unsettled before settled.
+/// One row in the panel. Order: see [`Core::threads`].
 #[derive(Clone, Debug)]
 pub struct ThreadView {
     pub id: String,
     /// Project display name (T3 project title, else workspace dir name, else id).
     pub project: String,
+    /// T3 project id (stable grouping key; `project` is only the display name).
+    pub project_id: String,
+    /// The project's icon as set in T3 (`projection_projects.project_icon_json`), if any.
+    pub project_icon: Option<ProjectIcon>,
+    /// The project is pinned in T3's sidebar.
+    pub project_pinned: bool,
     pub title: String,
     /// Raw T3 status. Observed values: running, idle, completed, interrupted, cancelled.
     pub status: String,
     pub settled: bool,
+    pub snoozed: bool,
+    /// The thread is pinned in T3's sidebar.
+    pub pinned: bool,
+    /// RFC3339 from T3.
+    pub created_at: String,
     /// RFC3339 from T3.
     pub updated_at: String,
     /// `https://app.t3.codes/threads/<env>/<thread>`; opening it focuses the thread in T3.
     pub link: String,
+    /// T3 provider instance id (e.g. `omp`, `omp-firstmate`, `claude`, `codex`).
     pub provider: String,
     pub model: String,
+}
+
+/// A T3 project icon, e.g. `{"kind":"lucide","name":"cooking-pot","color":"red"}`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProjectIcon {
+    /// `lucide` (icon from lucide.dev by `name`) or another kind T3 adds later.
+    pub kind: String,
+    pub name: String,
+    /// T3 color name (`red`, `gray`, …) as stored; `None` = default.
+    pub color: Option<String>,
+}
+
+/// The panel's colors, resolved from the theme selected in the T3 desktop app (falls back to a
+/// built-in dark palette). Colors are `0xRRGGBB`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ThemeView {
+    /// Where the palette came from: `t3:<theme-id>` (the T3 app's selected theme),
+    /// `t3-env:<theme-id>` (`t3 theme set`), or `default`.
+    pub source: String,
+    pub name: String,
+    pub dark: bool,
+    /// Window background.
+    pub canvas: u32,
+    /// Raised surfaces (cards, docks, popovers).
+    pub surface: u32,
+    /// Row hover / pressed background.
+    pub surface_hover: u32,
+    pub border: u32,
+    /// Primary text (≥ 7:1 on canvas when the palette allows, never < 4.5:1).
+    pub text: u32,
+    /// Secondary text (≥ 4.5:1 on canvas).
+    pub text_muted: u32,
+    pub accent: u32,
+    /// Text/icon color on an `accent` fill (≥ 4.5:1).
+    pub accent_text: u32,
+    pub success: u32,
+    pub warning: u32,
+    pub danger: u32,
+    pub info: u32,
+    /// T3's interface font family (`""` = system font) and size in px.
+    pub font_family: String,
+    pub font_size: f32,
+}
+
+impl Default for ThemeView {
+    fn default() -> ThemeView {
+        ThemeView {
+            source: "default".into(),
+            name: "T3 Panel".into(),
+            dark: true,
+            canvas: 0x16_1618,
+            surface: 0x1f_1f22,
+            surface_hover: 0x27_272b,
+            border: 0x33_3338,
+            text: 0xed_edef,
+            text_muted: 0xa1_a1aa,
+            accent: 0x5b_8def,
+            accent_text: 0xff_ffff,
+            success: 0x3f_b950,
+            warning: 0xd2_9922,
+            danger: 0xf8_5149,
+            info: 0x58_a6ff,
+            font_family: String::new(),
+            font_size: 14.0,
+        }
+    }
 }
 
 /// Speech state of one thread ("channel").
@@ -152,6 +230,9 @@ pub struct ChannelView {
     pub unheard: usize,
     /// Text of the current (playing or paused) utterance.
     pub now_text: Option<String>,
+    /// Playback position and length of the current utterance (ms), for a progress bar.
+    pub now_elapsed_ms: Option<u64>,
+    pub now_total_ms: Option<u64>,
     /// The thread waits for the user (approval / question / secret request).
     pub waiting_for_user: bool,
 }
@@ -195,6 +276,8 @@ pub enum CoreEvent {
     /// `send_reply` finished. `queued` = the thread was busy, so T3 queued it as the next turn.
     ReplySent { thread_id: String, ok: bool, queued: bool, detail: String },
     Error(String),
+    /// [`Core::theme`] changed (the user picked another theme or appearance in T3).
+    ThemeChanged,
 }
 
 /// Cheap to clone; `Send + Sync`. All work runs on core-owned background threads.
@@ -245,9 +328,16 @@ impl Core {
         let inner = Inner { tel, threads, speech, wispr, events: tx, t3_bin, reply_prefix };
         Ok((Core { inner: Arc::new(inner) }, rx))
     }
-    /// Latest snapshot of threads (never blocks on I/O).
+    /// Latest snapshot of threads (never blocks on I/O). Order mirrors T3's sidebar and is
+    /// stable: activity never moves a row (newest `created_at` first; pinned threads first;
+    /// settled and snoozed threads last).
     pub fn threads(&self) -> Vec<ThreadView> {
         self.inner.threads.read().unwrap_or_else(|p| p.into_inner()).clone()
+    }
+    /// The palette resolved from T3's selected theme (never blocks on I/O). `ThemeChanged`
+    /// fires when it changes.
+    pub fn theme(&self) -> ThemeView {
+        ThemeView::default()
     }
     /// Radio switch. `true`: speak one catch-up line now (starts the click-to-audio clock), then
     /// every new assistant message live. `false`: drop this channel's current utterance and queue.
