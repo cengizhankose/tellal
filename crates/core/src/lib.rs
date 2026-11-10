@@ -1,8 +1,10 @@
-//! t3-panel core: T3 thread source, speakable-text extraction, local TTS and telemetry.
+//! t3-panel core: T3 thread source, live message tail, per-thread speech channels, local TTS,
+//! Wispr Flow dictation bridge and telemetry.
 //!
 //! PUBLIC API CONTRACT (the GPUI app depends on exactly these items; keep signatures stable).
 //! The modules below are public for the `t3p-bench` / `t3p-report` tools.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -43,6 +45,15 @@ pub struct Config {
     pub recent_window: Duration,
     /// Max rows returned by `Core::threads`. Default 20.
     pub max_threads: usize,
+    /// Live-tail interval (new assistant messages + waiting requests of listed threads, one
+    /// read-only query). Default 1s. Env `T3P_LIVE_POLL_MS`.
+    pub live_poll_interval: Duration,
+    /// Prepended to every reply sent from the panel so the agent uses the `sesli` skill.
+    /// Default `"$sesli "`. Env `T3P_REPLY_PREFIX` (empty string disables).
+    pub reply_prefix: String,
+    /// Wispr Flow History DB (read-only). Default
+    /// `~/Library/Application Support/Wispr Flow/flow.sqlite`. Env `T3P_WISPR_DB`.
+    pub wispr_db: PathBuf,
 }
 
 impl Config {
@@ -65,6 +76,12 @@ impl Config {
             save_audio: var("T3P_SAVE_AUDIO").is_none_or(|v| v.trim() != "0"),
             recent_window: Duration::from_secs(6 * 3600),
             max_threads: 20,
+            live_poll_interval: var("T3P_LIVE_POLL_MS")
+                .and_then(|v| v.trim().parse().ok())
+                .map_or(Duration::from_secs(1), Duration::from_millis),
+            reply_prefix: std::env::var("T3P_REPLY_PREFIX").unwrap_or_else(|_| "$sesli ".to_owned()),
+            wispr_db: var("T3P_WISPR_DB")
+                .map_or_else(|| home.join("Library/Application Support/Wispr Flow/flow.sqlite"), PathBuf::from),
         }
     }
 
@@ -75,6 +92,8 @@ impl Config {
             "poll_interval_ms": self.poll_interval.as_millis() as u64, "model_dir": self.model_dir,
             "log_root": self.log_root, "save_audio": self.save_audio,
             "recent_window_s": self.recent_window.as_secs(), "max_threads": self.max_threads,
+            "live_poll_interval_ms": self.live_poll_interval.as_millis() as u64,
+            "reply_prefix": self.reply_prefix, "wispr_db": self.wispr_db,
         })
     }
 }
@@ -97,18 +116,53 @@ pub struct ThreadView {
     pub model: String,
 }
 
+/// Speech state of one thread ("channel").
+///
+/// Radio: a muted channel is never spoken; assistant messages that arrive while muted only bump
+/// `unheard`. Unmuting (`Core::set_listening(id, true)`) speaks one catch-up line (the latest
+/// `🔊` line, else the latest message's first sentence, else a status line) and from then on
+/// speaks every new assistant message live.
+/// Video: a paused channel holds its current utterance mid-sentence and keeps queueing new ones;
+/// resuming continues exactly where it stopped. Nothing is dropped unless the user skips,
+/// jumps to live or mutes.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ChannelView {
+    pub listening: bool,
+    pub paused: bool,
+    /// This channel's utterance is the one audible right now.
+    pub speaking: bool,
+    /// Utterances waiting after the current one.
+    pub queued: usize,
+    /// Assistant messages that arrived while muted (reset on unmute).
+    pub unheard: usize,
+    /// Text of the current (playing or paused) utterance.
+    pub now_text: Option<String>,
+    /// The thread waits for the user (approval / question / secret request).
+    pub waiting_for_user: bool,
+}
+
 /// Numbers for the panel's live HUD footer.
 #[derive(Clone, Debug, Default)]
 pub struct LiveStats {
     pub rss_mb: f64,
     pub cpu_pct: f64,
     pub last_t3_poll_ms: Option<f64>,
+    /// Last live-tail query (new assistant messages / waiting requests) duration.
+    pub last_live_poll_ms: Option<f64>,
     pub last_tts_ms: Option<f64>,
     pub last_rtf: Option<f64>,
+    /// Unmute click → first audio of the catch-up line.
     pub last_click_to_audio_ms: Option<f64>,
-    /// Thread id currently being spoken.
+    /// Assistant message `created_at` in T3 → its audio starts.
+    pub last_msg_to_audio_ms: Option<f64>,
+    /// `dictation_stop` (or Wispr's own stop) → transcript row seen in Wispr's History DB.
+    pub last_dictation_ms: Option<f64>,
+    /// Thread id currently audible.
     pub speaking: Option<String>,
+    /// Utterances queued across all channels.
     pub queue_len: usize,
+    /// Number of listening channels.
+    pub listening: usize,
     /// This run's telemetry directory (events.jsonl, metrics.jsonl, audio/).
     pub run_dir: PathBuf,
 }
@@ -116,8 +170,15 @@ pub struct LiveStats {
 #[derive(Clone, Debug)]
 pub enum CoreEvent {
     ThreadsUpdated,
+    /// Any `ChannelView` changed (listening, paused, speaking, queue, unheard, waiting).
+    ChannelsUpdated,
     SpeakingStarted { thread_id: String },
     SpeakingFinished { thread_id: String },
+    /// Wispr Flow wrote a new History row after `dictation_start` (its formatted text).
+    DictationTranscript { thread_id: String, text: String },
+    DictationFailed { thread_id: String, error: String },
+    /// `send_reply` finished. `queued` = the thread was busy, so T3 queued it as the next turn.
+    ReplySent { thread_id: String, ok: bool, queued: bool, detail: String },
     Error(String),
 }
 
@@ -160,16 +221,32 @@ impl Core {
     pub fn threads(&self) -> Vec<ThreadView> {
         self.inner.threads.read().unwrap_or_else(|p| p.into_inner()).clone()
     }
-    /// Non-blocking: fetch last messages, extract speakable text, enqueue TTS. Starts the
-    /// click-to-audio clock at call time.
-    pub fn speak_thread(&self, thread_id: &str) {
-        self.inner.speech.speak(thread_id);
+    /// Radio switch. `true`: speak one catch-up line now (starts the click-to-audio clock), then
+    /// every new assistant message live. `false`: drop this channel's current utterance and queue.
+    pub fn set_listening(&self, _thread_id: &str, _on: bool) {}
+    /// Video pause/resume of one channel; the paused utterance resumes mid-sentence.
+    pub fn toggle_pause(&self, _thread_id: &str) {}
+    /// "Okey, geç": drop this channel's current utterance; the next queued one plays (unpaused).
+    pub fn skip(&self, _thread_id: &str) {}
+    /// Drop this channel's current utterance and backlog; keep listening live.
+    pub fn jump_to_live(&self, _thread_id: &str) {}
+    /// Mute every channel and silence playback.
+    pub fn mute_all(&self) {}
+    /// Snapshot of every channel that is not the default (muted, idle, nothing unheard).
+    pub fn channels(&self) -> HashMap<String, ChannelView> {
+        HashMap::new()
     }
-    /// Stops playback and clears the queue.
-    pub fn stop_speaking(&self) {
-        self.inner.speech.stop();
-    }
-    /// Opens the thread's link (focuses it in T3).
+    /// Starts Wispr Flow hands-free dictation (`wispr-flow://start-hands-free`) for a reply to
+    /// `thread_id` and watches Wispr's History DB for the transcript (→ `DictationTranscript`).
+    pub fn dictation_start(&self, _thread_id: &str) {}
+    /// Ends hands-free dictation (`wispr-flow://stop-hands-free`); the transcript follows.
+    pub fn dictation_stop(&self) {}
+    /// Ends hands-free dictation and ignores its transcript.
+    pub fn dictation_cancel(&self) {}
+    /// Non-blocking `t3 thread send <id> -` (text prefixed with `Config.reply_prefix`), then
+    /// `set_listening(id, true)` so the agent's acknowledgement is heard. → `ReplySent`.
+    pub fn send_reply(&self, _thread_id: &str, _text: &str) {}
+    /// Opens the thread inside the T3 desktop app (`t3code://threads/<env>/<thread>`).
     pub fn open_thread(&self, thread_id: &str) {
         let link = self.threads().into_iter().find(|t| t.id == thread_id).map(|t| t.link);
         let Some(link) = link.filter(|l| !l.is_empty()) else {
