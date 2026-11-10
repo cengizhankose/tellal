@@ -280,6 +280,7 @@ impl Panel {
                     self.on_reply_sent(&thread_id, ok, queued, detail)
                 }
                 CoreEvent::Error(message) => self.last_error = Some(message.into()),
+                CoreEvent::ThemeChanged => {}
             }
         }
         if threads_updated {
