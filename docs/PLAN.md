@@ -48,7 +48,7 @@ Kaynak: 10 Kasım 2026 isteği (çift tık, uygulamada açma, Cevapla + Wispr, b
 
 ### Faz 4: ses ve kaynak
 - ✅ Daha doğal Türkçe ses: 59 denemelik karşılaştırmadan sonra EMA Lightning (ONNX, Rust içinde) seçildi; RSS ~250–300 MB → ~150–200 MB, tıklama→ses ~300 → 247 ms ([research/tts](../research/tts/README.md)).
-- Kalan: ikinci ses seçeneği (Pocket TTS Türkçe ya da ZONOS3-Mini ile kendi sesin), canlı mesajlarda ilk parçayı akışla çalma.
+- Tek ses olarak EMA kalıyor (11 Kasım: canlı kullanımda RSS ort. 173 / en çok 209 MB, CPU ort. %6, cümle başına üretim p50 144 ms). Kalan tek fikir: tamamlanmamış (streaming) mesajın ilk cümlesini erken okumak; canlıda mesaj→ses gecikmesinin 4–6,5 sn'si T3'ün mesajı bitirmesini beklemekten geliyor, ses üretimi ~0,2 sn.
 
 ## Bilinen eksikler (v0.2)
 - Denenmedi: `N yeni` rozeti, `seni bekliyor`, "Durduruldu." okunması, panelden ⏸/⏭/canlıya geç butonlarına gerçek tık (aynı işlevler sürücüyle denendi), Cevapla'yı açıkken başka satıra taşımak, IME (marked text).

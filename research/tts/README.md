@@ -11,7 +11,7 @@ Kaynaklar:
 
 ## Karar (11 Kasım 2026)
 
-Cengo 5 (EMA Lightning), 7 (Pocket TTS female_1) ve 8 (ZONOS3-Mini klon) numaralı sesleri beğendi. Panelde **EMA Lightning** kullanılıyor: en küçük (34 MB), Rust içinde ONNX Runtime ile çalışıyor, yan süreç yok. Pocket 1,2 GB ve Python yan süreç, ZONOS 1,8 GB ve rakam okuyamıyor; ikisi ikinci ses seçeneği olarak sırada.
+Cengo 5 (EMA Lightning), 7 (Pocket TTS female_1) ve 8 (ZONOS3-Mini klon) numaralı sesleri beğendi. Panelde **EMA Lightning** kullanılıyor: en küçük (34 MB), Rust içinde ONNX Runtime ile çalışıyor, yan süreç yok. Pocket 1,2 GB ve Python yan süreç, ZONOS 1,8 GB ve rakam okuyamıyor. Canlı kullanımda performansı yeterli bulundu; EMA tek ses olarak kalıyor.
 
 Rust'taki ölçüm (aynı 7 cümle, M4 Pro): soğuk yükleme 0,58 sn, cümle başına 32–252 ms, RTF 0,044, tepe RSS 143 MB, tıklama→ses 247 ms. Whisper geri okumasında 7 cümlenin 6'sı birebir doğru; "Build" yazımı sözlükle "bilt" yapıldıktan sonra o da doğru. Bake-off'taki Python ONNX koşusunda İngilizce kelimeler 3/5'ti; telaffuz sözlüğüyle "pull request", "deploy", "iOS", "PR", "commit", "push", "merge", "backend" doğru duyuluyor.
 
