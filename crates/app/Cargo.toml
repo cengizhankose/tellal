@@ -1,0 +1,19 @@
+[package]
+name = "t3-panel"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+t3-panel-core = { path = "../core" }
+anyhow.workspace = true
+serde_json.workspace = true
+crossbeam-channel.workspace = true
+# `runtime_shaders`: compile gpui's Metal shaders at startup instead of build time, so the build
+# does not need Xcode's separately downloaded Metal Toolchain (`xcrun metal`).
+gpui = { version = "0.2.2", default-features = false, features = ["font-kit", "runtime_shaders"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# Both already in gpui's macOS dependency tree; used for the few AppKit calls gpui does not expose.
+objc = "0.2"
+raw-window-handle = "0.6"
