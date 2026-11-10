@@ -1,0 +1,80 @@
+{
+ "run": "mlx-zonos3-clone",
+ "config": {
+  "engine": "mlx",
+  "repo": "mlx-community/ZONOS3-Mini",
+  "kwargs": {
+   "lang_code": "tr",
+   "ref_audio": "~/.cache/bakeoff-models/ref-8s.wav",
+   "seed": 1,
+   "stream": true,
+   "streaming_interval": 0.5
+  }
+ },
+ "import_ms": 9.4,
+ "load_ms": 659.8,
+ "device": "Metal GPU (MLX Device(gpu, 0))",
+ "sample_rate": 44100,
+ "sentences": [
+  {
+   "id": "a",
+   "text": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.",
+   "synth_ms": 1949.3,
+   "audio_ms": 4866.7,
+   "rtf": 0.4005,
+   "first_chunk_ms": 1275.1
+  },
+  {
+   "id": "b",
+   "text": "Şimdi testleri çalıştırıyorum.",
+   "synth_ms": 571.4,
+   "audio_ms": 2466.7,
+   "rtf": 0.2317,
+   "first_chunk_ms": 274.6
+  },
+  {
+   "id": "c",
+   "text": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?",
+   "synth_ms": 1302.1,
+   "audio_ms": 7533.3,
+   "rtf": 0.1728,
+   "first_chunk_ms": 271.4
+  },
+  {
+   "id": "d",
+   "text": "Pull request açıldı, deploy için onayını bekliyorum.",
+   "synth_ms": 723.7,
+   "audio_ms": 3466.7,
+   "rtf": 0.2088,
+   "first_chunk_ms": 280.3
+  },
+  {
+   "id": "e",
+   "text": "Build bitti; iOS simülatöründe ekran görüntüsü alıp rapora ekledim.",
+   "synth_ms": 988.3,
+   "audio_ms": 5266.7,
+   "rtf": 0.1877,
+   "first_chunk_ms": 281.4
+  },
+  {
+   "id": "f",
+   "text": "Durduruldu.",
+   "synth_ms": 491.6,
+   "audio_ms": 1733.3,
+   "rtf": 0.2836,
+   "first_chunk_ms": 283.8
+  },
+  {
+   "id": "g",
+   "text": "Başvurularda yeni gelişme yok, dört aktif başvuru var; yarın sabah tekrar kontrol edeceğim.",
+   "synth_ms": 1152.3,
+   "audio_ms": 6533.3,
+   "rtf": 0.1764,
+   "first_chunk_ms": 281.5
+  }
+ ],
+ "wall_s": 7.92,
+ "max_rss_bytes": 1675132928,
+ "peak_footprint_bytes": 3242739896,
+ "command": "~/.venvs/mlx-audio/bin/python ~/dev/t3-panel/research/tts/bakeoff/harness/bench.py mlx-zonos3-clone '{\"engine\": \"mlx\", \"repo\": \"mlx-community/ZONOS3-Mini\", \"kwargs\": {\"lang_code\": \"tr\", \"ref_audio\": \"~/.cache/bakeoff-models/ref-8s.wav\", \"seed\": 1, \"stream\": true, \"streaming_interval\": 0.5}}'"
+}

@@ -1,0 +1,539 @@
+{
+ "piper-dfki": {
+  "python": "~/.venvs/piper/bin/python",
+  "config": {
+   "engine": "piper",
+   "voice": "tr_TR-dfki-medium"
+  }
+ },
+ "piper-fahrettin": {
+  "python": "~/.venvs/piper/bin/python",
+  "config": {
+   "engine": "piper",
+   "voice": "tr_TR-fahrettin-medium"
+  }
+ },
+ "supertonic-M1-s8": {
+  "python": "~/.venvs/supertonic/bin/python",
+  "config": {
+   "engine": "supertonic",
+   "voice": "M1",
+   "steps": 8,
+   "speed": 1.05
+  }
+ },
+ "supertonic-M1-s4": {
+  "python": "~/.venvs/supertonic/bin/python",
+  "config": {
+   "engine": "supertonic",
+   "voice": "M1",
+   "steps": 4,
+   "speed": 1.05
+  }
+ },
+ "supertonic-M2-s8": {
+  "python": "~/.venvs/supertonic/bin/python",
+  "config": {
+   "engine": "supertonic",
+   "voice": "M2",
+   "steps": 8,
+   "speed": 1.05
+  }
+ },
+ "supertonic-M2-s4": {
+  "python": "~/.venvs/supertonic/bin/python",
+  "config": {
+   "engine": "supertonic",
+   "voice": "M2",
+   "steps": 4,
+   "speed": 1.05
+  }
+ },
+ "supertonic-M3-s8": {
+  "python": "~/.venvs/supertonic/bin/python",
+  "config": {
+   "engine": "supertonic",
+   "voice": "M3",
+   "steps": 8,
+   "speed": 1.05
+  }
+ },
+ "supertonic-M3-s4": {
+  "python": "~/.venvs/supertonic/bin/python",
+  "config": {
+   "engine": "supertonic",
+   "voice": "M3",
+   "steps": 4,
+   "speed": 1.05
+  }
+ },
+ "supertonic-M4-s8": {
+  "python": "~/.venvs/supertonic/bin/python",
+  "config": {
+   "engine": "supertonic",
+   "voice": "M4",
+   "steps": 8,
+   "speed": 1.05
+  }
+ },
+ "supertonic-M4-s4": {
+  "python": "~/.venvs/supertonic/bin/python",
+  "config": {
+   "engine": "supertonic",
+   "voice": "M4",
+   "steps": 4,
+   "speed": 1.05
+  }
+ },
+ "supertonic-M5-s8": {
+  "python": "~/.venvs/supertonic/bin/python",
+  "config": {
+   "engine": "supertonic",
+   "voice": "M5",
+   "steps": 8,
+   "speed": 1.05
+  }
+ },
+ "supertonic-M5-s4": {
+  "python": "~/.venvs/supertonic/bin/python",
+  "config": {
+   "engine": "supertonic",
+   "voice": "M5",
+   "steps": 4,
+   "speed": 1.05
+  }
+ },
+ "supertonic-F1-s8": {
+  "python": "~/.venvs/supertonic/bin/python",
+  "config": {
+   "engine": "supertonic",
+   "voice": "F1",
+   "steps": 8,
+   "speed": 1.05
+  }
+ },
+ "supertonic-F1-s4": {
+  "python": "~/.venvs/supertonic/bin/python",
+  "config": {
+   "engine": "supertonic",
+   "voice": "F1",
+   "steps": 4,
+   "speed": 1.05
+  }
+ },
+ "supertonic-F2-s8": {
+  "python": "~/.venvs/supertonic/bin/python",
+  "config": {
+   "engine": "supertonic",
+   "voice": "F2",
+   "steps": 8,
+   "speed": 1.05
+  }
+ },
+ "supertonic-F2-s4": {
+  "python": "~/.venvs/supertonic/bin/python",
+  "config": {
+   "engine": "supertonic",
+   "voice": "F2",
+   "steps": 4,
+   "speed": 1.05
+  }
+ },
+ "supertonic-F3-s8": {
+  "python": "~/.venvs/supertonic/bin/python",
+  "config": {
+   "engine": "supertonic",
+   "voice": "F3",
+   "steps": 8,
+   "speed": 1.05
+  }
+ },
+ "supertonic-F3-s4": {
+  "python": "~/.venvs/supertonic/bin/python",
+  "config": {
+   "engine": "supertonic",
+   "voice": "F3",
+   "steps": 4,
+   "speed": 1.05
+  }
+ },
+ "supertonic-F4-s8": {
+  "python": "~/.venvs/supertonic/bin/python",
+  "config": {
+   "engine": "supertonic",
+   "voice": "F4",
+   "steps": 8,
+   "speed": 1.05
+  }
+ },
+ "supertonic-F4-s4": {
+  "python": "~/.venvs/supertonic/bin/python",
+  "config": {
+   "engine": "supertonic",
+   "voice": "F4",
+   "steps": 4,
+   "speed": 1.05
+  }
+ },
+ "supertonic-F5-s8": {
+  "python": "~/.venvs/supertonic/bin/python",
+  "config": {
+   "engine": "supertonic",
+   "voice": "F5",
+   "steps": 8,
+   "speed": 1.05
+  }
+ },
+ "supertonic-F5-s4": {
+  "python": "~/.venvs/supertonic/bin/python",
+  "config": {
+   "engine": "supertonic",
+   "voice": "F5",
+   "steps": 4,
+   "speed": 1.05
+  }
+ },
+ "supertonic-M1-s2": {
+  "python": "~/.venvs/supertonic/bin/python",
+  "config": {
+   "engine": "supertonic",
+   "voice": "M1",
+   "steps": 2,
+   "speed": 1.05
+  }
+ },
+ "supertonic-F1-s2": {
+  "python": "~/.venvs/supertonic/bin/python",
+  "config": {
+   "engine": "supertonic",
+   "voice": "F1",
+   "steps": 2,
+   "speed": 1.05
+  }
+ },
+ "supertonic-F2-s2": {
+  "python": "~/.venvs/supertonic/bin/python",
+  "config": {
+   "engine": "supertonic",
+   "voice": "F2",
+   "steps": 2,
+   "speed": 1.05
+  }
+ },
+ "pocket-male_2": {
+  "python": "~/.venvs/pocket/bin/python",
+  "config": {
+   "engine": "pocket",
+   "voice": "male_2"
+  }
+ },
+ "pocket-female_1": {
+  "python": "~/.venvs/pocket/bin/python",
+  "config": {
+   "engine": "pocket",
+   "voice": "female_1"
+  }
+ },
+ "pocket-female_2": {
+  "python": "~/.venvs/pocket/bin/python",
+  "config": {
+   "engine": "pocket",
+   "voice": "female_2"
+  }
+ },
+ "chatterbox-default": {
+  "python": "~/.venvs/chatterbox/bin/python",
+  "config": {
+   "engine": "chatterbox",
+   "exaggeration": 0.5,
+   "cfg_weight": 0.5
+  }
+ },
+ "chatterbox-clone": {
+  "python": "~/.venvs/chatterbox/bin/python",
+  "config": {
+   "engine": "chatterbox",
+   "ref": "~/dev/videos/voice-ref/voice-ref.wav",
+   "exaggeration": 0.7,
+   "cfg_weight": 0.4
+  }
+ },
+ "xtts-gilberto": {
+  "python": "~/.venvs/xtts/bin/python",
+  "config": {
+   "engine": "xtts",
+   "speaker": "Gilberto Mathias"
+  }
+ },
+ "xtts-ana": {
+  "python": "~/.venvs/xtts/bin/python",
+  "config": {
+   "engine": "xtts",
+   "speaker": "Ana Florence"
+  }
+ },
+ "yelda": {
+  "python": "~/.venvs/piper/bin/python",
+  "config": {
+   "engine": "yelda",
+   "voice": "Yelda",
+   "rate": 185
+  }
+ },
+ "pocket-male_1": {
+  "python": "~/.venvs/pocket/bin/python",
+  "config": {
+   "engine": "pocket",
+   "voice": "male_1"
+  }
+ },
+ "sherpa-st3int8-sid0-s8": {
+  "python": "~/.venvs/sherpa/bin/python",
+  "config": {
+   "engine": "sherpa",
+   "dir": "~/.cache/bakeoff-models/sherpa-onnx-supertonic-3-tts-int8-2026-05-11",
+   "sid": 0,
+   "steps": 8,
+   "speed": 1.05,
+   "threads": 2
+  }
+ },
+ "sherpa-st3int8-sid0-s4": {
+  "python": "~/.venvs/sherpa/bin/python",
+  "config": {
+   "engine": "sherpa",
+   "dir": "~/.cache/bakeoff-models/sherpa-onnx-supertonic-3-tts-int8-2026-05-11",
+   "sid": 0,
+   "steps": 4,
+   "speed": 1.05,
+   "threads": 2
+  }
+ },
+ "sherpa-st3int8-sid5-s8": {
+  "python": "~/.venvs/sherpa/bin/python",
+  "config": {
+   "engine": "sherpa",
+   "dir": "~/.cache/bakeoff-models/sherpa-onnx-supertonic-3-tts-int8-2026-05-11",
+   "sid": 5,
+   "steps": 8,
+   "speed": 1.05,
+   "threads": 2
+  }
+ },
+ "sherpa-st3int8-sid5-s4": {
+  "python": "~/.venvs/sherpa/bin/python",
+  "config": {
+   "engine": "sherpa",
+   "dir": "~/.cache/bakeoff-models/sherpa-onnx-supertonic-3-tts-int8-2026-05-11",
+   "sid": 5,
+   "steps": 4,
+   "speed": 1.05,
+   "threads": 2
+  }
+ },
+ "sherpa-st3int8-sid0-s4-t4": {
+  "python": "~/.venvs/sherpa/bin/python",
+  "config": {
+   "engine": "sherpa",
+   "dir": "~/.cache/bakeoff-models/sherpa-onnx-supertonic-3-tts-int8-2026-05-11",
+   "sid": 0,
+   "steps": 4,
+   "speed": 1.05,
+   "threads": 4
+  }
+ },
+ "ema-lightning": {
+  "python": "~/.venvs/ema/bin/python",
+  "config": {
+   "engine": "ema",
+   "seed": 1
+  }
+ },
+ "antalia-mini": {
+  "python": "~/.venvs/antalia/bin/python",
+  "config": {
+   "engine": "antalia",
+   "seed": 1
+  }
+ },
+ "seslen-ege": {
+  "python": "~/.venvs/seslen/bin/python",
+  "config": {
+   "engine": "seslen",
+   "voice": "ege",
+   "ton": "notr",
+   "denetim": false
+  }
+ },
+ "seslen-ayse": {
+  "python": "~/.venvs/seslen/bin/python",
+  "config": {
+   "engine": "seslen",
+   "voice": "ayse",
+   "ton": "notr",
+   "denetim": false
+  }
+ },
+ "ahenk-cep-s16": {
+  "python": "~/.venvs/ahenk/bin/python",
+  "config": {
+   "engine": "ahenk",
+   "steps": 16
+  }
+ },
+ "ahenk-cep-s8": {
+  "python": "~/.venvs/ahenk/bin/python",
+  "config": {
+   "engine": "ahenk",
+   "steps": 8
+  }
+ },
+ "sherpa113-st3int8-sid0-s8": {
+  "python": "~/.venvs/sherpa113/bin/python",
+  "config": {
+   "engine": "sherpa",
+   "dir": "~/.cache/bakeoff-models/sherpa-onnx-supertonic-3-tts-int8-2026-05-11",
+   "sid": 0,
+   "steps": 8,
+   "speed": 1.05,
+   "threads": 2
+  }
+ },
+ "sherpa113-st3int8-sid0-s4": {
+  "python": "~/.venvs/sherpa113/bin/python",
+  "config": {
+   "engine": "sherpa",
+   "dir": "~/.cache/bakeoff-models/sherpa-onnx-supertonic-3-tts-int8-2026-05-11",
+   "sid": 0,
+   "steps": 4,
+   "speed": 1.05,
+   "threads": 2
+  }
+ },
+ "sherpa113-st3int8-sid5-s4": {
+  "python": "~/.venvs/sherpa113/bin/python",
+  "config": {
+   "engine": "sherpa",
+   "dir": "~/.cache/bakeoff-models/sherpa-onnx-supertonic-3-tts-int8-2026-05-11",
+   "sid": 5,
+   "steps": 4,
+   "speed": 1.05,
+   "threads": 2
+  }
+ },
+ "ema-onnx": {
+  "python": "~/.venvs/ema/bin/python",
+  "config": {
+   "engine": "ema_onnx",
+   "seed": 1
+  }
+ },
+ "mlx-zonos3-clone": {
+  "python": "~/.venvs/mlx-audio/bin/python",
+  "config": {
+   "engine": "mlx",
+   "repo": "mlx-community/ZONOS3-Mini",
+   "kwargs": {
+    "lang_code": "tr",
+    "ref_audio": "~/.cache/bakeoff-models/ref-8s.wav",
+    "seed": 1,
+    "stream": true,
+    "streaming_interval": 0.5
+   }
+  }
+ },
+ "mlx-moss-nano-clone": {
+  "python": "~/.venvs/mlx-audio/bin/python",
+  "config": {
+   "engine": "mlx",
+   "repo": "mlx-community/MOSS-TTS-Nano-100M",
+   "kwargs": {
+    "ref_audio": "~/.cache/bakeoff-models/ref-8s.wav",
+    "ref_text": "Her gün milyonlarca video yükleniyor. Peki bu dosyalar nerede saklanıyor? Sana nasıl bu kadar hızlı ulaşıyor? Çözüm şaşırtıcı derecede basit."
+   }
+  }
+ },
+ "mlx-audio8-clone": {
+  "python": "~/.venvs/mlx-audio/bin/python",
+  "config": {
+   "engine": "mlx",
+   "repo": "nativ-community/Audio8-TTS-Realistic-0.6b-8bit",
+   "kwargs": {
+    "ref_audio": "~/.cache/bakeoff-models/ref-8s.wav",
+    "ref_text": "Her gün milyonlarca video yükleniyor. Peki bu dosyalar nerede saklanıyor? Sana nasıl bu kadar hızlı ulaşıyor? Çözüm şaşırtıcı derecede basit.",
+    "seed": 1
+   }
+  }
+ },
+ "mlx-omnivoice-clone": {
+  "python": "~/.venvs/mlx-audio/bin/python",
+  "config": {
+   "engine": "mlx",
+   "repo": "mlx-community/OmniVoice-bf16",
+   "kwargs": {
+    "language": "turkish",
+    "ref_audio": "~/.cache/bakeoff-models/ref-8s.wav",
+    "ref_text": "Her gün milyonlarca video yükleniyor. Peki bu dosyalar nerede saklanıyor? Sana nasıl bu kadar hızlı ulaşıyor? Çözüm şaşırtıcı derecede basit.",
+    "num_steps": 16
+   }
+  }
+ },
+ "mlx-chatterbox-clone": {
+  "python": "~/.venvs/mlx-audio/bin/python",
+  "config": {
+   "engine": "mlx",
+   "repo": "mlx-community/chatterbox-multilingual-v3",
+   "kwargs": {
+    "lang_code": "tr",
+    "ref_audio": "~/.cache/bakeoff-models/ref-8s.wav",
+    "exaggeration": 0.7,
+    "cfg_weight": 0.4,
+    "verbose": false
+   }
+  }
+ },
+ "mlx-voxcpm2-clone": {
+  "python": "~/.venvs/mlx-audio/bin/python",
+  "config": {
+   "engine": "mlx",
+   "repo": "mlx-community/VoxCPM2-4bit",
+   "kwargs": {
+    "ref_audio": "~/.cache/bakeoff-models/ref-8s.wav"
+   }
+  }
+ },
+ "pocket-alperiox-6l-clone": {
+  "python": "~/.venvs/pocket-alperiox/bin/python",
+  "config": {
+   "engine": "pocket4",
+   "config": "hf://alperiox/pocket-tts-turkish/turkish_6l.yaml",
+   "ref": "~/.cache/bakeoff-models/ref-8s.wav"
+  }
+ },
+ "zonos3-native-clone": {
+  "python": "python3",
+  "script": "harness/zonos_server.py",
+  "config": {
+   "engine": "zonos_native",
+   "ref": "~/.cache/bakeoff-models/ref-8s.wav",
+   "seed": 1,
+   "port": 19191
+  }
+ },
+ "anka-male": {
+  "python": "~/.venvs/anka/bin/python",
+  "config": {
+   "engine": "anka",
+   "voice": "male",
+   "seed": 1
+  }
+ },
+ "anka-female": {
+  "python": "~/.venvs/anka/bin/python",
+  "config": {
+   "engine": "anka",
+   "voice": "female",
+   "seed": 1
+  }
+ }
+}

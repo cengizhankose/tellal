@@ -1,0 +1,73 @@
+{
+ "run": "piper-dfki",
+ "config": {
+  "engine": "piper",
+  "voice": "tr_TR-dfki-medium"
+ },
+ "import_ms": 9.8,
+ "load_ms": 790.2,
+ "device": "CPU (onnxruntime CPUExecutionProvider)",
+ "sample_rate": 22050,
+ "sentences": [
+  {
+   "id": "a",
+   "text": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.",
+   "synth_ms": 94.1,
+   "audio_ms": 4040.3,
+   "rtf": 0.0233,
+   "first_chunk_ms": 94.1
+  },
+  {
+   "id": "b",
+   "text": "Şimdi testleri çalıştırıyorum.",
+   "synth_ms": 32.6,
+   "audio_ms": 1985.3,
+   "rtf": 0.0164,
+   "first_chunk_ms": 32.6
+  },
+  {
+   "id": "c",
+   "text": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?",
+   "synth_ms": 95.7,
+   "audio_ms": 6490.0,
+   "rtf": 0.0147,
+   "first_chunk_ms": 71.4
+  },
+  {
+   "id": "d",
+   "text": "Pull request açıldı, deploy için onayını bekliyorum.",
+   "synth_ms": 47.1,
+   "audio_ms": 3390.1,
+   "rtf": 0.0139,
+   "first_chunk_ms": 47.1
+  },
+  {
+   "id": "e",
+   "text": "Build bitti; iOS simülatöründe ekran görüntüsü alıp rapora ekledim.",
+   "synth_ms": 67.3,
+   "audio_ms": 4644.0,
+   "rtf": 0.0145,
+   "first_chunk_ms": 67.3
+  },
+  {
+   "id": "f",
+   "text": "Durduruldu.",
+   "synth_ms": 18.1,
+   "audio_ms": 986.8,
+   "rtf": 0.0183,
+   "first_chunk_ms": 18.1
+  },
+  {
+   "id": "g",
+   "text": "Başvurularda yeni gelişme yok, dört aktif başvuru var; yarın sabah tekrar kontrol edeceğim.",
+   "synth_ms": 85.0,
+   "audio_ms": 5886.3,
+   "rtf": 0.0144,
+   "first_chunk_ms": 85.0
+  }
+ ],
+ "wall_s": 1.26,
+ "max_rss_bytes": 283033600,
+ "peak_footprint_bytes": 257114904,
+ "command": "~/.venvs/piper/bin/python ~/dev/t3-panel/research/tts/bakeoff/harness/bench.py piper-dfki '{\"engine\": \"piper\", \"voice\": \"tr_TR-dfki-medium\"}'"
+}

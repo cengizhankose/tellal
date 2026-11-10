@@ -1,0 +1,70 @@
+{
+ "run": "sherpa113-st3int8-sid5-s4",
+ "config": {
+  "engine": "sherpa",
+  "dir": "~/.cache/bakeoff-models/sherpa-onnx-supertonic-3-tts-int8-2026-05-11",
+  "sid": 5,
+  "steps": 4,
+  "speed": 1.05,
+  "threads": 2
+ },
+ "import_ms": 9.1,
+ "load_ms": 260.8,
+ "device": "CPU (sherpa-onnx 1.13.8, 2 threads, int8)",
+ "sample_rate": 44100,
+ "sentences": [
+  {
+   "id": "a",
+   "text": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.",
+   "synth_ms": 510.2,
+   "audio_ms": 5029.2,
+   "rtf": 0.1015
+  },
+  {
+   "id": "b",
+   "text": "Şimdi testleri çalıştırıyorum.",
+   "synth_ms": 290.6,
+   "audio_ms": 2388.8,
+   "rtf": 0.1217
+  },
+  {
+   "id": "c",
+   "text": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?",
+   "synth_ms": 644.5,
+   "audio_ms": 7137.1,
+   "rtf": 0.0903
+  },
+  {
+   "id": "d",
+   "text": "Pull request açıldı, deploy için onayını bekliyorum.",
+   "synth_ms": 375.7,
+   "audio_ms": 3530.3,
+   "rtf": 0.1064
+  },
+  {
+   "id": "e",
+   "text": "Build bitti; iOS simülatöründe ekran görüntüsü alıp rapora ekledim.",
+   "synth_ms": 497.4,
+   "audio_ms": 5307.5,
+   "rtf": 0.0937
+  },
+  {
+   "id": "f",
+   "text": "Durduruldu.",
+   "synth_ms": 195.4,
+   "audio_ms": 1337.1,
+   "rtf": 0.1462
+  },
+  {
+   "id": "g",
+   "text": "Başvurularda yeni gelişme yok, dört aktif başvuru var; yarın sabah tekrar kontrol edeceğim.",
+   "synth_ms": 556.2,
+   "audio_ms": 6037.1,
+   "rtf": 0.0921
+  }
+ ],
+ "wall_s": 3.37,
+ "max_rss_bytes": 451149824,
+ "peak_footprint_bytes": 426460096,
+ "command": "~/.venvs/sherpa113/bin/python ~/dev/t3-panel/research/tts/bakeoff/harness/bench.py sherpa113-st3int8-sid5-s4 '{\"engine\": \"sherpa\", \"dir\": \"~/.cache/bakeoff-models/sherpa-onnx-supertonic-3-tts-int8-2026-05-11\", \"sid\": 5, \"steps\": 4, \"speed\": 1.05, \"threads\": 2}'"
+}

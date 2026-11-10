@@ -1,0 +1,74 @@
+{
+ "run": "pocket-alperiox-6l-clone",
+ "config": {
+  "engine": "pocket4",
+  "config": "hf://alperiox/pocket-tts-turkish/turkish_6l.yaml",
+  "ref": "~/.cache/bakeoff-models/ref-8s.wav"
+ },
+ "import_ms": 27.7,
+ "load_ms": 23489.1,
+ "device": "CPU (torch)",
+ "sample_rate": 24000,
+ "sentences": [
+  {
+   "id": "a",
+   "text": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.",
+   "synth_ms": 360.2,
+   "audio_ms": 3840.0,
+   "rtf": 0.0938,
+   "first_chunk_ms": 28.9
+  },
+  {
+   "id": "b",
+   "text": "Şimdi testleri çalıştırıyorum.",
+   "synth_ms": 202.4,
+   "audio_ms": 2000.0,
+   "rtf": 0.1012,
+   "first_chunk_ms": 25.7
+  },
+  {
+   "id": "c",
+   "text": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?",
+   "synth_ms": 649.0,
+   "audio_ms": 7280.0,
+   "rtf": 0.0891,
+   "first_chunk_ms": 29.9
+  },
+  {
+   "id": "d",
+   "text": "Pull request açıldı, deploy için onayını bekliyorum.",
+   "synth_ms": 343.3,
+   "audio_ms": 2960.0,
+   "rtf": 0.116,
+   "first_chunk_ms": 29.3
+  },
+  {
+   "id": "e",
+   "text": "Build bitti; iOS simülatöründe ekran görüntüsü alıp rapora ekledim.",
+   "synth_ms": 445.4,
+   "audio_ms": 4240.0,
+   "rtf": 0.105,
+   "first_chunk_ms": 31.2
+  },
+  {
+   "id": "f",
+   "text": "Durduruldu.",
+   "synth_ms": 123.5,
+   "audio_ms": 1280.0,
+   "rtf": 0.0965,
+   "first_chunk_ms": 28.8
+  },
+  {
+   "id": "g",
+   "text": "Başvurularda yeni gelişme yok, dört aktif başvuru var; yarın sabah tekrar kontrol edeceğim.",
+   "synth_ms": 467.3,
+   "audio_ms": 5520.0,
+   "rtf": 0.0847,
+   "first_chunk_ms": 24.6
+  }
+ ],
+ "wall_s": 26.45,
+ "max_rss_bytes": 1480605696,
+ "peak_footprint_bytes": 1402144640,
+ "command": "~/.venvs/pocket-alperiox/bin/python ~/dev/t3-panel/research/tts/bakeoff/harness/bench.py pocket-alperiox-6l-clone '{\"engine\": \"pocket4\", \"config\": \"hf://alperiox/pocket-tts-turkish/turkish_6l.yaml\", \"ref\": \"~/.cache/bakeoff-models/ref-8s.wav\"}'"
+}

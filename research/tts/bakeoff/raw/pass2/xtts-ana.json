@@ -1,0 +1,73 @@
+{
+ "run": "xtts-ana",
+ "config": {
+  "engine": "xtts",
+  "speaker": "Ana Florence"
+ },
+ "import_ms": 23.6,
+ "load_ms": 18029.6,
+ "device": "MPS (torch)",
+ "sample_rate": 24000,
+ "sentences": [
+  {
+   "id": "a",
+   "text": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.",
+   "synth_ms": 1648.5,
+   "audio_ms": 4448.0,
+   "rtf": 0.3706,
+   "first_chunk_ms": 410.6
+  },
+  {
+   "id": "b",
+   "text": "Şimdi testleri çalıştırıyorum.",
+   "synth_ms": 926.0,
+   "audio_ms": 2218.7,
+   "rtf": 0.4174,
+   "first_chunk_ms": 306.3
+  },
+  {
+   "id": "c",
+   "text": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?",
+   "synth_ms": 2663.8,
+   "audio_ms": 7328.0,
+   "rtf": 0.3635,
+   "first_chunk_ms": 284.0
+  },
+  {
+   "id": "d",
+   "text": "Pull request açıldı, deploy için onayını bekliyorum.",
+   "synth_ms": 1306.4,
+   "audio_ms": 3658.7,
+   "rtf": 0.3571,
+   "first_chunk_ms": 281.8
+  },
+  {
+   "id": "e",
+   "text": "Build bitti; iOS simülatöründe ekran görüntüsü alıp rapora ekledim.",
+   "synth_ms": 1550.9,
+   "audio_ms": 4501.3,
+   "rtf": 0.3446,
+   "first_chunk_ms": 280.7
+  },
+  {
+   "id": "f",
+   "text": "Durduruldu.",
+   "synth_ms": 1058.3,
+   "audio_ms": 3008.0,
+   "rtf": 0.3518,
+   "first_chunk_ms": 269.3
+  },
+  {
+   "id": "g",
+   "text": "Başvurularda yeni gelişme yok, dört aktif başvuru var; yarın sabah tekrar kontrol edeceğim.",
+   "synth_ms": 2018.4,
+   "audio_ms": 5706.7,
+   "rtf": 0.3537,
+   "first_chunk_ms": 295.5
+  }
+ ],
+ "wall_s": 42.11,
+ "max_rss_bytes": 4301275136,
+ "peak_footprint_bytes": 4738173856,
+ "command": "~/.venvs/xtts/bin/python ~/dev/t3-panel/research/tts/bakeoff/harness/bench.py xtts-ana '{\"engine\": \"xtts\", \"speaker\": \"Ana Florence\"}'"
+}

@@ -1,0 +1,1746 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Turkish local TTS bake-off — t3-panel</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{--bg:#0f1115;--fg:#d8dde6;--dim:#7d8594;--line:#262b35;--good:#5fd38d;--ok:#e5c158;--bad:#ff6b6b;--base:#1d2a44}
+*{box-sizing:border-box}body{margin:0;padding:14px 18px;background:var(--bg);color:var(--fg);font:13px/1.35 -apple-system,system-ui,sans-serif}
+h1{font-size:18px;margin:0 0 4px}h2{font-size:15px;margin:18px 0 6px}a{color:#7fb3ff}code{color:#9aa6b8;font-size:11px}
+.dim{color:var(--dim);font-size:11px}.small{font-size:11px;max-width:260px;color:#b4bbc7}
+table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid var(--line);padding:4px 6px;vertical-align:top;text-align:left}
+thead th{position:sticky;top:0;background:#151922;cursor:pointer;white-space:nowrap;font-size:12px}
+tr.baseline{background:var(--base)}tr.baseline td:first-child,tr.baseline th:first-child{border-left:3px solid #7fb3ff}
+.tag{background:#7fb3ff;color:#0f1115;border-radius:3px;padding:0 4px;font-size:10px;font-weight:700}
+.good{color:var(--good)}.ok{color:var(--ok)}.bad{color:var(--bad)}
+.matrix td{min-width:190px}.matrix audio{width:180px;height:28px}.heard{font-size:11px;margin-top:2px}
+.name{min-width:170px;max-width:220px}.wrap{overflow-x:auto}
+input{background:#151922;color:var(--fg);border:1px solid var(--line);padding:4px 8px;border-radius:4px;width:260px}
+details{margin:6px 0}pre{white-space:pre-wrap;font-size:11px;color:#b4bbc7}
+</style></head><body>
+<h1>Turkish local TTS bake-off for t3-panel</h1>
+<div class="dim">Generated 2026-11-11T01:13:25 · Apple M4 Pro, 48 GB, macOS 27 (user&#x27;s Mac, other apps running); timings from a single run each · real runs, one fresh process per engine/voice · audio = loudness-normalized copies (-16 LUFS), raw wavs in audio/raw/</div>
+<details><summary>Method</summary><ul><li><b>load</b>: fresh python process per engine/voice; load_ms = process start (imports included) → model ready. Weights were already on disk and mostly in the OS file cache (not a cold-boot disk read).</li><li><b>synth</b>: perf_counter around the engine call per sentence, sentences a→g in order in the same process; first sentence includes any first-call warm-up.</li><li><b>ttfa</b>: first_chunk_ms if the engine streams (Piper: per sentence; Pocket: ~80 ms frames; XTTS: inference_stream 2nd pass; EMA/Antalia/Seslen: per sentence/clause; mlx stream=True), else synth_ms</li><li><b>rss</b>: /usr/bin/time -l &#x27;maximum resident set size&#x27; and &#x27;peak memory footprint&#x27; for the whole process (MPS/Metal allocations show up in footprint, not RSS)</li><li><b>wer</b>: whisper-cli 1.x, ggml-large-v3-turbo-q8_0, -l tr; digits → Turkish words on both sides, Turkish lowercase (I→ı, İ→i), suffix apostrophes dropped; word-level Levenshtein / reference words, weighted over the 7 sentences</li><li><b>numbers_ok</b>: sentence c heard as containing &#x27;seksen&#x27;, &#x27;yirmisi&#x27;, &#x27;otuzu&#x27; (whisper may write digits; they are spelled out first)</li><li><b>loudness</b>: listening copies: ffmpeg loudnorm I=-16:TP=-1.5:LRA=11 (single pass) → mp3 VBR q2</li><li><b>flags</b>: silencedetect -40 dB/0.25 s on raw wav: lead &gt;0.5 s, trail &gt;1 s, inner gap &gt;0.8 s; syllable rate (vowels of the written text with numbers spelled / speech span) &gt;8.5 or &lt;3 syl/s; peak ≥ 0.999 (clipping)</li><li><b>english_ok</b>: count of English tech words heard as such: d → pull, request, deploy; e → build, ios (5 total)</li></ul></details>
+<details><summary>Corpus (fed raw, no pre-normalization)</summary><ol type="a"><li>Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</li><li>Şimdi testleri çalıştırıyorum.</li><li>80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</li><li>Pull request açıldı, deploy için onayını bekliyorum.</li><li>Build bitti; iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</li><li>Durduruldu.</li><li>Başvurularda yeni gelişme yok, dört aktif başvuru var; yarın sabah tekrar kontrol edeceğim.</li></ol></details>
+<p><input id="q" placeholder="filter engines (e.g. supertonic, s8, pocket)…"> <span class="dim">click headers to sort · colors: TTFA ≤150 / ≤400 ms, RTF ≤0.1 / ≤0.5, WER ≤3 / ≤8 %</span></p>
+<h2>Metrics</h2><div class="wrap"><table id="m"><thead><tr>
+<th>Engine / voice</th><th>Device</th><th>Load ms</th><th>TTFA 1st ms</th><th>TTFA p50 ms</th><th>+lead silence p50</th><th>RTF</th><th>RSS MB</th><th>WER</th><th>Numbers OK?</th><th>EN words</th><th>Flags</th><th>License</th><th>Rust integration</th><th>Notes</th>
+</tr></thead><tbody><tr class="baseline" data-id="piper-dfki">
+<td class="name"><b>Piper tr_TR-dfki-medium (panel baseline)</b> <span class="tag">BASELINE</span><br><code>piper-dfki</code></td>
+<td>CPU (onnxruntime CPUExecutionProvider)<br><span class="dim">22050 Hz</span></td>
+<td data-v="746.2">746<br><span class="dim">2nd 790</span></td>
+<td data-v="89.6">90</td>
+<td data-v="59.4" class="good">59 <span class="dim">str</span><br><span class="dim">2nd 67</span></td>
+<td data-v="59.4">59<br><span class="dim">lead 0.00s</span></td>
+<td data-v="0.0151" class="good">0.015</td>
+<td data-v="295">295<br><span class="dim">fp 270</span></td>
+<td data-v="0.127" class="bad">12.7%<br><span class="dim">CER 2.6%</span></td>
+<td data-v="0" class="bad">no</td>
+<td data-v="3">3/5</td>
+<td data-v="0">0</td>
+<td class="small">Voice data: dfki CC-BY-NC-SA-4.0 (non-commercial); fahrettin CC0 (reels-lab piper.json). piper1 code GPL-3.0.</td>
+<td class="small">Current panel path: sherpa-onnx crate =1.13.8 VITS in-process (2.x dropped espeak-ng → needs lexicon/phoneme_codepoints or GPL piper-phonemize). https://k2-fsa.github.io/sherpa/onnx/c-api/html/tts.html</td>
+<td class="small">Python piper-tts 1.8.0 here; panel uses the same ONNX via sherpa-onnx in Rust. length 1.0 / noise 0.667 / noise_w 0.8 (piper.json cta mood = defaults).</td></tr><tr class="" data-id="supertonic-M2-s4">
+<td class="name"><b>Supertonic 3 M2 · 4 steps</b><br><code>supertonic-M2-s4</code></td>
+<td>CPU (onnxruntime CPUExecutionProvider)<br><span class="dim">44100 Hz</span></td>
+<td data-v="363.9">364<br><span class="dim">2nd 359</span></td>
+<td data-v="455.2">455</td>
+<td data-v="446.2" class="bad">446<br><span class="dim">2nd 456</span></td>
+<td data-v="943.2">943<br><span class="dim">lead 0.51s</span></td>
+<td data-v="0.0872" class="good">0.087</td>
+<td data-v="561">561<br><span class="dim">fp 535</span></td>
+<td data-v="0.0" class="good">0.0%<br><span class="dim">CER 0.0%<br>seeds 1/2/3: 0/4/6 (mean 3.0%)</span></td>
+<td data-v="1" class="good">yes<br><span class="dim">seeds 3/3</span></td>
+<td data-v="5">5/5</td>
+<td data-v="4">4</td>
+<td class="small">Weights BigScience OpenRAIL-M (commercial OK with use restrictions, disclose synthetic speech); SDK MIT.</td>
+<td class="small">Same sherpa-onnx crate the panel already pins (=1.13.8 has OfflineTtsSupertonicModelConfig; GenerationConfig extra lang=&quot;tr&quot;): https://github.com/k2-fsa/sherpa-onnx/blob/master/rust-api-examples/examples/supertonic_tts.rs ; or 4 ONNX graphs via `ort` (official Rust example in supertone-inc/supertonic rust/, archived). Port must keep NFKD combining marks.</td>
+<td class="small">supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json &#x27;explain&#x27;), numpy seed 1</td></tr><tr class="" data-id="supertonic-F2-s8">
+<td class="name"><b>Supertonic 3 F2 · 8 steps</b><br><code>supertonic-F2-s8</code></td>
+<td>CPU (onnxruntime CPUExecutionProvider)<br><span class="dim">44100 Hz</span></td>
+<td data-v="340.0">340<br><span class="dim">2nd 349</span></td>
+<td data-v="808.1">808</td>
+<td data-v="808.1" class="bad">808<br><span class="dim">2nd 848</span></td>
+<td data-v="1389.1">1389<br><span class="dim">lead 0.50s</span></td>
+<td data-v="0.168" class="ok">0.168</td>
+<td data-v="554">554<br><span class="dim">fp 528</span></td>
+<td data-v="0.0" class="good">0.0%<br><span class="dim">CER 0.0%<br>seeds 1/2/3: 0/4/0 (mean 1.2%)</span></td>
+<td data-v="1" class="good">yes<br><span class="dim">seeds 3/3</span></td>
+<td data-v="5">5/5</td>
+<td data-v="4">4</td>
+<td class="small">Weights BigScience OpenRAIL-M (commercial OK with use restrictions, disclose synthetic speech); SDK MIT.</td>
+<td class="small">Same sherpa-onnx crate the panel already pins (=1.13.8 has OfflineTtsSupertonicModelConfig; GenerationConfig extra lang=&quot;tr&quot;): https://github.com/k2-fsa/sherpa-onnx/blob/master/rust-api-examples/examples/supertonic_tts.rs ; or 4 ONNX graphs via `ort` (official Rust example in supertone-inc/supertonic rust/, archived). Port must keep NFKD combining marks.</td>
+<td class="small">supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json &#x27;explain&#x27;), numpy seed 1 (default steps)</td></tr><tr class="" data-id="supertonic-M4-s8">
+<td class="name"><b>Supertonic 3 M4 · 8 steps</b><br><code>supertonic-M4-s8</code></td>
+<td>CPU (onnxruntime CPUExecutionProvider)<br><span class="dim">44100 Hz</span></td>
+<td data-v="353.4">353<br><span class="dim">2nd 344</span></td>
+<td data-v="812.0">812</td>
+<td data-v="812.0" class="bad">812<br><span class="dim">2nd 813</span></td>
+<td data-v="1236.5">1236<br><span class="dim">lead 0.40s</span></td>
+<td data-v="0.169" class="ok">0.169</td>
+<td data-v="550">550<br><span class="dim">fp 524</span></td>
+<td data-v="0.0" class="good">0.0%<br><span class="dim">CER 0.0%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="5">5/5</td>
+<td data-v="2">2</td>
+<td class="small">Weights BigScience OpenRAIL-M (commercial OK with use restrictions, disclose synthetic speech); SDK MIT.</td>
+<td class="small">Same sherpa-onnx crate the panel already pins (=1.13.8 has OfflineTtsSupertonicModelConfig; GenerationConfig extra lang=&quot;tr&quot;): https://github.com/k2-fsa/sherpa-onnx/blob/master/rust-api-examples/examples/supertonic_tts.rs ; or 4 ONNX graphs via `ort` (official Rust example in supertone-inc/supertonic rust/, archived). Port must keep NFKD combining marks.</td>
+<td class="small">supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json &#x27;explain&#x27;), numpy seed 1 (default steps)</td></tr><tr class="" data-id="supertonic-M2-s8">
+<td class="name"><b>Supertonic 3 M2 · 8 steps</b><br><code>supertonic-M2-s8</code></td>
+<td>CPU (onnxruntime CPUExecutionProvider)<br><span class="dim">44100 Hz</span></td>
+<td data-v="359.6">360<br><span class="dim">2nd 354</span></td>
+<td data-v="879.0">879</td>
+<td data-v="826.6" class="bad">827<br><span class="dim">2nd 867</span></td>
+<td data-v="1316.6">1317<br><span class="dim">lead 0.49s</span></td>
+<td data-v="0.1661" class="ok">0.166</td>
+<td data-v="557">557<br><span class="dim">fp 531</span></td>
+<td data-v="0.0" class="good">0.0%<br><span class="dim">CER 0.0%<br>seeds 1/2/3: 0/0/0 (mean 0.0%)</span></td>
+<td data-v="1" class="good">yes<br><span class="dim">seeds 3/3</span></td>
+<td data-v="5">5/5</td>
+<td data-v="2">2</td>
+<td class="small">Weights BigScience OpenRAIL-M (commercial OK with use restrictions, disclose synthetic speech); SDK MIT.</td>
+<td class="small">Same sherpa-onnx crate the panel already pins (=1.13.8 has OfflineTtsSupertonicModelConfig; GenerationConfig extra lang=&quot;tr&quot;): https://github.com/k2-fsa/sherpa-onnx/blob/master/rust-api-examples/examples/supertonic_tts.rs ; or 4 ONNX graphs via `ort` (official Rust example in supertone-inc/supertonic rust/, archived). Port must keep NFKD combining marks.</td>
+<td class="small">supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json &#x27;explain&#x27;), numpy seed 1 (default steps)</td></tr><tr class="" data-id="supertonic-M4-s4">
+<td class="name"><b>Supertonic 3 M4 · 4 steps</b><br><code>supertonic-M4-s4</code></td>
+<td>CPU (onnxruntime CPUExecutionProvider)<br><span class="dim">44100 Hz</span></td>
+<td data-v="358.4">358<br><span class="dim">2nd 347</span></td>
+<td data-v="425.9">426</td>
+<td data-v="425.9" class="bad">426<br><span class="dim">2nd 427</span></td>
+<td data-v="851.8">852<br><span class="dim">lead 0.42s</span></td>
+<td data-v="0.0884" class="good">0.088</td>
+<td data-v="548">548<br><span class="dim">fp 521</span></td>
+<td data-v="0.018" class="good">1.8%<br><span class="dim">CER 0.9%<br>seeds 1/2/3: 2/0/6 (mean 2.4%)</span></td>
+<td data-v="1" class="good">yes<br><span class="dim">seeds 3/3</span></td>
+<td data-v="4">4/5</td>
+<td data-v="2">2</td>
+<td class="small">Weights BigScience OpenRAIL-M (commercial OK with use restrictions, disclose synthetic speech); SDK MIT.</td>
+<td class="small">Same sherpa-onnx crate the panel already pins (=1.13.8 has OfflineTtsSupertonicModelConfig; GenerationConfig extra lang=&quot;tr&quot;): https://github.com/k2-fsa/sherpa-onnx/blob/master/rust-api-examples/examples/supertonic_tts.rs ; or 4 ONNX graphs via `ort` (official Rust example in supertone-inc/supertonic rust/, archived). Port must keep NFKD combining marks.</td>
+<td class="small">supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json &#x27;explain&#x27;), numpy seed 1</td></tr><tr class="" data-id="supertonic-F2-s4">
+<td class="name"><b>Supertonic 3 F2 · 4 steps</b><br><code>supertonic-F2-s4</code></td>
+<td>CPU (onnxruntime CPUExecutionProvider)<br><span class="dim">44100 Hz</span></td>
+<td data-v="349.9">350<br><span class="dim">2nd 342</span></td>
+<td data-v="430.7">431</td>
+<td data-v="430.7" class="bad">431<br><span class="dim">2nd 442</span></td>
+<td data-v="997.7">998<br><span class="dim">lead 0.51s</span></td>
+<td data-v="0.0897" class="good">0.090</td>
+<td data-v="549">549<br><span class="dim">fp 523</span></td>
+<td data-v="0.018" class="good">1.8%<br><span class="dim">CER 1.1%<br>seeds 1/2/3: 2/0/9 (mean 3.6%)</span></td>
+<td data-v="1" class="good">yes<br><span class="dim">seeds 3/3</span></td>
+<td data-v="4">4/5</td>
+<td data-v="4">4</td>
+<td class="small">Weights BigScience OpenRAIL-M (commercial OK with use restrictions, disclose synthetic speech); SDK MIT.</td>
+<td class="small">Same sherpa-onnx crate the panel already pins (=1.13.8 has OfflineTtsSupertonicModelConfig; GenerationConfig extra lang=&quot;tr&quot;): https://github.com/k2-fsa/sherpa-onnx/blob/master/rust-api-examples/examples/supertonic_tts.rs ; or 4 ONNX graphs via `ort` (official Rust example in supertone-inc/supertonic rust/, archived). Port must keep NFKD combining marks.</td>
+<td class="small">supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json &#x27;explain&#x27;), numpy seed 1</td></tr><tr class="" data-id="supertonic-M5-s4">
+<td class="name"><b>Supertonic 3 M5 · 4 steps</b><br><code>supertonic-M5-s4</code></td>
+<td>CPU (onnxruntime CPUExecutionProvider)<br><span class="dim">44100 Hz</span></td>
+<td data-v="346.3">346<br><span class="dim">2nd 343</span></td>
+<td data-v="441.6">442</td>
+<td data-v="441.6" class="bad">442<br><span class="dim">2nd 450</span></td>
+<td data-v="894.7">895<br><span class="dim">lead 0.42s</span></td>
+<td data-v="0.085" class="good">0.085</td>
+<td data-v="551">551<br><span class="dim">fp 525</span></td>
+<td data-v="0.018" class="good">1.8%<br><span class="dim">CER 0.3%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="4">4/5</td>
+<td data-v="1">1</td>
+<td class="small">Weights BigScience OpenRAIL-M (commercial OK with use restrictions, disclose synthetic speech); SDK MIT.</td>
+<td class="small">Same sherpa-onnx crate the panel already pins (=1.13.8 has OfflineTtsSupertonicModelConfig; GenerationConfig extra lang=&quot;tr&quot;): https://github.com/k2-fsa/sherpa-onnx/blob/master/rust-api-examples/examples/supertonic_tts.rs ; or 4 ONNX graphs via `ort` (official Rust example in supertone-inc/supertonic rust/, archived). Port must keep NFKD combining marks.</td>
+<td class="small">supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json &#x27;explain&#x27;), numpy seed 1</td></tr><tr class="" data-id="supertonic-F5-s4">
+<td class="name"><b>Supertonic 3 F5 · 4 steps</b><br><code>supertonic-F5-s4</code></td>
+<td>CPU (onnxruntime CPUExecutionProvider)<br><span class="dim">44100 Hz</span></td>
+<td data-v="359.2">359<br><span class="dim">2nd 348</span></td>
+<td data-v="512.7">513</td>
+<td data-v="458.2" class="bad">458<br><span class="dim">2nd 440</span></td>
+<td data-v="922.2">922<br><span class="dim">lead 0.42s</span></td>
+<td data-v="0.0922" class="good">0.092</td>
+<td data-v="561">561<br><span class="dim">fp 535</span></td>
+<td data-v="0.018" class="good">1.8%<br><span class="dim">CER 0.6%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="5">5/5</td>
+<td data-v="2">2</td>
+<td class="small">Weights BigScience OpenRAIL-M (commercial OK with use restrictions, disclose synthetic speech); SDK MIT.</td>
+<td class="small">Same sherpa-onnx crate the panel already pins (=1.13.8 has OfflineTtsSupertonicModelConfig; GenerationConfig extra lang=&quot;tr&quot;): https://github.com/k2-fsa/sherpa-onnx/blob/master/rust-api-examples/examples/supertonic_tts.rs ; or 4 ONNX graphs via `ort` (official Rust example in supertone-inc/supertonic rust/, archived). Port must keep NFKD combining marks.</td>
+<td class="small">supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json &#x27;explain&#x27;), numpy seed 1</td></tr><tr class="" data-id="supertonic-M3-s8">
+<td class="name"><b>Supertonic 3 M3 · 8 steps</b><br><code>supertonic-M3-s8</code></td>
+<td>CPU (onnxruntime CPUExecutionProvider)<br><span class="dim">44100 Hz</span></td>
+<td data-v="352.8">353<br><span class="dim">2nd 352</span></td>
+<td data-v="823.8">824</td>
+<td data-v="815.8" class="bad">816<br><span class="dim">2nd 796</span></td>
+<td data-v="1213.8">1214<br><span class="dim">lead 0.40s</span></td>
+<td data-v="0.1716" class="ok">0.172</td>
+<td data-v="545">545<br><span class="dim">fp 519</span></td>
+<td data-v="0.018" class="good">1.8%<br><span class="dim">CER 0.9%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="4">4/5</td>
+<td data-v="3">3</td>
+<td class="small">Weights BigScience OpenRAIL-M (commercial OK with use restrictions, disclose synthetic speech); SDK MIT.</td>
+<td class="small">Same sherpa-onnx crate the panel already pins (=1.13.8 has OfflineTtsSupertonicModelConfig; GenerationConfig extra lang=&quot;tr&quot;): https://github.com/k2-fsa/sherpa-onnx/blob/master/rust-api-examples/examples/supertonic_tts.rs ; or 4 ONNX graphs via `ort` (official Rust example in supertone-inc/supertonic rust/, archived). Port must keep NFKD combining marks.</td>
+<td class="small">supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json &#x27;explain&#x27;), numpy seed 1 (default steps)</td></tr><tr class="" data-id="yelda">
+<td class="name"><b>macOS say -v Yelda (rate 185)</b><br><code>yelda</code></td>
+<td>macOS speechsynthesisd (system process)<br><span class="dim">22050 Hz</span></td>
+<td data-v="9.4">9<br><span class="dim">2nd 18</span></td>
+<td data-v="1154.3">1154</td>
+<td data-v="837.4" class="bad">837<br><span class="dim">2nd 845</span></td>
+<td data-v="837.4">837<br><span class="dim">lead 0.00s</span></td>
+<td data-v="0.2021" class="ok">0.202</td>
+<td data-v="34">34<br><span class="dim">fp 24</span></td>
+<td data-v="0.018" class="good">1.8%<br><span class="dim">CER 0.6%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="4">4/5</td>
+<td data-v="0">0</td>
+<td class="small">Apple macOS system voice, OS license (commercial use of output unclear).</td>
+<td class="small">In-process via objc2-avf-audio AVSpeechSynthesizer (+ write(_:toBufferCallback:) for PCM) or `tts` crate AVFoundation backend: https://docs.rs/objc2-avf-audio/latest/objc2_avf_audio/all.html</td>
+<td class="small">Only Turkish system voice installed (say -v &#x27;?&#x27; lists Yelda only; no Enhanced/Premium). Synthesis runs in speechsynthesisd, so RSS/CPU of the real work is NOT in the measured process; synth_ms includes `say` process spawn.</td></tr><tr class="" data-id="supertonic-F1-s8">
+<td class="name"><b>Supertonic 3 F1 · 8 steps</b><br><code>supertonic-F1-s8</code></td>
+<td>CPU (onnxruntime CPUExecutionProvider)<br><span class="dim">44100 Hz</span></td>
+<td data-v="343.2">343<br><span class="dim">2nd 348</span></td>
+<td data-v="840.4">840</td>
+<td data-v="840.4" class="bad">840<br><span class="dim">2nd 861</span></td>
+<td data-v="1372.4">1372<br><span class="dim">lead 0.42s</span></td>
+<td data-v="0.1653" class="ok">0.165</td>
+<td data-v="578">578<br><span class="dim">fp 552</span></td>
+<td data-v="0.018" class="good">1.8%<br><span class="dim">CER 0.3%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="4">4/5</td>
+<td data-v="2">2</td>
+<td class="small">Weights BigScience OpenRAIL-M (commercial OK with use restrictions, disclose synthetic speech); SDK MIT.</td>
+<td class="small">Same sherpa-onnx crate the panel already pins (=1.13.8 has OfflineTtsSupertonicModelConfig; GenerationConfig extra lang=&quot;tr&quot;): https://github.com/k2-fsa/sherpa-onnx/blob/master/rust-api-examples/examples/supertonic_tts.rs ; or 4 ONNX graphs via `ort` (official Rust example in supertone-inc/supertonic rust/, archived). Port must keep NFKD combining marks.</td>
+<td class="small">supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json &#x27;explain&#x27;), numpy seed 1 (default steps)</td></tr><tr class="" data-id="supertonic-F3-s8">
+<td class="name"><b>Supertonic 3 F3 · 8 steps</b><br><code>supertonic-F3-s8</code></td>
+<td>CPU (onnxruntime CPUExecutionProvider)<br><span class="dim">44100 Hz</span></td>
+<td data-v="351.8">352<br><span class="dim">2nd 340</span></td>
+<td data-v="850.0">850</td>
+<td data-v="850.0" class="bad">850<br><span class="dim">2nd 854</span></td>
+<td data-v="1366.0">1366<br><span class="dim">lead 0.43s</span></td>
+<td data-v="0.1632" class="ok">0.163</td>
+<td data-v="552">552<br><span class="dim">fp 526</span></td>
+<td data-v="0.018" class="good">1.8%<br><span class="dim">CER 0.3%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="4">4/5</td>
+<td data-v="2">2</td>
+<td class="small">Weights BigScience OpenRAIL-M (commercial OK with use restrictions, disclose synthetic speech); SDK MIT.</td>
+<td class="small">Same sherpa-onnx crate the panel already pins (=1.13.8 has OfflineTtsSupertonicModelConfig; GenerationConfig extra lang=&quot;tr&quot;): https://github.com/k2-fsa/sherpa-onnx/blob/master/rust-api-examples/examples/supertonic_tts.rs ; or 4 ONNX graphs via `ort` (official Rust example in supertone-inc/supertonic rust/, archived). Port must keep NFKD combining marks.</td>
+<td class="small">supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json &#x27;explain&#x27;), numpy seed 1 (default steps)</td></tr><tr class="" data-id="supertonic-M5-s8">
+<td class="name"><b>Supertonic 3 M5 · 8 steps</b><br><code>supertonic-M5-s8</code></td>
+<td>CPU (onnxruntime CPUExecutionProvider)<br><span class="dim">44100 Hz</span></td>
+<td data-v="359.2">359<br><span class="dim">2nd 352</span></td>
+<td data-v="863.7">864</td>
+<td data-v="863.7" class="bad">864<br><span class="dim">2nd 900</span></td>
+<td data-v="1355.7">1356<br><span class="dim">lead 0.42s</span></td>
+<td data-v="0.1645" class="ok">0.165</td>
+<td data-v="563">563<br><span class="dim">fp 537</span></td>
+<td data-v="0.018" class="good">1.8%<br><span class="dim">CER 0.3%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="4">4/5</td>
+<td data-v="1">1</td>
+<td class="small">Weights BigScience OpenRAIL-M (commercial OK with use restrictions, disclose synthetic speech); SDK MIT.</td>
+<td class="small">Same sherpa-onnx crate the panel already pins (=1.13.8 has OfflineTtsSupertonicModelConfig; GenerationConfig extra lang=&quot;tr&quot;): https://github.com/k2-fsa/sherpa-onnx/blob/master/rust-api-examples/examples/supertonic_tts.rs ; or 4 ONNX graphs via `ort` (official Rust example in supertone-inc/supertonic rust/, archived). Port must keep NFKD combining marks.</td>
+<td class="small">supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json &#x27;explain&#x27;), numpy seed 1 (default steps)</td></tr><tr class="" data-id="sherpa113-st3int8-sid0-s8">
+<td class="name"><b>Supertonic 3 int8 · sherpa-onnx 1.13.8 (panel&#x27;s pinned version) · sid 0 · 8 steps</b><br><code>sherpa113-st3int8-sid0-s8</code></td>
+<td>CPU (sherpa-onnx 1.13.8, 2 threads, int8)<br><span class="dim">44100 Hz</span></td>
+<td data-v="278.0">278<br><span class="dim">2nd 303</span></td>
+<td data-v="1380.3">1380</td>
+<td data-v="927.1" class="bad">927<br><span class="dim">2nd 926</span></td>
+<td data-v="1416.1">1416<br><span class="dim">lead 0.39s</span></td>
+<td data-v="0.2047" class="ok">0.205</td>
+<td data-v="436">436<br><span class="dim">fp 412</span></td>
+<td data-v="0.018" class="good">1.8%<br><span class="dim">CER 0.9%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="5">5/5</td>
+<td data-v="2">2</td>
+<td class="small">Supertonic 3 weights OpenRAIL-M (int8 re-export by k2-fsa); sherpa-onnx Apache-2.0.</td>
+<td class="small">Drop-in for the panel: sherpa-onnx crate OfflineTtsSupertonicModelConfig (present in =1.13.8 and 2.0.1), int8 package 129 MB: https://k2-fsa.github.io/sherpa/onnx/tts/all/Turkish/supertonic-3-tr.html . Measured here with sherpa-onnx 2.0.1 Python wheel (same C++ core) [INFERENCE: 1.13.8 timings similar].</td>
+<td class="small">Python wheel 1.13.8 = same C++ core as the panel&#x27;s pinned Rust crate; 2 threads, speed 1.05.</td></tr><tr class="" data-id="pocket-female_1">
+<td class="name"><b>Pocket TTS Turkish — female_1</b><br><code>pocket-female_1</code></td>
+<td>CPU (torch; MPS aborts in Metal per reels-lab)<br><span class="dim">24000 Hz</span></td>
+<td data-v="2029.9">2030<br><span class="dim">2nd 1857</span></td>
+<td data-v="197.4">197</td>
+<td data-v="25.2" class="good">25 <span class="dim">str</span><br><span class="dim">2nd 26</span></td>
+<td data-v="25.2">25<br><span class="dim">lead 0.00s</span></td>
+<td data-v="0.0877" class="good">0.088</td>
+<td data-v="1196">1196<br><span class="dim">fp 1010</span></td>
+<td data-v="0.036" class="ok">3.6%<br><span class="dim">CER 0.3%<br>seeds 1/2/3: 4/6/6 (mean 4.9%)</span></td>
+<td data-v="1" class="good">yes<br><span class="dim">seeds 3/3</span></td>
+<td data-v="4">4/5</td>
+<td data-v="0">0</td>
+<td class="small">CC-BY-4.0 weights (attribution: wite-tech/pocket-tts-turkish + Kyutai Pocket TTS); code Apache-2.0.</td>
+<td class="small">No ready Turkish path: Rust/candle port babybirdprd/pocket-tts (https://github.com/babybirdprd/pocket-tts) and sherpa-onnx Pocket family target base Kyutai weights; loading the Turkish fine-tune + its sentence/number frontend is [INFERENCE]/needs a port. Realistic today: Python sidecar.</td>
+<td class="small">CPU (MPS aborts), no emotion tag, seed 1, stream() — TTFA = first ~80 ms frame</td></tr><tr class="" data-id="supertonic-F1-s4">
+<td class="name"><b>Supertonic 3 F1 · 4 steps</b><br><code>supertonic-F1-s4</code></td>
+<td>CPU (onnxruntime CPUExecutionProvider)<br><span class="dim">44100 Hz</span></td>
+<td data-v="339.5">340<br><span class="dim">2nd 354</span></td>
+<td data-v="445.3">445</td>
+<td data-v="445.3" class="bad">445<br><span class="dim">2nd 467</span></td>
+<td data-v="940.1">940<br><span class="dim">lead 0.45s</span></td>
+<td data-v="0.0865" class="good">0.086</td>
+<td data-v="555">555<br><span class="dim">fp 529</span></td>
+<td data-v="0.036" class="ok">3.6%<br><span class="dim">CER 0.6%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="5">5/5</td>
+<td data-v="3">3</td>
+<td class="small">Weights BigScience OpenRAIL-M (commercial OK with use restrictions, disclose synthetic speech); SDK MIT.</td>
+<td class="small">Same sherpa-onnx crate the panel already pins (=1.13.8 has OfflineTtsSupertonicModelConfig; GenerationConfig extra lang=&quot;tr&quot;): https://github.com/k2-fsa/sherpa-onnx/blob/master/rust-api-examples/examples/supertonic_tts.rs ; or 4 ONNX graphs via `ort` (official Rust example in supertone-inc/supertonic rust/, archived). Port must keep NFKD combining marks.</td>
+<td class="small">supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json &#x27;explain&#x27;), numpy seed 1</td></tr><tr class="" data-id="sherpa-st3int8-sid0-s4-t4">
+<td class="name"><b>Supertonic 3 int8 via sherpa-onnx · sid 0 · 4 steps · 4 threads</b><br><code>sherpa-st3int8-sid0-s4-t4</code></td>
+<td>CPU (sherpa-onnx 2.0.1, 4 threads, int8)<br><span class="dim">44100 Hz</span></td>
+<td data-v="260.8">261<br><span class="dim">2nd 249</span></td>
+<td data-v="486.2">486</td>
+<td data-v="460.8" class="bad">461<br><span class="dim">2nd 458</span></td>
+<td data-v="977.8">978<br><span class="dim">lead 0.48s</span></td>
+<td data-v="0.0952" class="good">0.095</td>
+<td data-v="455">455<br><span class="dim">fp 432</span></td>
+<td data-v="0.036" class="ok">3.6%<br><span class="dim">CER 0.0%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="5">5/5</td>
+<td data-v="2">2</td>
+<td class="small">Supertonic 3 weights OpenRAIL-M (int8 re-export by k2-fsa); sherpa-onnx Apache-2.0.</td>
+<td class="small">Drop-in for the panel: sherpa-onnx crate OfflineTtsSupertonicModelConfig (present in =1.13.8 and 2.0.1), int8 package 129 MB: https://k2-fsa.github.io/sherpa/onnx/tts/all/Turkish/supertonic-3-tr.html . Measured here with sherpa-onnx 2.0.1 Python wheel (same C++ core) [INFERENCE: 1.13.8 timings similar].</td>
+<td class="small">as above, num_threads 4</td></tr><tr class="" data-id="sherpa-st3int8-sid5-s4">
+<td class="name"><b>Supertonic 3 int8 via sherpa-onnx · sid 5 · 4 steps</b><br><code>sherpa-st3int8-sid5-s4</code></td>
+<td>CPU (sherpa-onnx 2.0.1, 2 threads, int8)<br><span class="dim">44100 Hz</span></td>
+<td data-v="264.5">264<br><span class="dim">2nd 258</span></td>
+<td data-v="512.0">512</td>
+<td data-v="489.7" class="bad">490<br><span class="dim">2nd 484</span></td>
+<td data-v="969.4">969<br><span class="dim">lead 0.45s</span></td>
+<td data-v="0.0992" class="good">0.099</td>
+<td data-v="453">453<br><span class="dim">fp 429</span></td>
+<td data-v="0.036" class="ok">3.6%<br><span class="dim">CER 0.9%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="4">4/5</td>
+<td data-v="1">1</td>
+<td class="small">Supertonic 3 weights OpenRAIL-M (int8 re-export by k2-fsa); sherpa-onnx Apache-2.0.</td>
+<td class="small">Drop-in for the panel: sherpa-onnx crate OfflineTtsSupertonicModelConfig (present in =1.13.8 and 2.0.1), int8 package 129 MB: https://k2-fsa.github.io/sherpa/onnx/tts/all/Turkish/supertonic-3-tr.html . Measured here with sherpa-onnx 2.0.1 Python wheel (same C++ core) [INFERENCE: 1.13.8 timings similar].</td>
+<td class="small">NEW path (Landscape): sherpa-onnx 2.0.1 Python, int8 package, 2 threads, speed 1.05. sid→voice-name mapping undocumented.</td></tr><tr class="" data-id="seslen-ayse">
+<td class="name"><b>Seslen TTS — ayse (female)</b><br><code>seslen-ayse</code></td>
+<td>CPU (onnxruntime)<br><span class="dim">24000 Hz</span></td>
+<td data-v="711.6">712<br><span class="dim">2nd 684</span></td>
+<td data-v="772.2">772</td>
+<td data-v="504.9" class="bad">505 <span class="dim">str</span><br><span class="dim">2nd 500</span></td>
+<td data-v="504.9">505<br><span class="dim">lead 0.00s</span></td>
+<td data-v="0.1405" class="ok">0.141</td>
+<td data-v="633">633<br><span class="dim">fp 603</span></td>
+<td data-v="0.036" class="ok">3.6%<br><span class="dim">CER 0.3%<br>seeds 1/2/3: 4/4/4 (mean 3.6%)</span></td>
+<td data-v="1" class="good">yes<br><span class="dim">seeds 3/3</span></td>
+<td data-v="4">4/5</td>
+<td data-v="0">0</td>
+<td class="small">Weights CC BY-SA 4.0 (seslen-tr/seslen-tts); ONNX-only StyleTTS2.</td>
+<td class="small">Already ONNX (onnxruntime in Python) → `ort` in-process feasible but the Turkish frontend (stress, PL-BERT, sentence planning) is Python and would need porting [INFERENCE]. https://github.com/seslen-tr/seslen-tts</td>
+<td class="small">as ege</td></tr><tr class="" data-id="supertonic-F5-s8">
+<td class="name"><b>Supertonic 3 F5 · 8 steps</b><br><code>supertonic-F5-s8</code></td>
+<td>CPU (onnxruntime CPUExecutionProvider)<br><span class="dim">44100 Hz</span></td>
+<td data-v="368.9">369<br><span class="dim">2nd 355</span></td>
+<td data-v="883.1">883</td>
+<td data-v="883.1" class="bad">883<br><span class="dim">2nd 846</span></td>
+<td data-v="1339.7">1340<br><span class="dim">lead 0.44s</span></td>
+<td data-v="0.1711" class="ok">0.171</td>
+<td data-v="558">558<br><span class="dim">fp 532</span></td>
+<td data-v="0.036" class="ok">3.6%<br><span class="dim">CER 0.6%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="5">5/5</td>
+<td data-v="1">1</td>
+<td class="small">Weights BigScience OpenRAIL-M (commercial OK with use restrictions, disclose synthetic speech); SDK MIT.</td>
+<td class="small">Same sherpa-onnx crate the panel already pins (=1.13.8 has OfflineTtsSupertonicModelConfig; GenerationConfig extra lang=&quot;tr&quot;): https://github.com/k2-fsa/sherpa-onnx/blob/master/rust-api-examples/examples/supertonic_tts.rs ; or 4 ONNX graphs via `ort` (official Rust example in supertone-inc/supertonic rust/, archived). Port must keep NFKD combining marks.</td>
+<td class="small">supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json &#x27;explain&#x27;), numpy seed 1 (default steps)</td></tr><tr class="" data-id="sherpa-st3int8-sid5-s8">
+<td class="name"><b>Supertonic 3 int8 via sherpa-onnx · sid 5 · 8 steps</b><br><code>sherpa-st3int8-sid5-s8</code></td>
+<td>CPU (sherpa-onnx 2.0.1, 2 threads, int8)<br><span class="dim">44100 Hz</span></td>
+<td data-v="255.8">256<br><span class="dim">2nd 248</span></td>
+<td data-v="951.9">952</td>
+<td data-v="944.0" class="bad">944<br><span class="dim">2nd 915</span></td>
+<td data-v="1414.0">1414<br><span class="dim">lead 0.46s</span></td>
+<td data-v="0.1887" class="ok">0.189</td>
+<td data-v="451">451<br><span class="dim">fp 428</span></td>
+<td data-v="0.036" class="ok">3.6%<br><span class="dim">CER 0.0%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="5">5/5</td>
+<td data-v="2">2</td>
+<td class="small">Supertonic 3 weights OpenRAIL-M (int8 re-export by k2-fsa); sherpa-onnx Apache-2.0.</td>
+<td class="small">Drop-in for the panel: sherpa-onnx crate OfflineTtsSupertonicModelConfig (present in =1.13.8 and 2.0.1), int8 package 129 MB: https://k2-fsa.github.io/sherpa/onnx/tts/all/Turkish/supertonic-3-tr.html . Measured here with sherpa-onnx 2.0.1 Python wheel (same C++ core) [INFERENCE: 1.13.8 timings similar].</td>
+<td class="small">NEW path (Landscape): sherpa-onnx 2.0.1 Python, int8 package, 2 threads, speed 1.05. sid→voice-name mapping undocumented.</td></tr><tr class="" data-id="sherpa-st3int8-sid0-s8">
+<td class="name"><b>Supertonic 3 int8 via sherpa-onnx · sid 0 · 8 steps</b><br><code>sherpa-st3int8-sid0-s8</code></td>
+<td>CPU (sherpa-onnx 2.0.1, 2 threads, int8)<br><span class="dim">44100 Hz</span></td>
+<td data-v="793.1">793<br><span class="dim">2nd 336</span></td>
+<td data-v="1316.4">1316</td>
+<td data-v="944.6" class="bad">945<br><span class="dim">2nd 910</span></td>
+<td data-v="1421.6">1422<br><span class="dim">lead 0.44s</span></td>
+<td data-v="0.2" class="ok">0.200</td>
+<td data-v="442">442<br><span class="dim">fp 418</span></td>
+<td data-v="0.036" class="ok">3.6%<br><span class="dim">CER 0.0%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="5">5/5</td>
+<td data-v="1">1</td>
+<td class="small">Supertonic 3 weights OpenRAIL-M (int8 re-export by k2-fsa); sherpa-onnx Apache-2.0.</td>
+<td class="small">Drop-in for the panel: sherpa-onnx crate OfflineTtsSupertonicModelConfig (present in =1.13.8 and 2.0.1), int8 package 129 MB: https://k2-fsa.github.io/sherpa/onnx/tts/all/Turkish/supertonic-3-tr.html . Measured here with sherpa-onnx 2.0.1 Python wheel (same C++ core) [INFERENCE: 1.13.8 timings similar].</td>
+<td class="small">NEW path (Landscape): sherpa-onnx 2.0.1 Python, int8 package, 2 threads, speed 1.05. sid→voice-name mapping undocumented.</td></tr><tr class="" data-id="anka-female">
+<td class="name"><b>Anka TTS v0.1 — built-in female</b><br><code>anka-female</code></td>
+<td>MPS (torch, F5-TTS)<br><span class="dim">24000 Hz</span></td>
+<td data-v="5450.4">5450<br><span class="dim">2nd 8338</span></td>
+<td data-v="8098.3">8098</td>
+<td data-v="7982.0" class="bad">7982<br><span class="dim">2nd 7960</span></td>
+<td data-v="7982.0">7982<br><span class="dim">lead 0.00s</span></td>
+<td data-v="1.982" class="bad">1.982</td>
+<td data-v="3789">3789<br><span class="dim">fp 4685</span></td>
+<td data-v="0.036" class="ok">3.6%<br><span class="dim">CER 0.3%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="4">4/5</td>
+<td data-v="0">0</td>
+<td class="small">CC-BY-NC-4.0 weights (non-commercial), F5-TTS based (krmkayabasi/Anka-TTS).</td>
+<td class="small">None: PyTorch F5-TTS + Vocos → Python sidecar; F5-TTS ONNX exports exist upstream [INFERENCE].</td>
+<td class="small">NEW (Community mention). anka-tts 0.1.6, torch MPS (auto), default nfe_step, built-in Turkish normalizer, seed 1, 24 kHz, sentence chunking.</td></tr><tr class="" data-id="anka-male">
+<td class="name"><b>Anka TTS v0.1 — built-in male</b><br><code>anka-male</code></td>
+<td>MPS (torch, F5-TTS)<br><span class="dim">24000 Hz</span></td>
+<td data-v="6612.1">6612<br><span class="dim">2nd 10061</span></td>
+<td data-v="9822.7">9823</td>
+<td data-v="8625.4" class="bad">8625<br><span class="dim">2nd 8247</span></td>
+<td data-v="9117.4">9117<br><span class="dim">lead 0.34s</span></td>
+<td data-v="2.0959" class="bad">2.096</td>
+<td data-v="3787">3787<br><span class="dim">fp 4684</span></td>
+<td data-v="0.036" class="ok">3.6%<br><span class="dim">CER 0.3%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="4">4/5</td>
+<td data-v="0">0</td>
+<td class="small">CC-BY-NC-4.0 weights (non-commercial), F5-TTS based (krmkayabasi/Anka-TTS).</td>
+<td class="small">None: PyTorch F5-TTS + Vocos → Python sidecar; F5-TTS ONNX exports exist upstream [INFERENCE].</td>
+<td class="small">NEW (Community mention). anka-tts 0.1.6, torch MPS (auto), default nfe_step, built-in Turkish normalizer, seed 1, 24 kHz, sentence chunking.</td></tr><tr class="" data-id="pocket-female_2">
+<td class="name"><b>Pocket TTS Turkish — female_2</b><br><code>pocket-female_2</code></td>
+<td>CPU (torch; MPS aborts in Metal per reels-lab)<br><span class="dim">24000 Hz</span></td>
+<td data-v="1860.9">1861<br><span class="dim">2nd 1855</span></td>
+<td data-v="214.4">214</td>
+<td data-v="25.0" class="good">25 <span class="dim">str</span><br><span class="dim">2nd 25</span></td>
+<td data-v="25.0">25<br><span class="dim">lead 0.00s</span></td>
+<td data-v="0.0863" class="good">0.086</td>
+<td data-v="1195">1195<br><span class="dim">fp 1051</span></td>
+<td data-v="0.054" class="ok">5.4%<br><span class="dim">CER 1.4%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="3">3/5</td>
+<td data-v="0">0</td>
+<td class="small">CC-BY-4.0 weights (attribution: wite-tech/pocket-tts-turkish + Kyutai Pocket TTS); code Apache-2.0.</td>
+<td class="small">No ready Turkish path: Rust/candle port babybirdprd/pocket-tts (https://github.com/babybirdprd/pocket-tts) and sherpa-onnx Pocket family target base Kyutai weights; loading the Turkish fine-tune + its sentence/number frontend is [INFERENCE]/needs a port. Realistic today: Python sidecar.</td>
+<td class="small">CPU (MPS aborts), no emotion tag, seed 1, stream() — TTFA = first ~80 ms frame</td></tr><tr class="" data-id="ema-onnx">
+<td class="name"><b>EMA Lightning — ONNX graphs (onnxruntime CPU)</b><br><code>ema-onnx</code></td>
+<td>CPU (onnxruntime 1.31.1; torch only for text frontend)<br><span class="dim">48000 Hz</span></td>
+<td data-v="2312.0">2312<br><span class="dim">2nd 1680</span></td>
+<td data-v="76.8">77</td>
+<td data-v="40.5" class="good">40 <span class="dim">str</span><br><span class="dim">2nd 36</span></td>
+<td data-v="40.5">40<br><span class="dim">lead 0.00s</span></td>
+<td data-v="0.0612" class="good">0.061</td>
+<td data-v="387">387<br><span class="dim">fp 319</span></td>
+<td data-v="0.055" class="ok">5.5%<br><span class="dim">CER 1.1%<br>seeds 1/2/3: 6/9/6 (mean 6.7%)</span></td>
+<td data-v="1" class="good">yes<br><span class="dim">seeds 3/3</span></td>
+<td data-v="3">3/5</td>
+<td data-v="0">0</td>
+<td class="small">Apache-2.0 (canberkkkkkk/ema-lightning); normalizer-tr bundled. ONNX conversion: ozcancelik/ema-lightning-onnx (Apache-2.0).</td>
+<td class="small">This IS the shippable path: text/sound/decoder ONNX (35 MB) via `ort`; bookkeeping (plan/windows) is ~300 lines in web/tts.js (https://huggingface.co/ozcancelik/ema-lightning-onnx); normalizer-tr exists as Rust→wasm (normalizer-wasm/ in the same repo) → usable as a Rust crate. Reference Rust app: https://github.com/mesutde/Hitabet-Turkce-TTS</td>
+<td class="small">NEW path (parent/Community): ozcancelik/ema-lightning-onnx text/sound/decoder; frontend+chunker from the ema-lightning Python package (so torch is imported: RSS/load include it); numpy noise seed 1 (different noise than torch run); 1 s first decoder window → first_chunk_ms.</td></tr><tr class="" data-id="ahenk-cep-s8">
+<td class="name"><b>Ahenk Cep (f022 female) 8 steps</b><br><code>ahenk-cep-s8</code></td>
+<td>CPU (torch)<br><span class="dim">48000 Hz</span></td>
+<td data-v="558.2">558<br><span class="dim">2nd 504</span></td>
+<td data-v="179.5">180</td>
+<td data-v="179.5" class="ok">180<br><span class="dim">2nd 173</span></td>
+<td data-v="179.5">180<br><span class="dim">lead 0.00s</span></td>
+<td data-v="0.0562" class="good">0.056</td>
+<td data-v="491">491<br><span class="dim">fp 429</span></td>
+<td data-v="0.055" class="ok">5.5%<br><span class="dim">CER 1.4%<br>seeds 1/2/3: 6/6/6 (mean 5.5%)</span></td>
+<td data-v="1" class="good">yes<br><span class="dim">seeds 3/3</span></td>
+<td data-v="3">3/5</td>
+<td data-v="0">0</td>
+<td class="small">Weights CC-BY-4.0 (ozgurguler/ahenk-cep-tr; attribution incl. Alania datasets); code Apache-2.0.</td>
+<td class="small">Ships ready ONNX (text/cond/step/decoder, f16/int8) in the HF repo → `ort`; Hitabet-Turkce-TTS runs it from Rust (scripts/fetch_ahenk_onnx.py). Needs trnorm (Python) or a Rust normalizer port.</td>
+<td class="small">as s16</td></tr><tr class="" data-id="ahenk-cep-s16">
+<td class="name"><b>Ahenk Cep (f022 female) 16 steps</b><br><code>ahenk-cep-s16</code></td>
+<td>CPU (torch)<br><span class="dim">48000 Hz</span></td>
+<td data-v="6326.4">6326<br><span class="dim">2nd 828</span></td>
+<td data-v="257.5">258</td>
+<td data-v="257.5" class="ok">258<br><span class="dim">2nd 255</span></td>
+<td data-v="257.5">258<br><span class="dim">lead 0.00s</span></td>
+<td data-v="0.069" class="good">0.069</td>
+<td data-v="520">520<br><span class="dim">fp 459</span></td>
+<td data-v="0.055" class="ok">5.5%<br><span class="dim">CER 1.4%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="3">3/5</td>
+<td data-v="0">0</td>
+<td class="small">Weights CC-BY-4.0 (ozgurguler/ahenk-cep-tr; attribution incl. Alania datasets); code Apache-2.0.</td>
+<td class="small">Ships ready ONNX (text/cond/step/decoder, f16/int8) in the HF repo → `ort`; Hitabet-Turkce-TTS runs it from Rust (scripts/fetch_ahenk_onnx.py). Needs trnorm (Python) or a Rust normalizer port.</td>
+<td class="small">NEW (Community). PyTorch ahenk_cep.py + trnorm, cfg 2.0, seed 1, CPU. First process paid one-time pyc/disk warm-up.</td></tr><tr class="" data-id="supertonic-M1-s8">
+<td class="name"><b>Supertonic 3 M1 · 8 steps</b><br><code>supertonic-M1-s8</code></td>
+<td>CPU (onnxruntime CPUExecutionProvider)<br><span class="dim">44100 Hz</span></td>
+<td data-v="502.5">502<br><span class="dim">2nd 500</span></td>
+<td data-v="916.2">916</td>
+<td data-v="916.2" class="bad">916<br><span class="dim">2nd 941</span></td>
+<td data-v="1390.4">1390<br><span class="dim">lead 0.43s</span></td>
+<td data-v="0.1681" class="ok">0.168</td>
+<td data-v="560">560<br><span class="dim">fp 534</span></td>
+<td data-v="0.018" class="good">1.8%<br><span class="dim">CER 0.3%<br>seeds 1/2/3: 2/0/2 (mean 1.2%)</span></td>
+<td data-v="0" class="bad">no<br><span class="dim">seeds 2/3</span></td>
+<td data-v="5">5/5</td>
+<td data-v="3">3</td>
+<td class="small">Weights BigScience OpenRAIL-M (commercial OK with use restrictions, disclose synthetic speech); SDK MIT.</td>
+<td class="small">Same sherpa-onnx crate the panel already pins (=1.13.8 has OfflineTtsSupertonicModelConfig; GenerationConfig extra lang=&quot;tr&quot;): https://github.com/k2-fsa/sherpa-onnx/blob/master/rust-api-examples/examples/supertonic_tts.rs ; or 4 ONNX graphs via `ort` (official Rust example in supertone-inc/supertonic rust/, archived). Port must keep NFKD combining marks.</td>
+<td class="small">supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json &#x27;explain&#x27;), numpy seed 1 (default steps)</td></tr><tr class="" data-id="mlx-voxcpm2-clone">
+<td class="name"><b>VoxCPM2 2B 4-bit (MLX) — clone</b><br><code>mlx-voxcpm2-clone</code></td>
+<td>Metal GPU (MLX Device(gpu, 0))<br><span class="dim">48000 Hz</span></td>
+<td data-v="2200.6">2201<br><span class="dim">2nd 1817</span></td>
+<td data-v="2916.6">2917</td>
+<td data-v="2490.1" class="bad">2490<br><span class="dim">2nd 1995</span></td>
+<td data-v="2490.1">2490<br><span class="dim">lead 0.00s</span></td>
+<td data-v="0.6542" class="bad">0.654</td>
+<td data-v="2468">2468<br><span class="dim">fp 27433</span></td>
+<td data-v="0.018" class="good">1.8%<br><span class="dim">CER 1.1%<br>seeds 1/2/3: 2/7/2 (mean 3.6%)</span></td>
+<td data-v="0" class="bad">no<br><span class="dim">seeds 0/3</span></td>
+<td data-v="5">5/5</td>
+<td data-v="0">0</td>
+<td class="small">Apache-2.0 (OpenBMB)</td>
+<td class="small">llama.cpp-omni voxcpm2 GGUF with Metal (C++) [INFERENCE FFI] or MLX sidecar</td>
+<td class="small">NEW (Landscape). ref_audio only (mode 4), no Turkish LoRA.</td></tr><tr class="" data-id="pocket-male_1">
+<td class="name"><b>Pocket TTS Turkish — male_1</b><br><code>pocket-male_1</code></td>
+<td>CPU (torch; MPS aborts in Metal per reels-lab)<br><span class="dim">24000 Hz</span></td>
+<td data-v="2991.0">2991<br><span class="dim">2nd 3185</span></td>
+<td data-v="228.0">228</td>
+<td data-v="25.7" class="good">26 <span class="dim">str</span><br><span class="dim">2nd 25</span></td>
+<td data-v="25.7">26<br><span class="dim">lead 0.00s</span></td>
+<td data-v="0.0902" class="good">0.090</td>
+<td data-v="1195">1195<br><span class="dim">fp 1083</span></td>
+<td data-v="0.073" class="ok">7.3%<br><span class="dim">CER 1.4%<br>seeds 1/2/3: 7/7/9 (mean 7.9%)</span></td>
+<td data-v="1" class="good">yes<br><span class="dim">seeds 2/3</span></td>
+<td data-v="4">4/5</td>
+<td data-v="0">0</td>
+<td class="small">CC-BY-4.0 weights (attribution: wite-tech/pocket-tts-turkish + Kyutai Pocket TTS); code Apache-2.0.</td>
+<td class="small">No ready Turkish path: Rust/candle port babybirdprd/pocket-tts (https://github.com/babybirdprd/pocket-tts) and sherpa-onnx Pocket family target base Kyutai weights; loading the Turkish fine-tune + its sentence/number frontend is [INFERENCE]/needs a port. Realistic today: Python sidecar.</td>
+<td class="small">CPU, no emotion tag, seed 1, stream()</td></tr><tr class="" data-id="ema-lightning">
+<td class="name"><b>EMA Lightning 1.1.2 (single voice)</b><br><code>ema-lightning</code></td>
+<td>CPU (torch)<br><span class="dim">48000 Hz</span></td>
+<td data-v="1232.4">1232<br><span class="dim">2nd 1641</span></td>
+<td data-v="90.1">90</td>
+<td data-v="91.8" class="good">92 <span class="dim">str</span><br><span class="dim">2nd 80</span></td>
+<td data-v="91.8">92<br><span class="dim">lead 0.00s</span></td>
+<td data-v="0.0492" class="good">0.049</td>
+<td data-v="399">399<br><span class="dim">fp 332</span></td>
+<td data-v="0.073" class="ok">7.3%<br><span class="dim">CER 1.4%<br>seeds 1/2/3: 7/7/4 (mean 6.1%)</span></td>
+<td data-v="1" class="good">yes<br><span class="dim">seeds 3/3</span></td>
+<td data-v="2">2/5</td>
+<td data-v="0">0</td>
+<td class="small">Apache-2.0 (canberkkkkkk/ema-lightning); normalizer-tr bundled.</td>
+<td class="small">ONNX export exists (ozcancelik/ema-lightning-web; mesutde/Hitabet-Turkce-TTS scripts/export_onnx.py ~40 MB) — working Tauri/Rust app runs it in-process with `ort` + Rust Turkish normalizer: https://github.com/mesutde/Hitabet-Turkce-TTS . Also LiteRT build: https://huggingface.co/litert-community/EMA-Lightning-LiteRT</td>
+<td class="small">NEW (Community). CPU torch, seed 1, 48 kHz, stream(); built-in normalizer-tr 0.8.1. Weights pre-downloaded and batch-size probe cached before timing.</td></tr><tr class="" data-id="xtts-ana">
+<td class="name"><b>XTTS-v2 — Ana Florence (female)</b><br><code>xtts-ana</code></td>
+<td>MPS (torch)<br><span class="dim">24000 Hz</span></td>
+<td data-v="17893.8">17894<br><span class="dim">2nd 18030</span></td>
+<td data-v="367.5">368</td>
+<td data-v="282.2" class="ok">282 <span class="dim">str</span><br><span class="dim">2nd 284</span></td>
+<td data-v="282.2">282<br><span class="dim">lead 0.00s</span></td>
+<td data-v="0.3602" class="ok">0.360</td>
+<td data-v="4102">4102<br><span class="dim">fp 4515</span></td>
+<td data-v="0.073" class="ok">7.3%<br><span class="dim">CER 1.7%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="4">4/5</td>
+<td data-v="3">3</td>
+<td class="small">CPML (Coqui Public Model License) — NON-COMMERCIAL only.</td>
+<td class="small">xtts-rs candle port (https://github.com/rzafiamy/xtts-rs) only en/fr tested; realistic: Python sidecar.</td>
+<td class="small">as Gilberto</td></tr><tr class="" data-id="supertonic-M3-s4">
+<td class="name"><b>Supertonic 3 M3 · 4 steps</b><br><code>supertonic-M3-s4</code></td>
+<td>CPU (onnxruntime CPUExecutionProvider)<br><span class="dim">44100 Hz</span></td>
+<td data-v="354.0">354<br><span class="dim">2nd 334</span></td>
+<td data-v="430.4">430</td>
+<td data-v="412.0" class="bad">412<br><span class="dim">2nd 414</span></td>
+<td data-v="849.0">849<br><span class="dim">lead 0.44s</span></td>
+<td data-v="0.0888" class="good">0.089</td>
+<td data-v="547">547<br><span class="dim">fp 520</span></td>
+<td data-v="0.073" class="ok">7.3%<br><span class="dim">CER 1.2%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="5">5/5</td>
+<td data-v="3">3</td>
+<td class="small">Weights BigScience OpenRAIL-M (commercial OK with use restrictions, disclose synthetic speech); SDK MIT.</td>
+<td class="small">Same sherpa-onnx crate the panel already pins (=1.13.8 has OfflineTtsSupertonicModelConfig; GenerationConfig extra lang=&quot;tr&quot;): https://github.com/k2-fsa/sherpa-onnx/blob/master/rust-api-examples/examples/supertonic_tts.rs ; or 4 ONNX graphs via `ort` (official Rust example in supertone-inc/supertonic rust/, archived). Port must keep NFKD combining marks.</td>
+<td class="small">supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json &#x27;explain&#x27;), numpy seed 1</td></tr><tr class="" data-id="seslen-ege">
+<td class="name"><b>Seslen TTS — ege (male)</b><br><code>seslen-ege</code></td>
+<td>CPU (onnxruntime)<br><span class="dim">24000 Hz</span></td>
+<td data-v="781.8">782<br><span class="dim">2nd 819</span></td>
+<td data-v="620.6">621</td>
+<td data-v="448.1" class="bad">448 <span class="dim">str</span><br><span class="dim">2nd 414</span></td>
+<td data-v="448.1">448<br><span class="dim">lead 0.00s</span></td>
+<td data-v="0.1432" class="ok">0.143</td>
+<td data-v="600">600<br><span class="dim">fp 570</span></td>
+<td data-v="0.073" class="ok">7.3%<br><span class="dim">CER 1.4%<br>seeds 1/2/3: 7/7/7 (mean 7.3%)</span></td>
+<td data-v="1" class="good">yes<br><span class="dim">seeds 3/3</span></td>
+<td data-v="2">2/5</td>
+<td data-v="0">0</td>
+<td class="small">Weights CC BY-SA 4.0 (seslen-tr/seslen-tts); ONNX-only StyleTTS2.</td>
+<td class="small">Already ONNX (onnxruntime in Python) → `ort` in-process feasible but the Turkish frontend (stress, PL-BERT, sentence planning) is Python and would need porting [INFERENCE]. https://github.com/seslen-tr/seslen-tts</td>
+<td class="small">NEW (Community). seslen-tts 0.3.1, StyleTTS2 ONNX, ton=notr, self-check (denetim) off, per-clause streaming.</td></tr><tr class="" data-id="sherpa-st3int8-sid0-s4">
+<td class="name"><b>Supertonic 3 int8 via sherpa-onnx · sid 0 · 4 steps</b><br><code>sherpa-st3int8-sid0-s4</code></td>
+<td>CPU (sherpa-onnx 2.0.1, 2 threads, int8)<br><span class="dim">44100 Hz</span></td>
+<td data-v="255.5">256<br><span class="dim">2nd 246</span></td>
+<td data-v="506.1">506</td>
+<td data-v="489.2" class="bad">489<br><span class="dim">2nd 478</span></td>
+<td data-v="971.5">972<br><span class="dim">lead 0.46s</span></td>
+<td data-v="0.0988" class="good">0.099</td>
+<td data-v="457">457<br><span class="dim">fp 434</span></td>
+<td data-v="0.073" class="ok">7.3%<br><span class="dim">CER 0.9%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="5">5/5</td>
+<td data-v="1">1</td>
+<td class="small">Supertonic 3 weights OpenRAIL-M (int8 re-export by k2-fsa); sherpa-onnx Apache-2.0.</td>
+<td class="small">Drop-in for the panel: sherpa-onnx crate OfflineTtsSupertonicModelConfig (present in =1.13.8 and 2.0.1), int8 package 129 MB: https://k2-fsa.github.io/sherpa/onnx/tts/all/Turkish/supertonic-3-tr.html . Measured here with sherpa-onnx 2.0.1 Python wheel (same C++ core) [INFERENCE: 1.13.8 timings similar].</td>
+<td class="small">NEW path (Landscape): sherpa-onnx 2.0.1 Python, int8 package, 2 threads, speed 1.05. sid→voice-name mapping undocumented.</td></tr><tr class="" data-id="piper-fahrettin">
+<td class="name"><b>Piper tr_TR-fahrettin-medium</b><br><code>piper-fahrettin</code></td>
+<td>CPU (onnxruntime CPUExecutionProvider)<br><span class="dim">22050 Hz</span></td>
+<td data-v="656.4">656<br><span class="dim">2nd 704</span></td>
+<td data-v="62.7">63</td>
+<td data-v="50.0" class="good">50 <span class="dim">str</span><br><span class="dim">2nd 52</span></td>
+<td data-v="50.0">50<br><span class="dim">lead 0.00s</span></td>
+<td data-v="0.014" class="good">0.014</td>
+<td data-v="257">257<br><span class="dim">fp 232</span></td>
+<td data-v="0.091" class="bad">9.1%<br><span class="dim">CER 0.6%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="4">4/5</td>
+<td data-v="5">5</td>
+<td class="small">Voice data: dfki CC-BY-NC-SA-4.0 (non-commercial); fahrettin CC0 (reels-lab piper.json). piper1 code GPL-3.0.</td>
+<td class="small">Current panel path: sherpa-onnx crate =1.13.8 VITS in-process (2.x dropped espeak-ng → needs lexicon/phoneme_codepoints or GPL piper-phonemize). https://k2-fsa.github.io/sherpa/onnx/c-api/html/tts.html</td>
+<td class="small">same settings as dfki</td></tr><tr class="" data-id="xtts-gilberto">
+<td class="name"><b>XTTS-v2 — Gilberto Mathias</b><br><code>xtts-gilberto</code></td>
+<td>MPS (torch)<br><span class="dim">24000 Hz</span></td>
+<td data-v="23397.3">23397<br><span class="dim">2nd 20493</span></td>
+<td data-v="382.4">382</td>
+<td data-v="279.1" class="ok">279 <span class="dim">str</span><br><span class="dim">2nd 278</span></td>
+<td data-v="279.1">279<br><span class="dim">lead 0.00s</span></td>
+<td data-v="0.3683" class="ok">0.368</td>
+<td data-v="4106">4106<br><span class="dim">fp 4500</span></td>
+<td data-v="0.091" class="bad">9.1%<br><span class="dim">CER 3.4%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="3">3/5</td>
+<td data-v="2">2</td>
+<td class="small">CPML (Coqui Public Model License) — NON-COMMERCIAL only.</td>
+<td class="small">xtts-rs candle port (https://github.com/rzafiamy/xtts-rs) only en/fr tested; realistic: Python sidecar.</td>
+<td class="small">MPS; xtts.json base+cta (temp 0.65, speed 1.0, rep 5.0, top_k 50, top_p 0.85); load includes a &#x27;Merhaba.&#x27; MPS probe/warm-up (reels-lab xtts.py). TTFA = inference_stream first chunk in a second pass.</td></tr><tr class="" data-id="supertonic-F4-s4">
+<td class="name"><b>Supertonic 3 F4 · 4 steps</b><br><code>supertonic-F4-s4</code></td>
+<td>CPU (onnxruntime CPUExecutionProvider)<br><span class="dim">44100 Hz</span></td>
+<td data-v="421.6">422<br><span class="dim">2nd 349</span></td>
+<td data-v="507.3">507</td>
+<td data-v="437.6" class="bad">438<br><span class="dim">2nd 432</span></td>
+<td data-v="915.7">916<br><span class="dim">lead 0.47s</span></td>
+<td data-v="0.0948" class="good">0.095</td>
+<td data-v="552">552<br><span class="dim">fp 526</span></td>
+<td data-v="0.091" class="bad">9.1%<br><span class="dim">CER 2.3%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="4">4/5</td>
+<td data-v="3">3</td>
+<td class="small">Weights BigScience OpenRAIL-M (commercial OK with use restrictions, disclose synthetic speech); SDK MIT.</td>
+<td class="small">Same sherpa-onnx crate the panel already pins (=1.13.8 has OfflineTtsSupertonicModelConfig; GenerationConfig extra lang=&quot;tr&quot;): https://github.com/k2-fsa/sherpa-onnx/blob/master/rust-api-examples/examples/supertonic_tts.rs ; or 4 ONNX graphs via `ort` (official Rust example in supertone-inc/supertonic rust/, archived). Port must keep NFKD combining marks.</td>
+<td class="small">supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json &#x27;explain&#x27;), numpy seed 1</td></tr><tr class="" data-id="supertonic-F3-s4">
+<td class="name"><b>Supertonic 3 F3 · 4 steps</b><br><code>supertonic-F3-s4</code></td>
+<td>CPU (onnxruntime CPUExecutionProvider)<br><span class="dim">44100 Hz</span></td>
+<td data-v="358.1">358<br><span class="dim">2nd 354</span></td>
+<td data-v="448.2">448</td>
+<td data-v="448.2" class="bad">448<br><span class="dim">2nd 467</span></td>
+<td data-v="938.4">938<br><span class="dim">lead 0.43s</span></td>
+<td data-v="0.0841" class="good">0.084</td>
+<td data-v="561">561<br><span class="dim">fp 535</span></td>
+<td data-v="0.091" class="bad">9.1%<br><span class="dim">CER 2.0%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="4">4/5</td>
+<td data-v="2">2</td>
+<td class="small">Weights BigScience OpenRAIL-M (commercial OK with use restrictions, disclose synthetic speech); SDK MIT.</td>
+<td class="small">Same sherpa-onnx crate the panel already pins (=1.13.8 has OfflineTtsSupertonicModelConfig; GenerationConfig extra lang=&quot;tr&quot;): https://github.com/k2-fsa/sherpa-onnx/blob/master/rust-api-examples/examples/supertonic_tts.rs ; or 4 ONNX graphs via `ort` (official Rust example in supertone-inc/supertonic rust/, archived). Port must keep NFKD combining marks.</td>
+<td class="small">supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json &#x27;explain&#x27;), numpy seed 1</td></tr><tr class="" data-id="sherpa113-st3int8-sid0-s4">
+<td class="name"><b>Supertonic 3 int8 · sherpa-onnx 1.13.8 (panel&#x27;s pinned version) · sid 0 · 4 steps</b><br><code>sherpa113-st3int8-sid0-s4</code></td>
+<td>CPU (sherpa-onnx 1.13.8, 2 threads, int8)<br><span class="dim">44100 Hz</span></td>
+<td data-v="251.8">252<br><span class="dim">2nd 245</span></td>
+<td data-v="508.2">508</td>
+<td data-v="487.7" class="bad">488<br><span class="dim">2nd 486</span></td>
+<td data-v="955.7">956<br><span class="dim">lead 0.41s</span></td>
+<td data-v="0.0991" class="good">0.099</td>
+<td data-v="432">432<br><span class="dim">fp 409</span></td>
+<td data-v="0.091" class="bad">9.1%<br><span class="dim">CER 1.7%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="5">5/5</td>
+<td data-v="2">2</td>
+<td class="small">Supertonic 3 weights OpenRAIL-M (int8 re-export by k2-fsa); sherpa-onnx Apache-2.0.</td>
+<td class="small">Drop-in for the panel: sherpa-onnx crate OfflineTtsSupertonicModelConfig (present in =1.13.8 and 2.0.1), int8 package 129 MB: https://k2-fsa.github.io/sherpa/onnx/tts/all/Turkish/supertonic-3-tr.html . Measured here with sherpa-onnx 2.0.1 Python wheel (same C++ core) [INFERENCE: 1.13.8 timings similar].</td>
+<td class="small">Python wheel 1.13.8 = same C++ core as the panel&#x27;s pinned Rust crate; 2 threads, speed 1.05.</td></tr><tr class="" data-id="supertonic-F4-s8">
+<td class="name"><b>Supertonic 3 F4 · 8 steps</b><br><code>supertonic-F4-s8</code></td>
+<td>CPU (onnxruntime CPUExecutionProvider)<br><span class="dim">44100 Hz</span></td>
+<td data-v="363.0">363<br><span class="dim">2nd 354</span></td>
+<td data-v="806.4">806</td>
+<td data-v="806.4" class="bad">806<br><span class="dim">2nd 827</span></td>
+<td data-v="1320.4">1320<br><span class="dim">lead 0.47s</span></td>
+<td data-v="0.1944" class="ok">0.194</td>
+<td data-v="548">548<br><span class="dim">fp 522</span></td>
+<td data-v="0.091" class="bad">9.1%<br><span class="dim">CER 2.0%</span></td>
+<td data-v="1" class="good">yes</td>
+<td data-v="3">3/5</td>
+<td data-v="3">3</td>
+<td class="small">Weights BigScience OpenRAIL-M (commercial OK with use restrictions, disclose synthetic speech); SDK MIT.</td>
+<td class="small">Same sherpa-onnx crate the panel already pins (=1.13.8 has OfflineTtsSupertonicModelConfig; GenerationConfig extra lang=&quot;tr&quot;): https://github.com/k2-fsa/sherpa-onnx/blob/master/rust-api-examples/examples/supertonic_tts.rs ; or 4 ONNX graphs via `ort` (official Rust example in supertone-inc/supertonic rust/, archived). Port must keep NFKD combining marks.</td>
+<td class="small">supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json &#x27;explain&#x27;), numpy seed 1 (default steps)</td></tr><tr class="" data-id="zonos3-native-clone">
+<td class="name"><b>ZONOS3-Mini native C++/ggml server (Metal) — clone</b><br><code>zonos3-native-clone</code></td>
+<td>Metal GPU (ggml, native C++ server)<br><span class="dim">44100 Hz</span></td>
+<td data-v="495.3">495<br><span class="dim">2nd 492</span></td>
+<td data-v="1898.1">1898</td>
+<td data-v="22.0" class="good">22 <span class="dim">str</span><br><span class="dim">2nd 21</span></td>
+<td data-v="394.0">394<br><span class="dim">lead 0.34s</span></td>
+<td data-v="0.1274" class="ok">0.127</td>
+<td data-v="1823">1823<br><span class="dim">fp 1872</span></td>
+<td data-v="0.055" class="ok">5.5%<br><span class="dim">CER 2.3%</span></td>
+<td data-v="0" class="bad">no</td>
+<td data-v="5">5/5</td>
+<td data-v="0">0</td>
+<td class="small">Apache-2.0 weights, MIT code (Zyphra)</td>
+<td class="small">No Python at runtime: run zonos3-server as a local sidecar (HTTP streaming PCM) or link libzonos3.a via FFI [INFERENCE: no documented C API]. https://raw.githubusercontent.com/Zyphra/ZONOS3-Mini/main/servers/ggml/README.md</td>
+<td class="small">NEW (Landscape). zonos3-server built from Zyphra/ZONOS3-Mini servers/ggml (cmake Release, 37 s), gguf/zonos3-ptq.gguf + zac-keep2 + spk-encoder (1.16 GB). Voice cached once via POST /v2/speakers (8.26 s ref, embedding mode), stream=true float32 44.1 kHz, text_normalization off (no Turkish normalizer), seed 1. RSS = server process.</td></tr><tr class="" data-id="antalia-mini">
+<td class="name"><b>Antalia-2 Mini (single male voice)</b><br><code>antalia-mini</code></td>
+<td>CPU (torch, 2 threads)<br><span class="dim">48000 Hz</span></td>
+<td data-v="643.3">643<br><span class="dim">2nd 968</span></td>
+<td data-v="493.5">494</td>
+<td data-v="120.7" class="good">121 <span class="dim">str</span><br><span class="dim">2nd 108</span></td>
+<td data-v="120.7">121<br><span class="dim">lead 0.00s</span></td>
+<td data-v="0.0394" class="good">0.039</td>
+<td data-v="417">417<br><span class="dim">fp 365</span></td>
+<td data-v="0.055" class="ok">5.5%<br><span class="dim">CER 2.0%<br>seeds 1/2/3: 6/6/6 (mean 5.5%)</span></td>
+<td data-v="0" class="bad">no<br><span class="dim">seeds 0/3</span></td>
+<td data-v="4">4/5</td>
+<td data-v="0">0</td>
+<td class="small">Apache-2.0 (cloud0day3/antalia-mini).</td>
+<td class="small">Official ONNX graphs (text/cond/flow/vocoder, incl. int8) in https://huggingface.co/spaces/cloud0day3/antalia-mini ; Rust+ort reference with Rust normalizer (antalia_engine.rs/antalia_text.rs): https://github.com/mesutde/Hitabet-Turkce-TTS . Its normalizer is Python upstream.</td>
+<td class="small">NEW (Landscape). CPU torch 2 threads (auto), seed 1, 48 kHz, stream(); own normalizer.</td></tr><tr class="" data-id="mlx-zonos3-clone">
+<td class="name"><b>ZONOS3-Mini (MLX) — clone of user&#x27;s voice</b><br><code>mlx-zonos3-clone</code></td>
+<td>Metal GPU (MLX Device(gpu, 0))<br><span class="dim">44100 Hz</span></td>
+<td data-v="1546.0">1546<br><span class="dim">2nd 660</span></td>
+<td data-v="13406.2">13406</td>
+<td data-v="304.3" class="ok">304 <span class="dim">str</span><br><span class="dim">2nd 281</span></td>
+<td data-v="755.8">756<br><span class="dim">lead 0.37s</span></td>
+<td data-v="0.6305" class="bad">0.630</td>
+<td data-v="1633">1633<br><span class="dim">fp 3136</span></td>
+<td data-v="0.055" class="ok">5.5%<br><span class="dim">CER 2.6%<br>seeds 1/2/3: 6/7/4 (mean 5.5%)</span></td>
+<td data-v="0" class="bad">no<br><span class="dim">seeds 0/3</span></td>
+<td data-v="5">5/5</td>
+<td data-v="2">2</td>
+<td class="small">Apache-2.0 weights, MIT code (Zyphra)</td>
+<td class="small">Native C++/ggml zonos3-cli/zonos3-server with Metal + GGUF (no Python) → FFI [INFERENCE: no C API documented] or HTTP sidecar: https://raw.githubusercontent.com/Zyphra/ZONOS3-Mini/main/servers/ggml/README.md</td>
+<td class="small">NEW (Landscape). mlx-audio git main, lang_code tr, ref = first 8.26 s of voice-ref.wav, seed 1, stream=True (0.5 s interval). No Turkish text normalization upstream; ref re-encoded every call.</td></tr><tr class="" data-id="supertonic-M1-s4">
+<td class="name"><b>Supertonic 3 M1 · 4 steps</b><br><code>supertonic-M1-s4</code></td>
+<td>CPU (onnxruntime CPUExecutionProvider)<br><span class="dim">44100 Hz</span></td>
+<td data-v="367.8">368<br><span class="dim">2nd 365</span></td>
+<td data-v="457.7">458</td>
+<td data-v="457.7" class="bad">458<br><span class="dim">2nd 470</span></td>
+<td data-v="962.8">963<br><span class="dim">lead 0.48s</span></td>
+<td data-v="0.0866" class="good">0.087</td>
+<td data-v="556">556<br><span class="dim">fp 530</span></td>
+<td data-v="0.055" class="ok">5.5%<br><span class="dim">CER 1.4%</span></td>
+<td data-v="0" class="bad">no</td>
+<td data-v="4">4/5</td>
+<td data-v="3">3</td>
+<td class="small">Weights BigScience OpenRAIL-M (commercial OK with use restrictions, disclose synthetic speech); SDK MIT.</td>
+<td class="small">Same sherpa-onnx crate the panel already pins (=1.13.8 has OfflineTtsSupertonicModelConfig; GenerationConfig extra lang=&quot;tr&quot;): https://github.com/k2-fsa/sherpa-onnx/blob/master/rust-api-examples/examples/supertonic_tts.rs ; or 4 ONNX graphs via `ort` (official Rust example in supertone-inc/supertonic rust/, archived). Port must keep NFKD combining marks.</td>
+<td class="small">supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json &#x27;explain&#x27;), numpy seed 1</td></tr><tr class="" data-id="sherpa113-st3int8-sid5-s4">
+<td class="name"><b>Supertonic 3 int8 · sherpa-onnx 1.13.8 (panel&#x27;s pinned version) · sid 5 · 4 steps</b><br><code>sherpa113-st3int8-sid5-s4</code></td>
+<td>CPU (sherpa-onnx 1.13.8, 2 threads, int8)<br><span class="dim">44100 Hz</span></td>
+<td data-v="256.1">256<br><span class="dim">2nd 261</span></td>
+<td data-v="518.5">518</td>
+<td data-v="485.3" class="bad">485<br><span class="dim">2nd 497</span></td>
+<td data-v="987.0">987<br><span class="dim">lead 0.46s</span></td>
+<td data-v="0.099" class="good">0.099</td>
+<td data-v="451">451<br><span class="dim">fp 428</span></td>
+<td data-v="0.055" class="ok">5.5%<br><span class="dim">CER 0.3%</span></td>
+<td data-v="0" class="bad">no</td>
+<td data-v="5">5/5</td>
+<td data-v="3">3</td>
+<td class="small">Supertonic 3 weights OpenRAIL-M (int8 re-export by k2-fsa); sherpa-onnx Apache-2.0.</td>
+<td class="small">Drop-in for the panel: sherpa-onnx crate OfflineTtsSupertonicModelConfig (present in =1.13.8 and 2.0.1), int8 package 129 MB: https://k2-fsa.github.io/sherpa/onnx/tts/all/Turkish/supertonic-3-tr.html . Measured here with sherpa-onnx 2.0.1 Python wheel (same C++ core) [INFERENCE: 1.13.8 timings similar].</td>
+<td class="small">Python wheel 1.13.8 = same C++ core as the panel&#x27;s pinned Rust crate; 2 threads, speed 1.05.</td></tr><tr class="" data-id="pocket-male_2">
+<td class="name"><b>Pocket TTS Turkish — male_2</b><br><code>pocket-male_2</code></td>
+<td>CPU (torch; MPS aborts in Metal per reels-lab)<br><span class="dim">24000 Hz</span></td>
+<td data-v="7225.4">7225<br><span class="dim">2nd 3637</span></td>
+<td data-v="242.1">242</td>
+<td data-v="31.0" class="good">31 <span class="dim">str</span><br><span class="dim">2nd 25</span></td>
+<td data-v="31.0">31<br><span class="dim">lead 0.00s</span></td>
+<td data-v="0.0997" class="good">0.100</td>
+<td data-v="1145">1145<br><span class="dim">fp 1019</span></td>
+<td data-v="0.073" class="ok">7.3%<br><span class="dim">CER 1.1%</span></td>
+<td data-v="0" class="bad">no</td>
+<td data-v="5">5/5</td>
+<td data-v="0">0</td>
+<td class="small">CC-BY-4.0 weights (attribution: wite-tech/pocket-tts-turkish + Kyutai Pocket TTS); code Apache-2.0.</td>
+<td class="small">No ready Turkish path: Rust/candle port babybirdprd/pocket-tts (https://github.com/babybirdprd/pocket-tts) and sherpa-onnx Pocket family target base Kyutai weights; loading the Turkish fine-tune + its sentence/number frontend is [INFERENCE]/needs a port. Realistic today: Python sidecar.</td>
+<td class="small">CPU (MPS aborts), no emotion tag, seed 1, stream() — TTFA = first ~80 ms frame</td></tr><tr class="" data-id="mlx-omnivoice-clone">
+<td class="name"><b>OmniVoice bf16 (MLX) — clone</b><br><code>mlx-omnivoice-clone</code></td>
+<td>Metal GPU (MLX Device(gpu, 0))<br><span class="dim">24000 Hz</span></td>
+<td data-v="3560.9">3561<br><span class="dim">2nd 2420</span></td>
+<td data-v="3014.0">3014</td>
+<td data-v="1839.5" class="bad">1840<br><span class="dim">2nd 1725</span></td>
+<td data-v="1839.5">1840<br><span class="dim">lead 0.00s</span></td>
+<td data-v="0.4255" class="ok">0.425</td>
+<td data-v="1885">1885<br><span class="dim">fp 13283</span></td>
+<td data-v="0.073" class="ok">7.3%<br><span class="dim">CER 5.1%</span></td>
+<td data-v="0" class="bad">no</td>
+<td data-v="4">4/5</td>
+<td data-v="2">2</td>
+<td class="small">CC-BY-NC weights (non-commercial), Apache code (k2-fsa)</td>
+<td class="small">None official; sherpa-onnx request https://github.com/k2-fsa/sherpa-onnx/issues/3486 ; community WebGPU ONNX → `ort` [INFERENCE]</td>
+<td class="small">NEW (Landscape). language turkish, 16 steps, ref audio + transcript.</td></tr><tr class="" data-id="pocket-alperiox-6l-clone">
+<td class="name"><b>Pocket TTS Turkish (alperiox 6-layer) — clone</b><br><code>pocket-alperiox-6l-clone</code></td>
+<td>CPU (torch)<br><span class="dim">24000 Hz</span></td>
+<td data-v="23489.1">23489<br><span class="dim">2nd 3843</span></td>
+<td data-v="28.9">29</td>
+<td data-v="28.9" class="good">29 <span class="dim">str</span><br><span class="dim">2nd 30</span></td>
+<td data-v="29.3">29<br><span class="dim">lead 0.00s</span></td>
+<td data-v="0.0955" class="good">0.096</td>
+<td data-v="1412">1412<br><span class="dim">fp 1337</span></td>
+<td data-v="0.091" class="bad">9.1%<br><span class="dim">CER 6.6%</span></td>
+<td data-v="0" class="bad">no</td>
+<td data-v="3">3/5</td>
+<td data-v="0">0</td>
+<td class="small">MIT weights (alperiox/pocket-tts-turkish, trained on CC-BY-4.0 Alania synthetic data); pocket-tts MIT.</td>
+<td class="small">Same as Pocket: candle port babybirdprd/pocket-tts targets Kyutai configs [INFERENCE: a 6-layer config should load]; realistic today: Python sidecar.</td>
+<td class="small">NEW (parent). pocket-tts 4.0.1, turkish_6l.yaml, voice prompt = 8.26 s ref (cached at load), Turkish-lowercased input per model card, temp 0.3 (config default). First load downloaded Mimi/kyutai assets → see 2nd-pass load.</td></tr><tr class="" data-id="mlx-audio8-clone">
+<td class="name"><b>Audio8-TTS-Realistic 0.6B 8-bit (MLX) — clone</b><br><code>mlx-audio8-clone</code></td>
+<td>Metal GPU (MLX Device(gpu, 0))<br><span class="dim">44100 Hz</span></td>
+<td data-v="891.8">892<br><span class="dim">2nd 903</span></td>
+<td data-v="5790.5">5790</td>
+<td data-v="4114.8" class="bad">4115<br><span class="dim">2nd 3195</span></td>
+<td data-v="4114.8">4115<br><span class="dim">lead 0.00s</span></td>
+<td data-v="0.9172" class="bad">0.917</td>
+<td data-v="2185">2185<br><span class="dim">fp 36652</span></td>
+<td data-v="0.091" class="bad">9.1%<br><span class="dim">CER 2.0%</span></td>
+<td data-v="0" class="bad">no</td>
+<td data-v="5">5/5</td>
+<td data-v="0">0</td>
+<td class="small">Apache-2.0 (Edge0)</td>
+<td class="small">None; MLX sidecar or mlx-rs port [INFERENCE]</td>
+<td class="small">NEW (Landscape). ref audio + transcript, seed 1, 44.1 kHz, no streaming.</td></tr><tr class="" data-id="chatterbox-clone">
+<td class="name"><b>Chatterbox Multilingual — user&#x27;s clone (benim-sesim-ref)</b><br><code>chatterbox-clone</code></td>
+<td>MPS (torch)<br><span class="dim">24000 Hz</span></td>
+<td data-v="18014.5">18014<br><span class="dim">2nd 14059</span></td>
+<td data-v="11798.6">11799</td>
+<td data-v="11563.8" class="bad">11564<br><span class="dim">2nd 11926</span></td>
+<td data-v="11563.8">11564<br><span class="dim">lead 0.00s</span></td>
+<td data-v="2.5789" class="bad">2.579</td>
+<td data-v="5021">5021<br><span class="dim">fp 22111</span></td>
+<td data-v="0.091" class="bad">9.1%<br><span class="dim">CER 4.0%</span></td>
+<td data-v="0" class="bad">no</td>
+<td data-v="4">4/5</td>
+<td data-v="2">2</td>
+<td class="small">MIT (Resemble AI); outputs carry Perth watermark.</td>
+<td class="small">No native Rust. ONNX (onnx-community/chatterbox-multilingual-ONNX) via `ort` multi-graph [INFERENCE] or GGUF via llama.cpp PR [INFERENCE]; realistic: Python sidecar (torch/MPS).</td>
+<td class="small">exaggeration 0.7, cfg 0.4 (chatterbox.json); clone conditionals prepared once at load (counted in load)</td></tr><tr class="" data-id="mlx-chatterbox-clone">
+<td class="name"><b>Chatterbox Multilingual v3 (MLX) — clone</b><br><code>mlx-chatterbox-clone</code></td>
+<td>Metal GPU (MLX Device(gpu, 0))<br><span class="dim">24000 Hz</span></td>
+<td data-v="29507.9">29508<br><span class="dim">2nd 2207</span></td>
+<td data-v="5952.9">5953</td>
+<td data-v="3204.7" class="bad">3205<br><span class="dim">2nd 3099</span></td>
+<td data-v="3204.7">3205<br><span class="dim">lead 0.00s</span></td>
+<td data-v="0.7923" class="bad">0.792</td>
+<td data-v="3767">3767<br><span class="dim">fp 8085</span></td>
+<td data-v="0.164" class="bad">16.4%<br><span class="dim">CER 6.3%</span></td>
+<td data-v="0" class="bad">no</td>
+<td data-v="2">2/5</td>
+<td data-v="0">0</td>
+<td class="small">MIT</td>
+<td class="small">MLX sidecar</td>
+<td class="small">NEW (Landscape). lang_code tr, exaggeration 0.7, cfg 0.4, 8.26 s ref; MLX port of the torch engine above.</td></tr><tr class="" data-id="supertonic-F2-s2">
+<td class="name"><b>Supertonic 3 F2 · 2 steps</b><br><code>supertonic-F2-s2</code></td>
+<td>CPU (onnxruntime CPUExecutionProvider)<br><span class="dim">44100 Hz</span></td>
+<td data-v="372.7">373<br><span class="dim">2nd 348</span></td>
+<td data-v="238.7">239</td>
+<td data-v="232.1" class="ok">232<br><span class="dim">2nd 240</span></td>
+<td data-v="799.5">800<br><span class="dim">lead 0.53s</span></td>
+<td data-v="0.0479" class="good">0.048</td>
+<td data-v="558">558<br><span class="dim">fp 532</span></td>
+<td data-v="0.309" class="bad">30.9%<br><span class="dim">CER 15.1%</span></td>
+<td data-v="0" class="bad">no</td>
+<td data-v="3">3/5</td>
+<td data-v="13">13</td>
+<td class="small">Weights BigScience OpenRAIL-M (commercial OK with use restrictions, disclose synthetic speech); SDK MIT.</td>
+<td class="small">Same sherpa-onnx crate the panel already pins (=1.13.8 has OfflineTtsSupertonicModelConfig; GenerationConfig extra lang=&quot;tr&quot;): https://github.com/k2-fsa/sherpa-onnx/blob/master/rust-api-examples/examples/supertonic_tts.rs ; or 4 ONNX graphs via `ort` (official Rust example in supertone-inc/supertonic rust/, archived). Port must keep NFKD combining marks.</td>
+<td class="small">supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json &#x27;explain&#x27;), numpy seed 1</td></tr><tr class="" data-id="chatterbox-default">
+<td class="name"><b>Chatterbox Multilingual — built-in voice</b><br><code>chatterbox-default</code></td>
+<td>MPS (torch)<br><span class="dim">24000 Hz</span></td>
+<td data-v="15252.5">15252<br><span class="dim">2nd 13996</span></td>
+<td data-v="26497.6">26498</td>
+<td data-v="16587.7" class="bad">16588<br><span class="dim">2nd 12768</span></td>
+<td data-v="16587.7">16588<br><span class="dim">lead 0.00s</span></td>
+<td data-v="3.1354" class="bad">3.135</td>
+<td data-v="4965">4965<br><span class="dim">fp 21612</span></td>
+<td data-v="0.382" class="bad">38.2%<br><span class="dim">CER 20.3%</span></td>
+<td data-v="0" class="bad">no</td>
+<td data-v="3">3/5</td>
+<td data-v="3">3</td>
+<td class="small">MIT (Resemble AI); outputs carry Perth watermark.</td>
+<td class="small">No native Rust. ONNX (onnx-community/chatterbox-multilingual-ONNX) via `ort` multi-graph [INFERENCE] or GGUF via llama.cpp PR [INFERENCE]; realistic: Python sidecar (torch/MPS).</td>
+<td class="small">torch MPS, exaggeration 0.5, cfg 0.5, seed 1</td></tr><tr class="" data-id="supertonic-F1-s2">
+<td class="name"><b>Supertonic 3 F1 · 2 steps</b><br><code>supertonic-F1-s2</code></td>
+<td>CPU (onnxruntime CPUExecutionProvider)<br><span class="dim">44100 Hz</span></td>
+<td data-v="359.2">359<br><span class="dim">2nd 339</span></td>
+<td data-v="252.7">253</td>
+<td data-v="252.7" class="ok">253<br><span class="dim">2nd 239</span></td>
+<td data-v="810.7">811<br><span class="dim">lead 0.55s</span></td>
+<td data-v="0.048" class="good">0.048</td>
+<td data-v="564">564<br><span class="dim">fp 538</span></td>
+<td data-v="0.455" class="bad">45.5%<br><span class="dim">CER 24.6%</span></td>
+<td data-v="0" class="bad">no</td>
+<td data-v="2">2/5</td>
+<td data-v="12">12</td>
+<td class="small">Weights BigScience OpenRAIL-M (commercial OK with use restrictions, disclose synthetic speech); SDK MIT.</td>
+<td class="small">Same sherpa-onnx crate the panel already pins (=1.13.8 has OfflineTtsSupertonicModelConfig; GenerationConfig extra lang=&quot;tr&quot;): https://github.com/k2-fsa/sherpa-onnx/blob/master/rust-api-examples/examples/supertonic_tts.rs ; or 4 ONNX graphs via `ort` (official Rust example in supertone-inc/supertonic rust/, archived). Port must keep NFKD combining marks.</td>
+<td class="small">supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json &#x27;explain&#x27;), numpy seed 1</td></tr><tr class="" data-id="supertonic-M1-s2">
+<td class="name"><b>Supertonic 3 M1 · 2 steps</b><br><code>supertonic-M1-s2</code></td>
+<td>CPU (onnxruntime CPUExecutionProvider)<br><span class="dim">44100 Hz</span></td>
+<td data-v="357.6">358<br><span class="dim">2nd 343</span></td>
+<td data-v="252.5">252</td>
+<td data-v="252.5" class="ok">252<br><span class="dim">2nd 247</span></td>
+<td data-v="846.5">846<br><span class="dim">lead 0.57s</span></td>
+<td data-v="0.0471" class="good">0.047</td>
+<td data-v="562">562<br><span class="dim">fp 536</span></td>
+<td data-v="0.491" class="bad">49.1%<br><span class="dim">CER 27.7%</span></td>
+<td data-v="0" class="bad">no</td>
+<td data-v="0">0/5</td>
+<td data-v="10">10</td>
+<td class="small">Weights BigScience OpenRAIL-M (commercial OK with use restrictions, disclose synthetic speech); SDK MIT.</td>
+<td class="small">Same sherpa-onnx crate the panel already pins (=1.13.8 has OfflineTtsSupertonicModelConfig; GenerationConfig extra lang=&quot;tr&quot;): https://github.com/k2-fsa/sherpa-onnx/blob/master/rust-api-examples/examples/supertonic_tts.rs ; or 4 ONNX graphs via `ort` (official Rust example in supertone-inc/supertonic rust/, archived). Port must keep NFKD combining marks.</td>
+<td class="small">supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json &#x27;explain&#x27;), numpy seed 1</td></tr><tr class="" data-id="mlx-moss-nano-clone">
+<td class="name"><b>MOSS-TTS-Nano-100M (MLX) — clone</b><br><code>mlx-moss-nano-clone</code></td>
+<td>Metal GPU (MLX Device(gpu, 0))<br><span class="dim">48000 Hz</span></td>
+<td data-v="628.0">628<br><span class="dim">2nd 426</span></td>
+<td data-v="15355.1">15355</td>
+<td data-v="1407.9" class="bad">1408<br><span class="dim">2nd 1400</span></td>
+<td data-v="1407.9">1408<br><span class="dim">lead 0.00s</span></td>
+<td data-v="0.2141" class="ok">0.214</td>
+<td data-v="659">659<br><span class="dim">fp 7583</span></td>
+<td data-v="0.945" class="bad">94.5%<br><span class="dim">CER 55.7%</span></td>
+<td data-v="0" class="bad">no</td>
+<td data-v="0">0/5</td>
+<td data-v="14">14</td>
+<td class="small">HF metadata Apache-2.0 but GitHub README: not yet licensed for redistribution</td>
+<td class="small">Official ONNX CPU backend (--backend onnx) → `ort` [INFERENCE]: https://github.com/OpenMOSS/MOSS-TTS-Nano</td>
+<td class="small">NEW (Landscape). voice_clone mode with ref audio + transcript; no streaming in mlx-audio; ref encoded every call.</td></tr></tbody></table></div>
+<h2>Listening matrix (sentence × engine)</h2><div class="wrap"><table class="matrix" id="x"><thead><tr><th>Engine</th><th title="Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.">a: Tamam, önce hataları topluyorum, sonra…</th><th title="Şimdi testleri çalıştırıyorum.">b: Şimdi testleri çalıştırıyorum.…</th><th title="80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?">c: 80 görevin 20&#x27;si takıldı, 30&#x27;u hata ve…</th><th title="Pull request açıldı, deploy için onayını bekliyorum.">d: Pull request açıldı, deploy için onayı…</th><th title="Build bitti; iOS simülatöründe ekran görüntüsü alıp rapora ekledim.">e: Build bitti; iOS simülatöründe ekran g…</th><th title="Durduruldu.">f: Durduruldu.…</th><th title="Başvurularda yeni gelişme yok, dört aktif başvuru var; yarın sabah tekrar kontrol edeceğim.">g: Başvurularda yeni gelişme yok, dört ak…</th></tr></thead><tbody><tr class="baseline" data-id="piper-dfki"><th class="name">Piper tr_TR-dfki-medium (panel baseline)<br><code>piper-dfki</code></th><td><audio controls preload="none" src="audio/norm/piper-dfki/a.mp3"></audio>
+<div class="heard bad" title="">Tamam, önce hataları topuyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 11% · 90 ms · 4.0s</div></td><td><audio controls preload="none" src="audio/norm/piper-dfki/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 28 ms · 1.9s</div></td><td><audio controls preload="none" src="audio/norm/piper-dfki/c.mp3"></audio>
+<div class="heard bad" title="">Seksen görevin yirmisi takıldı, otuz o hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 15% · 69 ms · 6.6s <span class="bad">#bad</span></div></td><td><audio controls preload="none" src="audio/norm/piper-dfki/d.mp3"></audio>
+<div class="heard bad" title="">Pull request açıldı. Deptoy için onayını bekliyorum.</div>
+<div class="dim">WER 14% · 42 ms · 3.3s</div></td><td><audio controls preload="none" src="audio/norm/piper-dfki/e.mp3"></audio>
+<div class="heard bad" title="">Bu il bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 22% · 59 ms · 4.5s</div></td><td><audio controls preload="none" src="audio/norm/piper-dfki/f.mp3"></audio>
+<div class="heard bad" title="">Düldürüldü.</div>
+<div class="dim">WER 100% · 15 ms · 1.0s</div></td><td><audio controls preload="none" src="audio/norm/piper-dfki/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 82 ms · 6.0s</div></td></tr><tr class="" data-id="supertonic-M2-s4"><th class="name">Supertonic 3 M2 · 4 steps<br><code>supertonic-M2-s4</code></th><td><audio controls preload="none" src="audio/norm/supertonic-M2-s4/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.59s">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 455 ms · 5.2s · ⚑ lead silence 0.59s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M2-s4/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 258 ms · 2.5s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M2-s4/c.mp3"></audio>
+<div class="heard good" title="lead silence 0.55s">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 581 ms · 7.4s <span class="good">#ok</span> · ⚑ lead silence 0.55s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M2-s4/d.mp3"></audio>
+<div class="heard good" title="lead silence 0.51s">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 346 ms · 3.7s · ⚑ lead silence 0.51s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M2-s4/e.mp3"></audio>
+<div class="heard good" title="">Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 0% · 446 ms · 5.6s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M2-s4/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 187 ms · 1.3s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M2-s4/g.mp3"></audio>
+<div class="heard good" title="lead silence 0.54s">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 527 ms · 6.4s · ⚑ lead silence 0.54s</div></td></tr><tr class="" data-id="supertonic-F2-s8"><th class="name">Supertonic 3 F2 · 8 steps<br><code>supertonic-F2-s8</code></th><td><audio controls preload="none" src="audio/norm/supertonic-F2-s8/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.58s">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 808 ms · 5.0s · ⚑ lead silence 0.58s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F2-s8/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 489 ms · 2.4s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F2-s8/c.mp3"></audio>
+<div class="heard good" title="lead silence 0.54s">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 1094 ms · 7.0s <span class="good">#ok</span> · ⚑ lead silence 0.54s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F2-s8/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı, deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 666 ms · 3.6s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F2-s8/e.mp3"></audio>
+<div class="heard good" title="lead silence 0.57s">Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 0% · 841 ms · 5.4s · ⚑ lead silence 0.57s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F2-s8/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 339 ms · 1.3s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F2-s8/g.mp3"></audio>
+<div class="heard good" title="lead silence 0.50s">Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 937 ms · 6.1s · ⚑ lead silence 0.50s</div></td></tr><tr class="" data-id="supertonic-M4-s8"><th class="name">Supertonic 3 M4 · 8 steps<br><code>supertonic-M4-s8</code></th><td><audio controls preload="none" src="audio/norm/supertonic-M4-s8/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.54s">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 812 ms · 5.0s · ⚑ lead silence 0.54s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M4-s8/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 498 ms · 2.4s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M4-s8/c.mp3"></audio>
+<div class="heard good" title="">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 1096 ms · 7.0s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/supertonic-M4-s8/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 652 ms · 3.6s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M4-s8/e.mp3"></audio>
+<div class="heard good" title="">Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 0% · 836 ms · 5.4s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M4-s8/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 345 ms · 1.3s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M4-s8/g.mp3"></audio>
+<div class="heard good" title="lead silence 0.57s">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 952 ms · 6.1s · ⚑ lead silence 0.57s</div></td></tr><tr class="" data-id="supertonic-M2-s8"><th class="name">Supertonic 3 M2 · 8 steps<br><code>supertonic-M2-s8</code></th><td><audio controls preload="none" src="audio/norm/supertonic-M2-s8/a.mp3"></audio>
+<div class="heard good" title="">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 879 ms · 5.2s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M2-s8/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 499 ms · 2.5s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M2-s8/c.mp3"></audio>
+<div class="heard good" title="lead silence 0.55s">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 1128 ms · 7.4s <span class="good">#ok</span> · ⚑ lead silence 0.55s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M2-s8/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 667 ms · 3.7s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M2-s8/e.mp3"></audio>
+<div class="heard good" title="">Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 0% · 827 ms · 5.6s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M2-s8/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 363 ms · 1.3s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M2-s8/g.mp3"></audio>
+<div class="heard good" title="lead silence 0.57s">Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 972 ms · 6.4s · ⚑ lead silence 0.57s</div></td></tr><tr class="" data-id="supertonic-M4-s4"><th class="name">Supertonic 3 M4 · 4 steps<br><code>supertonic-M4-s4</code></th><td><audio controls preload="none" src="audio/norm/supertonic-M4-s4/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.54s">Tamam, önce hataları topluyorum sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 426 ms · 5.0s · ⚑ lead silence 0.54s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M4-s4/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 261 ms · 2.4s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M4-s4/c.mp3"></audio>
+<div class="heard good" title="">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 588 ms · 7.0s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/supertonic-M4-s4/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 338 ms · 3.6s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M4-s4/e.mp3"></audio>
+<div class="heard bad" title="">Bıl bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 11% · 431 ms · 5.4s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M4-s4/f.mp3"></audio>
+<div class="heard good" title="">durduruldu.</div>
+<div class="dim">WER 0% · 182 ms · 1.3s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M4-s4/g.mp3"></audio>
+<div class="heard good" title="lead silence 0.52s">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 491 ms · 6.1s · ⚑ lead silence 0.52s</div></td></tr><tr class="" data-id="supertonic-F2-s4"><th class="name">Supertonic 3 F2 · 4 steps<br><code>supertonic-F2-s4</code></th><td><audio controls preload="none" src="audio/norm/supertonic-F2-s4/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.58s">Tamam, önce hataları topluyorum sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 431 ms · 5.0s · ⚑ lead silence 0.58s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F2-s4/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 255 ms · 2.4s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F2-s4/c.mp3"></audio>
+<div class="heard good" title="lead silence 0.55s">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi. Kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 628 ms · 7.0s <span class="good">#ok</span> · ⚑ lead silence 0.55s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F2-s4/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı, deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 350 ms · 3.6s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F2-s4/e.mp3"></audio>
+<div class="heard bad" title="lead silence 0.57s">With bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 11% · 431 ms · 5.4s · ⚑ lead silence 0.57s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F2-s4/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 180 ms · 1.3s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F2-s4/g.mp3"></audio>
+<div class="heard good" title="lead silence 0.51s">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 487 ms · 6.1s · ⚑ lead silence 0.51s</div></td></tr><tr class="" data-id="supertonic-M5-s4"><th class="name">Supertonic 3 M5 · 4 steps<br><code>supertonic-M5-s4</code></th><td><audio controls preload="none" src="audio/norm/supertonic-M5-s4/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.55s">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 442 ms · 5.4s · ⚑ lead silence 0.55s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M5-s4/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 258 ms · 2.5s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M5-s4/c.mp3"></audio>
+<div class="heard good" title="">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 571 ms · 7.5s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/supertonic-M5-s4/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 334 ms · 3.8s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M5-s4/e.mp3"></audio>
+<div class="heard bad" title="">Build bitti. EOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 11% · 488 ms · 5.6s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M5-s4/f.mp3"></audio>
+<div class="heard good" title="">durduruldu.</div>
+<div class="dim">WER 0% · 176 ms · 1.4s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M5-s4/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 508 ms · 6.5s</div></td></tr><tr class="" data-id="supertonic-F5-s4"><th class="name">Supertonic 3 F5 · 4 steps<br><code>supertonic-F5-s4</code></th><td><audio controls preload="none" src="audio/norm/supertonic-F5-s4/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.52s">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 513 ms · 5.2s · ⚑ lead silence 0.52s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F5-s4/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 276 ms · 2.4s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F5-s4/c.mp3"></audio>
+<div class="heard good" title="">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 602 ms · 7.2s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/supertonic-F5-s4/d.mp3"></audio>
+<div class="heard bad" title="">Pull request açıldığı deploy için onayını bekliyorum.</div>
+<div class="dim">WER 14% · 356 ms · 3.6s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F5-s4/e.mp3"></audio>
+<div class="heard good" title="">Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 0% · 458 ms · 5.5s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F5-s4/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 186 ms · 1.3s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F5-s4/g.mp3"></audio>
+<div class="heard good" title="clipped (17 samples at full scale)">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 527 ms · 6.3s · ⚑ clipped (17 samples at full scale)</div></td></tr><tr class="" data-id="supertonic-M3-s8"><th class="name">Supertonic 3 M3 · 8 steps<br><code>supertonic-M3-s8</code></th><td><audio controls preload="none" src="audio/norm/supertonic-M3-s8/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.56s">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 824 ms · 4.5s · ⚑ lead silence 0.56s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M3-s8/b.mp3"></audio>
+<div class="heard good" title="fast 8.6 syl/s">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 368 ms · 2.2s · ⚑ fast 8.6 syl/s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M3-s8/c.mp3"></audio>
+<div class="heard good" title="lead silence 0.55s">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 978 ms · 6.2s <span class="good">#ok</span> · ⚑ lead silence 0.55s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M3-s8/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 537 ms · 3.1s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M3-s8/e.mp3"></audio>
+<div class="heard bad" title="">Bıl bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 11% · 816 ms · 4.7s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M3-s8/f.mp3"></audio>
+<div class="heard good" title="">durduruldu.</div>
+<div class="dim">WER 0% · 337 ms · 1.3s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M3-s8/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 850 ms · 5.4s</div></td></tr><tr class="" data-id="yelda"><th class="name">macOS say -v Yelda (rate 185)<br><code>yelda</code></th><td><audio controls preload="none" src="audio/norm/yelda/a.mp3"></audio>
+<div class="heard good" title="">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 1154 ms · 5.0s</div></td><td><audio controls preload="none" src="audio/norm/yelda/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 800 ms · 2.2s</div></td><td><audio controls preload="none" src="audio/norm/yelda/c.mp3"></audio>
+<div class="heard good" title="">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 875 ms · 7.2s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/yelda/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 834 ms · 3.7s</div></td><td><audio controls preload="none" src="audio/norm/yelda/e.mp3"></audio>
+<div class="heard bad" title="">Bil bitti, iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 11% · 837 ms · 4.8s</div></td><td><audio controls preload="none" src="audio/norm/yelda/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 779 ms · 0.8s</div></td><td><audio controls preload="none" src="audio/norm/yelda/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok, 4 aktif başvuru var, yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 873 ms · 6.7s</div></td></tr><tr class="" data-id="supertonic-F1-s8"><th class="name">Supertonic 3 F1 · 8 steps<br><code>supertonic-F1-s8</code></th><td><audio controls preload="none" src="audio/norm/supertonic-F1-s8/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.62s">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 840 ms · 5.4s · ⚑ lead silence 0.62s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F1-s8/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 492 ms · 2.5s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F1-s8/c.mp3"></audio>
+<div class="heard good" title="">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 1128 ms · 7.5s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/supertonic-F1-s8/d.mp3"></audio>
+<div class="heard good" title="lead silence 0.57s">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 660 ms · 3.8s · ⚑ lead silence 0.57s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F1-s8/e.mp3"></audio>
+<div class="heard bad" title="">Build bitti. EOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 11% · 954 ms · 5.6s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F1-s8/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 339 ms · 1.4s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F1-s8/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok, 4 aktif başvuru var, yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 987 ms · 6.5s</div></td></tr><tr class="" data-id="supertonic-F3-s8"><th class="name">Supertonic 3 F3 · 8 steps<br><code>supertonic-F3-s8</code></th><td><audio controls preload="none" src="audio/norm/supertonic-F3-s8/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.52s">Tamam, önce hataları topluyorum sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 850 ms · 5.5s · ⚑ lead silence 0.52s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F3-s8/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 493 ms · 2.6s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F3-s8/c.mp3"></audio>
+<div class="heard good" title="">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 1148 ms · 7.7s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/supertonic-F3-s8/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı, deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 652 ms · 3.9s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F3-s8/e.mp3"></audio>
+<div class="heard bad" title="lead silence 0.60s">Build bitti. EOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 11% · 952 ms · 5.9s · ⚑ lead silence 0.60s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F3-s8/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 392 ms · 1.4s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F3-s8/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 1017 ms · 6.7s</div></td></tr><tr class="" data-id="supertonic-M5-s8"><th class="name">Supertonic 3 M5 · 8 steps<br><code>supertonic-M5-s8</code></th><td><audio controls preload="none" src="audio/norm/supertonic-M5-s8/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.55s">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 864 ms · 5.4s · ⚑ lead silence 0.55s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M5-s8/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 495 ms · 2.5s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M5-s8/c.mp3"></audio>
+<div class="heard good" title="">Seksen görevin yirmisi takıldı, otuzu hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 1115 ms · 7.5s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/supertonic-M5-s8/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 650 ms · 3.8s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M5-s8/e.mp3"></audio>
+<div class="heard bad" title="">Build bitti. EOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 11% · 947 ms · 5.6s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M5-s8/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 335 ms · 1.4s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M5-s8/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 968 ms · 6.5s</div></td></tr><tr class="" data-id="sherpa113-st3int8-sid0-s8"><th class="name">Supertonic 3 int8 · sherpa-onnx 1.13.8 (panel&#x27;s pinned version) · sid 0 · 8 steps<br><code>sherpa113-st3int8-sid0-s8</code></th><td><audio controls preload="none" src="audio/norm/sherpa113-st3int8-sid0-s8/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.59s">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 1380 ms · 5.0s · ⚑ lead silence 0.59s</div></td><td><audio controls preload="none" src="audio/norm/sherpa113-st3int8-sid0-s8/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 541 ms · 2.4s</div></td><td><audio controls preload="none" src="audio/norm/sherpa113-st3int8-sid0-s8/c.mp3"></audio>
+<div class="heard good" title="">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 1219 ms · 7.1s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/sherpa113-st3int8-sid0-s8/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı, deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 720 ms · 3.5s</div></td><td><audio controls preload="none" src="audio/norm/sherpa113-st3int8-sid0-s8/e.mp3"></audio>
+<div class="heard good" title="">Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 0% · 927 ms · 5.3s</div></td><td><audio controls preload="none" src="audio/norm/sherpa113-st3int8-sid0-s8/f.mp3"></audio>
+<div class="heard bad" title="fast 10.8 syl/s">Duruldu.</div>
+<div class="dim">WER 100% · 366 ms · 1.3s · ⚑ fast 10.8 syl/s</div></td><td><audio controls preload="none" src="audio/norm/sherpa113-st3int8-sid0-s8/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 1143 ms · 6.0s</div></td></tr><tr class="" data-id="pocket-female_1"><th class="name">Pocket TTS Turkish — female_1<br><code>pocket-female_1</code></th><td><audio controls preload="none" src="audio/norm/pocket-female_1/a.mp3"></audio>
+<div class="heard good" title="">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 197 ms · 4.2s</div></td><td><audio controls preload="none" src="audio/norm/pocket-female_1/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 25 ms · 2.2s</div></td><td><audio controls preload="none" src="audio/norm/pocket-female_1/c.mp3"></audio>
+<div class="heard good" title="">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 30 ms · 7.0s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/pocket-female_1/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 26 ms · 3.4s</div></td><td><audio controls preload="none" src="audio/norm/pocket-female_1/e.mp3"></audio>
+<div class="heard bad" title="">Bu il bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 22% · 24 ms · 4.2s</div></td><td><audio controls preload="none" src="audio/norm/pocket-female_1/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 25 ms · 1.4s</div></td><td><audio controls preload="none" src="audio/norm/pocket-female_1/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 23 ms · 5.7s</div></td></tr><tr class="" data-id="supertonic-F1-s4"><th class="name">Supertonic 3 F1 · 4 steps<br><code>supertonic-F1-s4</code></th><td><audio controls preload="none" src="audio/norm/supertonic-F1-s4/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.62s">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 445 ms · 5.4s · ⚑ lead silence 0.62s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F1-s4/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 255 ms · 2.5s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F1-s4/c.mp3"></audio>
+<div class="heard bad" title="">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarı ile bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 15% · 577 ms · 7.5s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/supertonic-F1-s4/d.mp3"></audio>
+<div class="heard good" title="lead silence 0.58s">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 344 ms · 3.8s · ⚑ lead silence 0.58s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F1-s4/e.mp3"></audio>
+<div class="heard good" title="">Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 0% · 495 ms · 5.6s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F1-s4/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 174 ms · 1.4s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F1-s4/g.mp3"></audio>
+<div class="heard good" title="lead silence 0.51s">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 537 ms · 6.5s · ⚑ lead silence 0.51s</div></td></tr><tr class="" data-id="sherpa-st3int8-sid0-s4-t4"><th class="name">Supertonic 3 int8 via sherpa-onnx · sid 0 · 4 steps · 4 threads<br><code>sherpa-st3int8-sid0-s4-t4</code></th><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid0-s4-t4/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.50s">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 486 ms · 5.0s · ⚑ lead silence 0.50s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid0-s4-t4/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 280 ms · 2.4s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid0-s4-t4/c.mp3"></audio>
+<div class="heard good" title="">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 604 ms · 7.2s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid0-s4-t4/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı, deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 361 ms · 3.5s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid0-s4-t4/e.mp3"></audio>
+<div class="heard good" title="lead silence 0.52s">Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 0% · 461 ms · 5.3s · ⚑ lead silence 0.52s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid0-s4-t4/f.mp3"></audio>
+<div class="heard bad" title="">Dur duruldu.</div>
+<div class="dim">WER 200% · 215 ms · 1.3s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid0-s4-t4/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 530 ms · 6.0s</div></td></tr><tr class="" data-id="sherpa-st3int8-sid5-s4"><th class="name">Supertonic 3 int8 via sherpa-onnx · sid 5 · 4 steps<br><code>sherpa-st3int8-sid5-s4</code></th><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid5-s4/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.62s">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 512 ms · 5.0s · ⚑ lead silence 0.62s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid5-s4/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 287 ms · 2.4s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid5-s4/c.mp3"></audio>
+<div class="heard good" title="">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 643 ms · 7.2s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid5-s4/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 375 ms · 3.5s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid5-s4/e.mp3"></audio>
+<div class="heard bad" title="">Bil bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 11% · 490 ms · 5.3s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid5-s4/f.mp3"></audio>
+<div class="heard bad" title="">Durduroldu.</div>
+<div class="dim">WER 100% · 193 ms · 1.3s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid5-s4/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 560 ms · 6.0s</div></td></tr><tr class="" data-id="seslen-ayse"><th class="name">Seslen TTS — ayse (female)<br><code>seslen-ayse</code></th><td><audio controls preload="none" src="audio/norm/seslen-ayse/a.mp3"></audio>
+<div class="heard good" title="">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 772 ms · 5.0s</div></td><td><audio controls preload="none" src="audio/norm/seslen-ayse/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 298 ms · 2.1s</div></td><td><audio controls preload="none" src="audio/norm/seslen-ayse/c.mp3"></audio>
+<div class="heard good" title="">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 687 ms · 7.8s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/seslen-ayse/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı, deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 505 ms · 4.0s</div></td><td><audio controls preload="none" src="audio/norm/seslen-ayse/e.mp3"></audio>
+<div class="heard bad" title="">Bu il bitti, iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 22% · 624 ms · 5.1s</div></td><td><audio controls preload="none" src="audio/norm/seslen-ayse/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 492 ms · 1.0s</div></td><td><audio controls preload="none" src="audio/norm/seslen-ayse/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 502 ms · 7.2s</div></td></tr><tr class="" data-id="supertonic-F5-s8"><th class="name">Supertonic 3 F5 · 8 steps<br><code>supertonic-F5-s8</code></th><td><audio controls preload="none" src="audio/norm/supertonic-F5-s8/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.52s">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 883 ms · 5.2s · ⚑ lead silence 0.52s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F5-s8/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 518 ms · 2.4s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F5-s8/c.mp3"></audio>
+<div class="heard bad" title="">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarı ile bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 15% · 1128 ms · 7.2s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/supertonic-F5-s8/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 666 ms · 3.6s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F5-s8/e.mp3"></audio>
+<div class="heard good" title="">Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 0% · 886 ms · 5.5s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F5-s8/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 342 ms · 1.3s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F5-s8/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 989 ms · 6.3s</div></td></tr><tr class="" data-id="sherpa-st3int8-sid5-s8"><th class="name">Supertonic 3 int8 via sherpa-onnx · sid 5 · 8 steps<br><code>sherpa-st3int8-sid5-s8</code></th><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid5-s8/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.65s">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 952 ms · 5.0s · ⚑ lead silence 0.65s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid5-s8/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 557 ms · 2.4s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid5-s8/c.mp3"></audio>
+<div class="heard good" title="lead silence 0.60s">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 1221 ms · 7.2s <span class="good">#ok</span> · ⚑ lead silence 0.60s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid5-s8/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı, deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 717 ms · 3.5s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid5-s8/e.mp3"></audio>
+<div class="heard good" title="">Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 0% · 944 ms · 5.3s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid5-s8/f.mp3"></audio>
+<div class="heard bad" title="">Dur duruldu.</div>
+<div class="dim">WER 200% · 375 ms · 1.3s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid5-s8/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 1054 ms · 6.0s</div></td></tr><tr class="" data-id="sherpa-st3int8-sid0-s8"><th class="name">Supertonic 3 int8 via sherpa-onnx · sid 0 · 8 steps<br><code>sherpa-st3int8-sid0-s8</code></th><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid0-s8/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.57s">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 1316 ms · 5.0s · ⚑ lead silence 0.57s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid0-s8/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 549 ms · 2.4s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid0-s8/c.mp3"></audio>
+<div class="heard good" title="">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 1215 ms · 7.2s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid0-s8/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı, deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 722 ms · 3.5s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid0-s8/e.mp3"></audio>
+<div class="heard good" title="">Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 0% · 945 ms · 5.3s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid0-s8/f.mp3"></audio>
+<div class="heard bad" title="">Dur duruldu.</div>
+<div class="dim">WER 200% · 369 ms · 1.3s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid0-s8/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 1050 ms · 6.0s</div></td></tr><tr class="" data-id="anka-female"><th class="name">Anka TTS v0.1 — built-in female<br><code>anka-female</code></th><td><audio controls preload="none" src="audio/norm/anka-female/a.mp3"></audio>
+<div class="heard good" title="">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 8098 ms · 4.2s</div></td><td><audio controls preload="none" src="audio/norm/anka-female/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 6192 ms · 2.1s</div></td><td><audio controls preload="none" src="audio/norm/anka-female/c.mp3"></audio>
+<div class="heard good" title="">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 9392 ms · 6.3s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/anka-female/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 7144 ms · 3.5s</div></td><td><audio controls preload="none" src="audio/norm/anka-female/e.mp3"></audio>
+<div class="heard bad" title="">Bu il bitti, iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 22% · 7982 ms · 4.5s</div></td><td><audio controls preload="none" src="audio/norm/anka-female/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 5316 ms · 0.6s</div></td><td><audio controls preload="none" src="audio/norm/anka-female/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 9385 ms · 5.8s</div></td></tr><tr class="" data-id="anka-male"><th class="name">Anka TTS v0.1 — built-in male<br><code>anka-male</code></th><td><audio controls preload="none" src="audio/norm/anka-male/a.mp3"></audio>
+<div class="heard good" title="">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 9823 ms · 4.2s</div></td><td><audio controls preload="none" src="audio/norm/anka-male/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 6575 ms · 2.2s</div></td><td><audio controls preload="none" src="audio/norm/anka-male/c.mp3"></audio>
+<div class="heard good" title="">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 9947 ms · 6.4s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/anka-male/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı, deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 7402 ms · 3.5s</div></td><td><audio controls preload="none" src="audio/norm/anka-male/e.mp3"></audio>
+<div class="heard bad" title="">Bu il bitti, iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 22% · 8625 ms · 4.5s</div></td><td><audio controls preload="none" src="audio/norm/anka-male/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 5598 ms · 0.7s</div></td><td><audio controls preload="none" src="audio/norm/anka-male/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok, 4 aktif başvuru var, yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 9352 ms · 5.9s</div></td></tr><tr class="" data-id="pocket-female_2"><th class="name">Pocket TTS Turkish — female_2<br><code>pocket-female_2</code></th><td><audio controls preload="none" src="audio/norm/pocket-female_2/a.mp3"></audio>
+<div class="heard good" title="">Tamam. Önce hataları topluyorum. Sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 214 ms · 4.1s</div></td><td><audio controls preload="none" src="audio/norm/pocket-female_2/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 28 ms · 2.1s</div></td><td><audio controls preload="none" src="audio/norm/pocket-female_2/c.mp3"></audio>
+<div class="heard good" title="">seksen görevin yirmisi takıldı. Otuzu hata verdi. Kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 31 ms · 6.5s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/pocket-female_2/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 25 ms · 3.3s</div></td><td><audio controls preload="none" src="audio/norm/pocket-female_2/e.mp3"></audio>
+<div class="heard bad" title="">Bu bil bitti. Geo simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 33% · 24 ms · 4.0s</div></td><td><audio controls preload="none" src="audio/norm/pocket-female_2/f.mp3"></audio>
+<div class="heard good" title="">durduruldu.</div>
+<div class="dim">WER 0% · 24 ms · 1.2s</div></td><td><audio controls preload="none" src="audio/norm/pocket-female_2/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 24 ms · 5.4s</div></td></tr><tr class="" data-id="ema-onnx"><th class="name">EMA Lightning — ONNX graphs (onnxruntime CPU)<br><code>ema-onnx</code></th><td><audio controls preload="none" src="audio/norm/ema-onnx/a.mp3"></audio>
+<div class="heard good" title="">Tamam önce hataları topluyorum sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 77 ms · 3.6s</div></td><td><audio controls preload="none" src="audio/norm/ema-onnx/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 31 ms · 1.4s</div></td><td><audio controls preload="none" src="audio/norm/ema-onnx/c.mp3"></audio>
+<div class="heard good" title="">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 44 ms · 5.6s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/ema-onnx/d.mp3"></audio>
+<div class="heard bad" title="">Poon Request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 14% · 34 ms · 2.8s</div></td><td><audio controls preload="none" src="audio/norm/ema-onnx/e.mp3"></audio>
+<div class="heard bad" title="">Bu ilk bitti, iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 22% · 41 ms · 3.6s</div></td><td><audio controls preload="none" src="audio/norm/ema-onnx/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 25 ms · 0.8s</div></td><td><audio controls preload="none" src="audio/norm/ema-onnx/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 40 ms · 5.0s</div></td></tr><tr class="" data-id="ahenk-cep-s8"><th class="name">Ahenk Cep (f022 female) 8 steps<br><code>ahenk-cep-s8</code></th><td><audio controls preload="none" src="audio/norm/ahenk-cep-s8/a.mp3"></audio>
+<div class="heard good" title="">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 180 ms · 3.9s</div></td><td><audio controls preload="none" src="audio/norm/ahenk-cep-s8/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 112 ms · 1.6s</div></td><td><audio controls preload="none" src="audio/norm/ahenk-cep-s8/c.mp3"></audio>
+<div class="heard good" title="">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 293 ms · 6.3s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/ahenk-cep-s8/d.mp3"></audio>
+<div class="heard bad" title="">Pull Regulus açıldı, deploy için onayını bekliyorum.</div>
+<div class="dim">WER 14% · 164 ms · 3.0s</div></td><td><audio controls preload="none" src="audio/norm/ahenk-cep-s8/e.mp3"></audio>
+<div class="heard bad" title="">Bu il bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 22% · 225 ms · 4.6s</div></td><td><audio controls preload="none" src="audio/norm/ahenk-cep-s8/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 102 ms · 0.9s</div></td><td><audio controls preload="none" src="audio/norm/ahenk-cep-s8/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 378 ms · 5.5s</div></td></tr><tr class="" data-id="ahenk-cep-s16"><th class="name">Ahenk Cep (f022 female) 16 steps<br><code>ahenk-cep-s16</code></th><td><audio controls preload="none" src="audio/norm/ahenk-cep-s16/a.mp3"></audio>
+<div class="heard good" title="">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 258 ms · 3.9s</div></td><td><audio controls preload="none" src="audio/norm/ahenk-cep-s16/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 135 ms · 1.6s</div></td><td><audio controls preload="none" src="audio/norm/ahenk-cep-s16/c.mp3"></audio>
+<div class="heard good" title="">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 393 ms · 6.3s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/ahenk-cep-s16/d.mp3"></audio>
+<div class="heard bad" title="">Pull Regulus açıldı, deploy için onayını bekliyorum.</div>
+<div class="dim">WER 14% · 237 ms · 3.0s</div></td><td><audio controls preload="none" src="audio/norm/ahenk-cep-s16/e.mp3"></audio>
+<div class="heard bad" title="">Bu il bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 22% · 284 ms · 4.6s</div></td><td><audio controls preload="none" src="audio/norm/ahenk-cep-s16/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 104 ms · 0.9s</div></td><td><audio controls preload="none" src="audio/norm/ahenk-cep-s16/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 375 ms · 5.5s</div></td></tr><tr class="" data-id="supertonic-M1-s8"><th class="name">Supertonic 3 M1 · 8 steps<br><code>supertonic-M1-s8</code></th><td><audio controls preload="none" src="audio/norm/supertonic-M1-s8/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.62s">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 916 ms · 5.4s · ⚑ lead silence 0.62s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M1-s8/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 506 ms · 2.5s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M1-s8/c.mp3"></audio>
+<div class="heard ok" title="">80 görevin 20&#x27;si takıldı, 30&#x27;lu hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 8% · 1132 ms · 7.5s <span class="bad">#bad</span></div></td><td><audio controls preload="none" src="audio/norm/supertonic-M1-s8/d.mp3"></audio>
+<div class="heard good" title="lead silence 0.55s">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 663 ms · 3.8s · ⚑ lead silence 0.55s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M1-s8/e.mp3"></audio>
+<div class="heard good" title="">Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 0% · 960 ms · 5.6s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M1-s8/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 337 ms · 1.4s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M1-s8/g.mp3"></audio>
+<div class="heard good" title="lead silence 0.60s">Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 988 ms · 6.5s · ⚑ lead silence 0.60s</div></td></tr><tr class="" data-id="mlx-voxcpm2-clone"><th class="name">VoxCPM2 2B 4-bit (MLX) — clone<br><code>mlx-voxcpm2-clone</code></th><td><audio controls preload="none" src="audio/norm/mlx-voxcpm2-clone/a.mp3"></audio>
+<div class="heard good" title="">Tamam önce hataları topluyorum. Sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 2917 ms · 3.5s</div></td><td><audio controls preload="none" src="audio/norm/mlx-voxcpm2-clone/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 1264 ms · 2.1s</div></td><td><audio controls preload="none" src="audio/norm/mlx-voxcpm2-clone/c.mp3"></audio>
+<div class="heard ok" title="">Sediz görevin 20&#x27;si takıldı. 30&#x27;u hata verdi. Kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 8% · 3090 ms · 5.8s <span class="bad">#bad</span></div></td><td><audio controls preload="none" src="audio/norm/mlx-voxcpm2-clone/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 1675 ms · 2.9s</div></td><td><audio controls preload="none" src="audio/norm/mlx-voxcpm2-clone/e.mp3"></audio>
+<div class="heard good" title="">Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 0% · 2490 ms · 3.8s</div></td><td><audio controls preload="none" src="audio/norm/mlx-voxcpm2-clone/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 996 ms · 1.1s</div></td><td><audio controls preload="none" src="audio/norm/mlx-voxcpm2-clone/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 3373 ms · 5.0s</div></td></tr><tr class="" data-id="pocket-male_1"><th class="name">Pocket TTS Turkish — male_1<br><code>pocket-male_1</code></th><td><audio controls preload="none" src="audio/norm/pocket-male_1/a.mp3"></audio>
+<div class="heard good" title="">Tamam önce hataları topluyorum sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 228 ms · 4.0s</div></td><td><audio controls preload="none" src="audio/norm/pocket-male_1/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 26 ms · 2.0s</div></td><td><audio controls preload="none" src="audio/norm/pocket-male_1/c.mp3"></audio>
+<div class="heard bad" title="">80 görevin 20&#x27;si takıldı. 30&#x27;u hata verdi. Kalanı uyarı ile bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 15% · 32 ms · 6.5s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/pocket-male_1/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 26 ms · 3.0s</div></td><td><audio controls preload="none" src="audio/norm/pocket-male_1/e.mp3"></audio>
+<div class="heard bad" title="">Bu yıl bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 22% · 25 ms · 4.0s</div></td><td><audio controls preload="none" src="audio/norm/pocket-male_1/f.mp3"></audio>
+<div class="heard good" title="">durduruldu.</div>
+<div class="dim">WER 0% · 26 ms · 1.2s</div></td><td><audio controls preload="none" src="audio/norm/pocket-male_1/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 28 ms · 5.1s</div></td></tr><tr class="" data-id="ema-lightning"><th class="name">EMA Lightning 1.1.2 (single voice)<br><code>ema-lightning</code></th><td><audio controls preload="none" src="audio/norm/ema-lightning/a.mp3"></audio>
+<div class="heard good" title="">Tamam önce hataları topluyorum sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 90 ms · 3.6s</div></td><td><audio controls preload="none" src="audio/norm/ema-lightning/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 113 ms · 1.4s</div></td><td><audio controls preload="none" src="audio/norm/ema-lightning/c.mp3"></audio>
+<div class="heard good" title="">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 97 ms · 5.6s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/ema-lightning/d.mp3"></audio>
+<div class="heard bad" title="">Full reuse açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 29% · 92 ms · 2.8s</div></td><td><audio controls preload="none" src="audio/norm/ema-lightning/e.mp3"></audio>
+<div class="heard bad" title="">Bu il bitti, iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 22% · 104 ms · 3.6s</div></td><td><audio controls preload="none" src="audio/norm/ema-lightning/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 68 ms · 0.8s</div></td><td><audio controls preload="none" src="audio/norm/ema-lightning/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 86 ms · 5.0s</div></td></tr><tr class="" data-id="xtts-ana"><th class="name">XTTS-v2 — Ana Florence (female)<br><code>xtts-ana</code></th><td><audio controls preload="none" src="audio/norm/xtts-ana/a.mp3"></audio>
+<div class="heard bad" title="">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum o.</div>
+<div class="dim">WER 11% · 368 ms · 4.4s</div></td><td><audio controls preload="none" src="audio/norm/xtts-ana/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 274 ms · 2.2s</div></td><td><audio controls preload="none" src="audio/norm/xtts-ana/c.mp3"></audio>
+<div class="heard good" title="inner gap 0.89s">Seksen görevin yirmisi takıldı. Otuzu hata verdi. Kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 282 ms · 7.3s <span class="good">#ok</span> · ⚑ inner gap 0.89s</div></td><td><audio controls preload="none" src="audio/norm/xtts-ana/d.mp3"></audio>
+<div class="heard bad" title="">Pull request açıldı. Deploy için onayını bekliyorum onu.</div>
+<div class="dim">WER 14% · 290 ms · 3.7s</div></td><td><audio controls preload="none" src="audio/norm/xtts-ana/e.mp3"></audio>
+<div class="heard bad" title="">Bu ılt bitti, iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 22% · 278 ms · 4.5s</div></td><td><audio controls preload="none" src="audio/norm/xtts-ana/f.mp3"></audio>
+<div class="heard good" title="inner gap 1.16s; slow/padded 1.3 syl/s">Durduruldu.</div>
+<div class="dim">WER 0% · 272 ms · 3.0s · ⚑ inner gap 1.16s; slow/padded 1.3 syl/s</div></td><td><audio controls preload="none" src="audio/norm/xtts-ana/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 284 ms · 5.7s</div></td></tr><tr class="" data-id="supertonic-M3-s4"><th class="name">Supertonic 3 M3 · 4 steps<br><code>supertonic-M3-s4</code></th><td><audio controls preload="none" src="audio/norm/supertonic-M3-s4/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.56s">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 430 ms · 4.5s · ⚑ lead silence 0.56s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M3-s4/b.mp3"></audio>
+<div class="heard good" title="fast 8.9 syl/s">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 196 ms · 2.2s · ⚑ fast 8.9 syl/s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M3-s4/c.mp3"></audio>
+<div class="heard bad" title="lead silence 0.55s">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalan uyarı ile bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 23% · 503 ms · 6.2s <span class="good">#ok</span> · ⚑ lead silence 0.55s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M3-s4/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 277 ms · 3.1s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M3-s4/e.mp3"></audio>
+<div class="heard good" title="">Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 0% · 412 ms · 4.7s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M3-s4/f.mp3"></audio>
+<div class="heard bad" title="">Turduruldu.</div>
+<div class="dim">WER 100% · 180 ms · 1.3s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M3-s4/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 439 ms · 5.4s</div></td></tr><tr class="" data-id="seslen-ege"><th class="name">Seslen TTS — ege (male)<br><code>seslen-ege</code></th><td><audio controls preload="none" src="audio/norm/seslen-ege/a.mp3"></audio>
+<div class="heard good" title="">Tamam önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 621 ms · 3.9s</div></td><td><audio controls preload="none" src="audio/norm/seslen-ege/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 286 ms · 2.1s</div></td><td><audio controls preload="none" src="audio/norm/seslen-ege/c.mp3"></audio>
+<div class="heard good" title="">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 522 ms · 6.4s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/seslen-ege/d.mp3"></audio>
+<div class="heard bad" title="">Bull Request açıldı, Diploy için onayını bekliyorum.</div>
+<div class="dim">WER 29% · 448 ms · 3.1s</div></td><td><audio controls preload="none" src="audio/norm/seslen-ege/e.mp3"></audio>
+<div class="heard bad" title="">Bu yıl bitti, iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 22% · 515 ms · 4.1s</div></td><td><audio controls preload="none" src="audio/norm/seslen-ege/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 407 ms · 0.8s</div></td><td><audio controls preload="none" src="audio/norm/seslen-ege/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 428 ms · 6.0s</div></td></tr><tr class="" data-id="sherpa-st3int8-sid0-s4"><th class="name">Supertonic 3 int8 via sherpa-onnx · sid 0 · 4 steps<br><code>sherpa-st3int8-sid0-s4</code></th><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid0-s4/a.mp3"></audio>
+<div class="heard good" title="">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 506 ms · 5.0s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid0-s4/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 285 ms · 2.4s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid0-s4/c.mp3"></audio>
+<div class="heard good" title="">80 görevin 20&#x27;si takıldı. 30&#x27;u hata verdi. Kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 635 ms · 7.2s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid0-s4/d.mp3"></audio>
+<div class="heard bad" title="lead silence 0.52s">Pull Request açıldı. Deploy için onu yine bekliyorum.</div>
+<div class="dim">WER 29% · 374 ms · 3.5s · ⚑ lead silence 0.52s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid0-s4/e.mp3"></audio>
+<div class="heard good" title="">Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 0% · 489 ms · 5.3s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid0-s4/f.mp3"></audio>
+<div class="heard bad" title="">Dur duruldu.</div>
+<div class="dim">WER 200% · 195 ms · 1.3s</div></td><td><audio controls preload="none" src="audio/norm/sherpa-st3int8-sid0-s4/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 560 ms · 6.0s</div></td></tr><tr class="" data-id="piper-fahrettin"><th class="name">Piper tr_TR-fahrettin-medium<br><code>piper-fahrettin</code></th><td><audio controls preload="none" src="audio/norm/piper-fahrettin/a.mp3"></audio>
+<div class="heard good" title="clipped (33 samples at full scale)">Tamam, önce hataları topluyorum. Sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 63 ms · 3.8s · ⚑ clipped (33 samples at full scale)</div></td><td><audio controls preload="none" src="audio/norm/piper-fahrettin/b.mp3"></audio>
+<div class="heard good" title="clipped (12 samples at full scale)">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 23 ms · 1.6s · ⚑ clipped (12 samples at full scale)</div></td><td><audio controls preload="none" src="audio/norm/piper-fahrettin/c.mp3"></audio>
+<div class="heard good" title="clipped (13 samples at full scale)">80 görevin 20&#x27;si takıldı. 30&#x27;u hata verdi. Kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 54 ms · 5.7s <span class="good">#ok</span> · ⚑ clipped (13 samples at full scale)</div></td><td><audio controls preload="none" src="audio/norm/piper-fahrettin/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 36 ms · 2.7s</div></td><td><audio controls preload="none" src="audio/norm/piper-fahrettin/e.mp3"></audio>
+<div class="heard bad" title="">Bu il bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 22% · 50 ms · 4.0s</div></td><td><audio controls preload="none" src="audio/norm/piper-fahrettin/f.mp3"></audio>
+<div class="heard bad" title="clipped (14 samples at full scale)">Dur dur oldu.</div>
+<div class="dim">WER 300% · 12 ms · 0.6s · ⚑ clipped (14 samples at full scale)</div></td><td><audio controls preload="none" src="audio/norm/piper-fahrettin/g.mp3"></audio>
+<div class="heard good" title="clipped (42 samples at full scale)">Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 67 ms · 4.9s · ⚑ clipped (42 samples at full scale)</div></td></tr><tr class="" data-id="xtts-gilberto"><th class="name">XTTS-v2 — Gilberto Mathias<br><code>xtts-gilberto</code></th><td><audio controls preload="none" src="audio/norm/xtts-gilberto/a.mp3"></audio>
+<div class="heard good" title="">Tamam. Önce hataları topluyorum. Sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 382 ms · 5.2s</div></td><td><audio controls preload="none" src="audio/norm/xtts-gilberto/b.mp3"></audio>
+<div class="heard bad" title="">Şimdi testleri çalıştırıyorum ben.</div>
+<div class="dim">WER 33% · 279 ms · 1.7s</div></td><td><audio controls preload="none" src="audio/norm/xtts-gilberto/c.mp3"></audio>
+<div class="heard good" title="">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 0% · 276 ms · 6.7s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/xtts-gilberto/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 312 ms · 4.5s</div></td><td><audio controls preload="none" src="audio/norm/xtts-gilberto/e.mp3"></audio>
+<div class="heard bad" title="">Bıht bitti. IOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 22% · 332 ms · 4.5s</div></td><td><audio controls preload="none" src="audio/norm/xtts-gilberto/f.mp3"></audio>
+<div class="heard bad" title="inner gap 1.04s; slow/padded 1.8 syl/s">DURDURULULDU DA</div>
+<div class="dim">WER 200% · 260 ms · 2.2s · ⚑ inner gap 1.04s; slow/padded 1.8 syl/s</div></td><td><audio controls preload="none" src="audio/norm/xtts-gilberto/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 263 ms · 6.4s</div></td></tr><tr class="" data-id="supertonic-F4-s4"><th class="name">Supertonic 3 F4 · 4 steps<br><code>supertonic-F4-s4</code></th><td><audio controls preload="none" src="audio/norm/supertonic-F4-s4/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.51s">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 507 ms · 4.6s · ⚑ lead silence 0.51s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F4-s4/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 282 ms · 2.3s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F4-s4/c.mp3"></audio>
+<div class="heard bad" title="lead silence 0.56s">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalan uyarı ile bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 23% · 526 ms · 6.5s <span class="good">#ok</span> · ⚑ lead silence 0.56s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F4-s4/d.mp3"></audio>
+<div class="heard bad" title="fast 8.7 syl/s">Pull request açıldı, deploy için olayını bekliyorum.</div>
+<div class="dim">WER 14% · 297 ms · 3.2s · ⚑ fast 8.7 syl/s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F4-s4/e.mp3"></audio>
+<div class="heard bad" title="">Fıl bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 11% · 438 ms · 4.9s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F4-s4/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 180 ms · 1.3s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F4-s4/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 451 ms · 5.6s</div></td></tr><tr class="" data-id="supertonic-F3-s4"><th class="name">Supertonic 3 F3 · 4 steps<br><code>supertonic-F3-s4</code></th><td><audio controls preload="none" src="audio/norm/supertonic-F3-s4/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.52s">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 448 ms · 5.5s · ⚑ lead silence 0.52s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F3-s4/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 255 ms · 2.6s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F3-s4/c.mp3"></audio>
+<div class="heard bad" title="">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalan uyarı ile bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 23% · 592 ms · 7.7s <span class="good">#ok</span></div></td><td><audio controls preload="none" src="audio/norm/supertonic-F3-s4/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı, deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 368 ms · 3.9s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F3-s4/e.mp3"></audio>
+<div class="heard bad" title="lead silence 0.59s">Bilt bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 11% · 486 ms · 5.9s · ⚑ lead silence 0.59s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F3-s4/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 182 ms · 1.4s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F3-s4/g.mp3"></audio>
+<div class="heard ok" title="">Başvurularda yeni girişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 8% · 505 ms · 6.7s</div></td></tr><tr class="" data-id="sherpa113-st3int8-sid0-s4"><th class="name">Supertonic 3 int8 · sherpa-onnx 1.13.8 (panel&#x27;s pinned version) · sid 0 · 4 steps<br><code>sherpa113-st3int8-sid0-s4</code></th><td><audio controls preload="none" src="audio/norm/sherpa113-st3int8-sid0-s4/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.53s">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 508 ms · 5.0s · ⚑ lead silence 0.53s</div></td><td><audio controls preload="none" src="audio/norm/sherpa113-st3int8-sid0-s4/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 286 ms · 2.4s</div></td><td><audio controls preload="none" src="audio/norm/sherpa113-st3int8-sid0-s4/c.mp3"></audio>
+<div class="heard bad" title="lead silence 0.52s">80 görevin 20&#x27;si de kakıldı, 30&#x27;u hata verdi, kalanı uyarıyla bitti, hatalardan mı başlayalım?</div>
+<div class="dim">WER 15% · 649 ms · 7.1s <span class="good">#ok</span> · ⚑ lead silence 0.52s</div></td><td><audio controls preload="none" src="audio/norm/sherpa113-st3int8-sid0-s4/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 373 ms · 3.5s</div></td><td><audio controls preload="none" src="audio/norm/sherpa113-st3int8-sid0-s4/e.mp3"></audio>
+<div class="heard good" title="">Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 0% · 488 ms · 5.3s</div></td><td><audio controls preload="none" src="audio/norm/sherpa113-st3int8-sid0-s4/f.mp3"></audio>
+<div class="heard bad" title="">Dur-dur-dur.</div>
+<div class="dim">WER 300% · 193 ms · 1.3s</div></td><td><audio controls preload="none" src="audio/norm/sherpa113-st3int8-sid0-s4/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 551 ms · 6.0s</div></td></tr><tr class="" data-id="supertonic-F4-s8"><th class="name">Supertonic 3 F4 · 8 steps<br><code>supertonic-F4-s8</code></th><td><audio controls preload="none" src="audio/norm/supertonic-F4-s8/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.51s">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 806 ms · 4.6s · ⚑ lead silence 0.51s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F4-s8/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 492 ms · 2.3s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F4-s8/c.mp3"></audio>
+<div class="heard bad" title="lead silence 0.56s">80 görevin 20&#x27;si takıldı, 30&#x27;u hata verdi, kalan uyarı ile bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 23% · 1203 ms · 6.5s <span class="good">#ok</span> · ⚑ lead silence 0.56s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F4-s8/d.mp3"></audio>
+<div class="heard good" title="fast 8.7 syl/s">Pull request açıldı, deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 594 ms · 3.2s · ⚑ fast 8.7 syl/s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F4-s8/e.mp3"></audio>
+<div class="heard bad" title="">Bıl bitti. EOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 22% · 1027 ms · 4.9s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F4-s8/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 429 ms · 1.3s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F4-s8/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 946 ms · 5.6s</div></td></tr><tr class="" data-id="zonos3-native-clone"><th class="name">ZONOS3-Mini native C++/ggml server (Metal) — clone<br><code>zonos3-native-clone</code></th><td><audio controls preload="none" src="audio/norm/zonos3-native-clone/a.mp3"></audio>
+<div class="heard good" title="">Tamam önce hataları topluyorum. Sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 1898 ms · 4.3s</div></td><td><audio controls preload="none" src="audio/norm/zonos3-native-clone/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 30 ms · 2.7s</div></td><td><audio controls preload="none" src="audio/norm/zonos3-native-clone/c.mp3"></audio>
+<div class="heard bad" title="">Hissip görevin yerisi takıldı. Otuzu hata verdi. Kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 15% · 22 ms · 7.0s <span class="bad">#bad</span></div></td><td><audio controls preload="none" src="audio/norm/zonos3-native-clone/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 21 ms · 3.7s</div></td><td><audio controls preload="none" src="audio/norm/zonos3-native-clone/e.mp3"></audio>
+<div class="heard good" title="">Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 0% · 21 ms · 5.1s</div></td><td><audio controls preload="none" src="audio/norm/zonos3-native-clone/f.mp3"></audio>
+<div class="heard bad" title="">Duduruldu.</div>
+<div class="dim">WER 100% · 16 ms · 1.5s</div></td><td><audio controls preload="none" src="audio/norm/zonos3-native-clone/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 22 ms · 6.3s</div></td></tr><tr class="" data-id="antalia-mini"><th class="name">Antalia-2 Mini (single male voice)<br><code>antalia-mini</code></th><td><audio controls preload="none" src="audio/norm/antalia-mini/a.mp3"></audio>
+<div class="heard good" title="">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 494 ms · 4.5s</div></td><td><audio controls preload="none" src="audio/norm/antalia-mini/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 67 ms · 2.0s</div></td><td><audio controls preload="none" src="audio/norm/antalia-mini/c.mp3"></audio>
+<div class="heard ok" title="">Üsteliksen görevin yirmisi takıldı, otuzu hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 8% · 130 ms · 7.2s <span class="bad">#bad</span></div></td><td><audio controls preload="none" src="audio/norm/antalia-mini/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 96 ms · 3.5s</div></td><td><audio controls preload="none" src="audio/norm/antalia-mini/e.mp3"></audio>
+<div class="heard bad" title="">Bu yıl bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 22% · 121 ms · 4.8s</div></td><td><audio controls preload="none" src="audio/norm/antalia-mini/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 54 ms · 1.0s</div></td><td><audio controls preload="none" src="audio/norm/antalia-mini/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. Dört aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 134 ms · 6.4s</div></td></tr><tr class="" data-id="mlx-zonos3-clone"><th class="name">ZONOS3-Mini (MLX) — clone of user&#x27;s voice<br><code>mlx-zonos3-clone</code></th><td><audio controls preload="none" src="audio/norm/mlx-zonos3-clone/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.51s">Tamam. Önce hataları topluyorum. Sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 13406 ms · 4.9s · ⚑ lead silence 0.51s</div></td><td><audio controls preload="none" src="audio/norm/mlx-zonos3-clone/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 304 ms · 2.5s</div></td><td><audio controls preload="none" src="audio/norm/mlx-zonos3-clone/c.mp3"></audio>
+<div class="heard bad" title="">Hissin görevin irisi takıldı, otuzu hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 15% · 282 ms · 7.5s <span class="bad">#bad</span></div></td><td><audio controls preload="none" src="audio/norm/mlx-zonos3-clone/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 290 ms · 3.5s</div></td><td><audio controls preload="none" src="audio/norm/mlx-zonos3-clone/e.mp3"></audio>
+<div class="heard bad" title="lead silence 0.62s">Build bitti. iOS simülatöründe ekran yürültüsü alıp rapora ekledim.</div>
+<div class="dim">WER 11% · 287 ms · 5.3s · ⚑ lead silence 0.62s</div></td><td><audio controls preload="none" src="audio/norm/mlx-zonos3-clone/f.mp3"></audio>
+<div class="heard good" title="">durduruldu</div>
+<div class="dim">WER 0% · 383 ms · 1.7s</div></td><td><audio controls preload="none" src="audio/norm/mlx-zonos3-clone/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 324 ms · 6.5s</div></td></tr><tr class="" data-id="supertonic-M1-s4"><th class="name">Supertonic 3 M1 · 4 steps<br><code>supertonic-M1-s4</code></th><td><audio controls preload="none" src="audio/norm/supertonic-M1-s4/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.61s">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 458 ms · 5.4s · ⚑ lead silence 0.61s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M1-s4/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 259 ms · 2.5s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M1-s4/c.mp3"></audio>
+<div class="heard ok" title="">80 görevin 20&#x27;si takıldı, 30&#x27;lu hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 8% · 590 ms · 7.5s <span class="bad">#bad</span></div></td><td><audio controls preload="none" src="audio/norm/supertonic-M1-s4/d.mp3"></audio>
+<div class="heard good" title="lead silence 0.55s">Pull request açıldı, deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 342 ms · 3.8s · ⚑ lead silence 0.55s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M1-s4/e.mp3"></audio>
+<div class="heard bad" title="">Build bit bitti. EOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 22% · 487 ms · 5.6s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M1-s4/f.mp3"></audio>
+<div class="heard good" title="">durduruldu.</div>
+<div class="dim">WER 0% · 181 ms · 1.4s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M1-s4/g.mp3"></audio>
+<div class="heard good" title="lead silence 0.57s">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 520 ms · 6.5s · ⚑ lead silence 0.57s</div></td></tr><tr class="" data-id="sherpa113-st3int8-sid5-s4"><th class="name">Supertonic 3 int8 · sherpa-onnx 1.13.8 (panel&#x27;s pinned version) · sid 5 · 4 steps<br><code>sherpa113-st3int8-sid5-s4</code></th><td><audio controls preload="none" src="audio/norm/sherpa113-st3int8-sid5-s4/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.58s">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 518 ms · 5.0s · ⚑ lead silence 0.58s</div></td><td><audio controls preload="none" src="audio/norm/sherpa113-st3int8-sid5-s4/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 288 ms · 2.4s</div></td><td><audio controls preload="none" src="audio/norm/sherpa113-st3int8-sid5-s4/c.mp3"></audio>
+<div class="heard ok" title="lead silence 0.57s">80 görevin 20&#x27;si takıldı, 30&#x27;lu hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 8% · 641 ms · 7.1s <span class="bad">#bad</span> · ⚑ lead silence 0.57s</div></td><td><audio controls preload="none" src="audio/norm/sherpa113-st3int8-sid5-s4/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 372 ms · 3.5s</div></td><td><audio controls preload="none" src="audio/norm/sherpa113-st3int8-sid5-s4/e.mp3"></audio>
+<div class="heard good" title="lead silence 0.57s">Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 0% · 485 ms · 5.3s · ⚑ lead silence 0.57s</div></td><td><audio controls preload="none" src="audio/norm/sherpa113-st3int8-sid5-s4/f.mp3"></audio>
+<div class="heard bad" title="">Dur duruldu.</div>
+<div class="dim">WER 200% · 191 ms · 1.3s</div></td><td><audio controls preload="none" src="audio/norm/sherpa113-st3int8-sid5-s4/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 550 ms · 6.0s</div></td></tr><tr class="" data-id="pocket-male_2"><th class="name">Pocket TTS Turkish — male_2<br><code>pocket-male_2</code></th><td><audio controls preload="none" src="audio/norm/pocket-male_2/a.mp3"></audio>
+<div class="heard good" title="">Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 242 ms · 4.2s</div></td><td><audio controls preload="none" src="audio/norm/pocket-male_2/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 26 ms · 2.2s</div></td><td><audio controls preload="none" src="audio/norm/pocket-male_2/c.mp3"></audio>
+<div class="heard ok" title="">80 görevin 20&#x27;si takıldı, 30&#x27;a hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 8% · 32 ms · 7.1s <span class="bad">#bad</span></div></td><td><audio controls preload="none" src="audio/norm/pocket-male_2/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 31 ms · 3.5s</div></td><td><audio controls preload="none" src="audio/norm/pocket-male_2/e.mp3"></audio>
+<div class="heard bad" title="">Build bitti. iOS simülatöründe ekran görüntüsü alıp rapor ekledim.</div>
+<div class="dim">WER 11% · 28 ms · 4.2s</div></td><td><audio controls preload="none" src="audio/norm/pocket-male_2/f.mp3"></audio>
+<div class="heard bad" title="">Dur durultum.</div>
+<div class="dim">WER 200% · 31 ms · 1.4s</div></td><td><audio controls preload="none" src="audio/norm/pocket-male_2/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 26 ms · 5.8s</div></td></tr><tr class="" data-id="mlx-omnivoice-clone"><th class="name">OmniVoice bf16 (MLX) — clone<br><code>mlx-omnivoice-clone</code></th><td><audio controls preload="none" src="audio/norm/mlx-omnivoice-clone/a.mp3"></audio>
+<div class="heard good" title="">Tamam. Önce hataları topluyorum. Sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 3014 ms · 4.6s</div></td><td><audio controls preload="none" src="audio/norm/mlx-omnivoice-clone/b.mp3"></audio>
+<div class="heard bad" title="">İstediği testleri çalıştırıyorum.</div>
+<div class="dim">WER 33% · 1373 ms · 2.3s</div></td><td><audio controls preload="none" src="audio/norm/mlx-omnivoice-clone/c.mp3"></audio>
+<div class="heard bad" title="inner gap 0.82s">Takozum görevin yirmisi takıldı. Ütümü hata verdi. Kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 15% · 2106 ms · 7.6s <span class="bad">#bad</span> · ⚑ inner gap 0.82s</div></td><td><audio controls preload="none" src="audio/norm/mlx-omnivoice-clone/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 1668 ms · 3.8s</div></td><td><audio controls preload="none" src="audio/norm/mlx-omnivoice-clone/e.mp3"></audio>
+<div class="heard bad" title="">Bil bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 11% · 1840 ms · 4.8s</div></td><td><audio controls preload="none" src="audio/norm/mlx-omnivoice-clone/f.mp3"></audio>
+<div class="heard good" title="slow/padded 2.4 syl/s">Durduruldu.</div>
+<div class="dim">WER 0% · 1262 ms · 1.6s · ⚑ slow/padded 2.4 syl/s</div></td><td><audio controls preload="none" src="audio/norm/mlx-omnivoice-clone/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 2030 ms · 6.5s</div></td></tr><tr class="" data-id="pocket-alperiox-6l-clone"><th class="name">Pocket TTS Turkish (alperiox 6-layer) — clone<br><code>pocket-alperiox-6l-clone</code></th><td><audio controls preload="none" src="audio/norm/pocket-alperiox-6l-clone/a.mp3"></audio>
+<div class="heard good" title="">Tamam. Önce hataları topluyorum. Sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 29 ms · 3.8s</div></td><td><audio controls preload="none" src="audio/norm/pocket-alperiox-6l-clone/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 26 ms · 2.0s</div></td><td><audio controls preload="none" src="audio/norm/pocket-alperiox-6l-clone/c.mp3"></audio>
+<div class="heard bad" title="">Talimak görevin Hetsin takıldı. Taldı hata verdi. Kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 23% · 30 ms · 7.3s <span class="bad">#bad</span></div></td><td><audio controls preload="none" src="audio/norm/pocket-alperiox-6l-clone/d.mp3"></audio>
+<div class="heard bad" title="">Cool Request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 14% · 29 ms · 3.0s</div></td><td><audio controls preload="none" src="audio/norm/pocket-alperiox-6l-clone/e.mp3"></audio>
+<div class="heard bad" title="">Bill bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 11% · 31 ms · 4.2s</div></td><td><audio controls preload="none" src="audio/norm/pocket-alperiox-6l-clone/f.mp3"></audio>
+<div class="heard good" title="">durduruldu.</div>
+<div class="dim">WER 0% · 29 ms · 1.3s</div></td><td><audio controls preload="none" src="audio/norm/pocket-alperiox-6l-clone/g.mp3"></audio>
+<div class="heard good" title="">başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 25 ms · 5.5s</div></td></tr><tr class="" data-id="mlx-audio8-clone"><th class="name">Audio8-TTS-Realistic 0.6B 8-bit (MLX) — clone<br><code>mlx-audio8-clone</code></th><td><audio controls preload="none" src="audio/norm/mlx-audio8-clone/a.mp3"></audio>
+<div class="heard good" title="">Tamam. Önce hataları topluyorum. Sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 5790 ms · 4.9s</div></td><td><audio controls preload="none" src="audio/norm/mlx-audio8-clone/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 1767 ms · 1.6s</div></td><td><audio controls preload="none" src="audio/norm/mlx-audio8-clone/c.mp3"></audio>
+<div class="heard bad" title="">Seksem görevin irbisi takıldı. Otuzu hata verdi. Kalan uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 23% · 4927 ms · 7.0s <span class="bad">#bad</span></div></td><td><audio controls preload="none" src="audio/norm/mlx-audio8-clone/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 3884 ms · 3.5s</div></td><td><audio controls preload="none" src="audio/norm/mlx-audio8-clone/e.mp3"></audio>
+<div class="heard good" title="">Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 0% · 4115 ms · 4.4s</div></td><td><audio controls preload="none" src="audio/norm/mlx-audio8-clone/f.mp3"></audio>
+<div class="heard bad" title="">Doğru duruldu.</div>
+<div class="dim">WER 200% · 1352 ms · 0.8s</div></td><td><audio controls preload="none" src="audio/norm/mlx-audio8-clone/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 4404 ms · 6.5s</div></td></tr><tr class="" data-id="chatterbox-clone"><th class="name">Chatterbox Multilingual — user&#x27;s clone (benim-sesim-ref)<br><code>chatterbox-clone</code></th><td><audio controls preload="none" src="audio/norm/chatterbox-clone/a.mp3"></audio>
+<div class="heard good" title="">Tamam. Önce hataları topluyorum. Sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 11799 ms · 4.0s</div></td><td><audio controls preload="none" src="audio/norm/chatterbox-clone/b.mp3"></audio>
+<div class="heard good" title="slow/padded 2.7 syl/s">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 8580 ms · 4.0s · ⚑ slow/padded 2.7 syl/s</div></td><td><audio controls preload="none" src="audio/norm/chatterbox-clone/c.mp3"></audio>
+<div class="heard bad" title="">Satfan görevin i&#x27;imisi takıldı. Otsu hata verdi. Kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 23% · 16346 ms · 6.6s <span class="bad">#bad</span></div></td><td><audio controls preload="none" src="audio/norm/chatterbox-clone/d.mp3"></audio>
+<div class="heard good" title="">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 9208 ms · 3.4s</div></td><td><audio controls preload="none" src="audio/norm/chatterbox-clone/e.mp3"></audio>
+<div class="heard bad" title="">Boyut bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 11% · 13150 ms · 5.1s</div></td><td><audio controls preload="none" src="audio/norm/chatterbox-clone/f.mp3"></audio>
+<div class="heard good" title="slow/padded 1.9 syl/s">durduruldu.</div>
+<div class="dim">WER 0% · 7545 ms · 2.1s · ⚑ slow/padded 1.9 syl/s</div></td><td><audio controls preload="none" src="audio/norm/chatterbox-clone/g.mp3"></audio>
+<div class="heard ok" title="">Başvurularda yeni girişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 8% · 11564 ms · 5.1s</div></td></tr><tr class="" data-id="mlx-chatterbox-clone"><th class="name">Chatterbox Multilingual v3 (MLX) — clone<br><code>mlx-chatterbox-clone</code></th><td><audio controls preload="none" src="audio/norm/mlx-chatterbox-clone/a.mp3"></audio>
+<div class="heard good" title="">Tamam önce hataları topluyorum sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 5953 ms · 4.7s</div></td><td><audio controls preload="none" src="audio/norm/mlx-chatterbox-clone/b.mp3"></audio>
+<div class="heard good" title="">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 1997 ms · 2.6s</div></td><td><audio controls preload="none" src="audio/norm/mlx-chatterbox-clone/c.mp3"></audio>
+<div class="heard bad" title="">İkin, yörevin ikincisi takıldı. Diğişi o hata verdi. Kalanı uyarıyla bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 38% · 4716 ms · 7.3s <span class="bad">#bad</span></div></td><td><audio controls preload="none" src="audio/norm/mlx-chatterbox-clone/d.mp3"></audio>
+<div class="heard bad" title="">Pull request açıldı. Depto için onayını bekliyorum.</div>
+<div class="dim">WER 14% · 2234 ms · 3.0s</div></td><td><audio controls preload="none" src="audio/norm/mlx-chatterbox-clone/e.mp3"></audio>
+<div class="heard bad" title="">Bu yıl bitti. EOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 33% · 3205 ms · 4.6s</div></td><td><audio controls preload="none" src="audio/norm/mlx-chatterbox-clone/f.mp3"></audio>
+<div class="heard good" title="">Durduruldu.</div>
+<div class="dim">WER 0% · 1316 ms · 1.3s</div></td><td><audio controls preload="none" src="audio/norm/mlx-chatterbox-clone/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 3635 ms · 5.6s</div></td></tr><tr class="" data-id="supertonic-F2-s2"><th class="name">Supertonic 3 F2 · 2 steps<br><code>supertonic-F2-s2</code></th><td><audio controls preload="none" src="audio/norm/supertonic-F2-s2/a.mp3"></audio>
+<div class="heard bad" title="lead silence 0.59s; clipped (71 samples at full scale)">Tamam. Önce hataları toplarım. Sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 11% · 239 ms · 5.0s · ⚑ lead silence 0.59s; clipped (71 samples at full scale)</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F2-s2/b.mp3"></audio>
+<div class="heard good" title="fast 8.5 syl/s; clipped (190 samples at full scale)">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 140 ms · 2.4s · ⚑ fast 8.5 syl/s; clipped (190 samples at full scale)</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F2-s2/c.mp3"></audio>
+<div class="heard bad" title="lead silence 0.54s; clipped (74 samples at full scale)">80 bölümün kömesi takıldı. 30&#x27;u hata verdi. Kalanıl yarı ile ilgili. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 46% · 308 ms · 7.0s <span class="bad">#bad</span> · ⚑ lead silence 0.54s; clipped (74 samples at full scale)</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F2-s2/d.mp3"></audio>
+<div class="heard good" title="lead silence 0.53s; clipped (61 samples at full scale)">Pull request açıldı. Deploy için onayını bekliyorum.</div>
+<div class="dim">WER 0% · 182 ms · 3.6s · ⚑ lead silence 0.53s; clipped (61 samples at full scale)</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F2-s2/e.mp3"></audio>
+<div class="heard bad" title="lead silence 0.58s; clipped (35 samples at full scale)">Bilgitti. Yörf simületi vermekten görüntüsü alıp rapora ediyoruz.</div>
+<div class="dim">WER 67% · 232 ms · 5.4s · ⚑ lead silence 0.58s; clipped (35 samples at full scale)</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F2-s2/f.mp3"></audio>
+<div class="heard bad" title="clipped (70 samples at full scale)">Dur durdu.</div>
+<div class="dim">WER 200% · 107 ms · 1.3s · ⚑ clipped (70 samples at full scale)</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F2-s2/g.mp3"></audio>
+<div class="heard bad" title="lead silence 0.53s; clipped (105 samples at full scale)">Başvurularda gönül görüşme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 15% · 266 ms · 6.1s · ⚑ lead silence 0.53s; clipped (105 samples at full scale)</div></td></tr><tr class="" data-id="chatterbox-default"><th class="name">Chatterbox Multilingual — built-in voice<br><code>chatterbox-default</code></th><td><audio controls preload="none" src="audio/norm/chatterbox-default/a.mp3"></audio>
+<div class="heard good" title="">Tamam önce hataları topluyorum sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 26498 ms · 4.5s</div></td><td><audio controls preload="none" src="audio/norm/chatterbox-default/b.mp3"></audio>
+<div class="heard good" title="slow/padded 2.4 syl/s">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 10595 ms · 4.5s · ⚑ slow/padded 2.4 syl/s</div></td><td><audio controls preload="none" src="audio/norm/chatterbox-default/c.mp3"></audio>
+<div class="heard bad" title="">Saksan görevin iç bizi takıldı. Otüsü&#x27;yü hata verdi. Kalanı uyarı ile bitti. Hatalardan mı başlayalım?</div>
+<div class="dim">WER 46% · 16603 ms · 6.2s <span class="bad">#bad</span></div></td><td><audio controls preload="none" src="audio/norm/chatterbox-default/d.mp3"></audio>
+<div class="heard bad" title="inner gap 0.86s; slow/padded 2.4 syl/s">Pull request açıldı. Deploy için onayını bekliyorum. Ayrıminiz evin divak, ayrımin iç yerin, ayrıminiz tadeti daha tarı.</div>
+<div class="dim">WER 143% · 19341 ms · 7.8s · ⚑ inner gap 0.86s; slow/padded 2.4 syl/s</div></td><td><audio controls preload="none" src="audio/norm/chatterbox-default/e.mp3"></audio>
+<div class="heard bad" title="">Bu yield bitti. EOS simülatöründe ekran görüntüsü alıp rapora ekledim.</div>
+<div class="dim">WER 33% · 12964 ms · 4.8s</div></td><td><audio controls preload="none" src="audio/norm/chatterbox-default/f.mp3"></audio>
+<div class="heard bad" title="">Dur duruldu.</div>
+<div class="dim">WER 200% · 6901 ms · 0.9s</div></td><td><audio controls preload="none" src="audio/norm/chatterbox-default/g.mp3"></audio>
+<div class="heard good" title="">Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 0% · 16588 ms · 6.2s</div></td></tr><tr class="" data-id="supertonic-F1-s2"><th class="name">Supertonic 3 F1 · 2 steps<br><code>supertonic-F1-s2</code></th><td><audio controls preload="none" src="audio/norm/supertonic-F1-s2/a.mp3"></audio>
+<div class="heard good" title="lead silence 0.56s; clipped (338 samples at full scale)">Tamam. Önce hataları topluyorum. Sonra en sık olanı düzeltiyorum.</div>
+<div class="dim">WER 0% · 253 ms · 5.4s · ⚑ lead silence 0.56s; clipped (338 samples at full scale)</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F1-s2/b.mp3"></audio>
+<div class="heard good" title="clipped (114 samples at full scale)">Şimdi testleri çalıştırıyorum.</div>
+<div class="dim">WER 0% · 144 ms · 2.5s · ⚑ clipped (114 samples at full scale)</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F1-s2/c.mp3"></audio>
+<div class="heard bad" title="lead silence 0.55s; clipped (229 samples at full scale)">80 bölümün üzerimize takıldığı 30 katlarda kalan da uyarıya bitti. Hatalardan da başlayalım.</div>
+<div class="dim">WER 69% · 323 ms · 7.5s <span class="bad">#bad</span> · ⚑ lead silence 0.55s; clipped (229 samples at full scale)</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F1-s2/d.mp3"></audio>
+<div class="heard bad" title="lead silence 0.55s; clipped (27 samples at full scale)">Pull request açıldı. Görüşürüz anaynımı bekliyorum.</div>
+<div class="dim">WER 43% · 185 ms · 3.8s · ⚑ lead silence 0.55s; clipped (27 samples at full scale)</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F1-s2/e.mp3"></audio>
+<div class="heard bad" title="lead silence 0.58s; clipped (395 samples at full scale)">Bir günler simulatöründe ekran görüntüsü aldık.</div>
+<div class="dim">WER 78% · 290 ms · 5.6s · ⚑ lead silence 0.58s; clipped (395 samples at full scale)</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F1-s2/f.mp3"></audio>
+<div class="heard bad" title="clipped (27 samples at full scale)">Döter oldu.</div>
+<div class="dim">WER 200% · 101 ms · 1.4s · ⚑ clipped (27 samples at full scale)</div></td><td><audio controls preload="none" src="audio/norm/supertonic-F1-s2/g.mp3"></audio>
+<div class="heard bad" title="lead silence 0.54s; clipped (14 samples at full scale)">Başlılarda görüntü verişim yok. 4 aktif başlıl var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 31% · 273 ms · 6.5s · ⚑ lead silence 0.54s; clipped (14 samples at full scale)</div></td></tr><tr class="" data-id="supertonic-M1-s2"><th class="name">Supertonic 3 M1 · 2 steps<br><code>supertonic-M1-s2</code></th><td><audio controls preload="none" src="audio/norm/supertonic-M1-s2/a.mp3"></audio>
+<div class="heard bad" title="lead silence 0.59s; clipped (163 samples at full scale)">Tamam, önce hataları topluyorum. Sonra en sıkıları düzeltiyorum.</div>
+<div class="dim">WER 22% · 252 ms · 5.4s · ⚑ lead silence 0.59s; clipped (163 samples at full scale)</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M1-s2/b.mp3"></audio>
+<div class="heard bad" title="">Şimdi testleri çalıştı.</div>
+<div class="dim">WER 33% · 140 ms · 2.5s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M1-s2/c.mp3"></audio>
+<div class="heard bad" title="lead silence 0.57s; clipped (120 samples at full scale)">80 yılının 20&#x27;si kaçıldı. 30 yıl haça verdi. Kalanı uyarıyla bitti. Haçalardan da başlıyorlar.</div>
+<div class="dim">WER 62% · 305 ms · 7.5s <span class="bad">#bad</span> · ⚑ lead silence 0.57s; clipped (120 samples at full scale)</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M1-s2/d.mp3"></audio>
+<div class="heard bad" title="lead silence 0.55s; clipped (20 samples at full scale)">Tool mekmet açılsın depan için onayını bekliyorum.</div>
+<div class="dim">WER 57% · 186 ms · 3.8s · ⚑ lead silence 0.55s; clipped (20 samples at full scale)</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M1-s2/e.mp3"></audio>
+<div class="heard bad" title="lead silence 0.61s; clipped (39 samples at full scale)">Büyük bitti. Yavuz Sibre turundan ekran görünüşü aldı.</div>
+<div class="dim">WER 89% · 265 ms · 5.6s · ⚑ lead silence 0.61s; clipped (39 samples at full scale)</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M1-s2/f.mp3"></audio>
+<div class="heard bad" title="">Doğru.</div>
+<div class="dim">WER 100% · 99 ms · 1.4s</div></td><td><audio controls preload="none" src="audio/norm/supertonic-M1-s2/g.mp3"></audio>
+<div class="heard bad" title="lead silence 0.58s; clipped (108 samples at full scale)">Başlılarda yeni karısına yok. 4 aktif başlığı var. Yarın sabah tekrar kontrol edeceğim.</div>
+<div class="dim">WER 23% · 293 ms · 6.5s · ⚑ lead silence 0.58s; clipped (108 samples at full scale)</div></td></tr><tr class="" data-id="mlx-moss-nano-clone"><th class="name">MOSS-TTS-Nano-100M (MLX) — clone<br><code>mlx-moss-nano-clone</code></th><td><audio controls preload="none" src="audio/norm/mlx-moss-nano-clone/a.mp3"></audio>
+<div class="heard bad" title="inner gap 1.45s; slow/padded 2.8 syl/s">Tanrım. Tanrım. Tanrım. Tanrım. Tanrım. Tanrım. Tanrım.</div>
+<div class="dim">WER 100% · 15355 ms · 8.6s · ⚑ inner gap 1.45s; slow/padded 2.8 syl/s</div></td><td><audio controls preload="none" src="audio/norm/mlx-moss-nano-clone/b.mp3"></audio>
+<div class="heard bad" title="slow/padded 2.5 syl/s">Şimdi testleri çalıştırayım.</div>
+<div class="dim">WER 33% · 507 ms · 4.3s · ⚑ slow/padded 2.5 syl/s</div></td><td><audio controls preload="none" src="audio/norm/mlx-moss-nano-clone/c.mp3"></audio>
+<div class="heard bad" title="inner gap 0.94s; slow/padded 2.2 syl/s">Ah yarın çevresi. Tabisi takıldı. İçki fotoğrafı. Kamu. Varıyla bitti. Atanardan başlayalım.</div>
+<div class="dim">WER 85% · 1409 ms · 16.6s <span class="bad">#bad</span> · ⚑ inner gap 0.94s; slow/padded 2.2 syl/s</div></td><td><audio controls preload="none" src="audio/norm/mlx-moss-nano-clone/d.mp3"></audio>
+<div class="heard bad" title="inner gap 1.81s; slow/padded 2.4 syl/s">Bu ne kadar çoğda. Te paylaşma ne kadar.</div>
+<div class="dim">WER 114% · 805 ms · 7.8s · ⚑ inner gap 1.81s; slow/padded 2.4 syl/s</div></td><td><audio controls preload="none" src="audio/norm/mlx-moss-nano-clone/e.mp3"></audio>
+<div class="heard bad" title="inner gap 3.34s; slow/padded 2.3 syl/s">Bilbeti. Ve o sınırlarında ekran yürütü zahar popiyonu.</div>
+<div class="dim">WER 89% · 967 ms · 11.4s · ⚑ inner gap 3.34s; slow/padded 2.3 syl/s</div></td><td><audio controls preload="none" src="audio/norm/mlx-moss-nano-clone/f.mp3"></audio>
+<div class="heard bad" title="trail silence 2.31s; inner gap 9.46s; slow/padded 0.1 syl/s">Altyazı M.K.
+Altyazı M.K.</div>
+<div class="dim">WER 600% · 3837 ms · 47.4s · ⚑ trail silence 2.31s; inner gap 9.46s; slow/padded 0.1 syl/s</div></td><td><audio controls preload="none" src="audio/norm/mlx-moss-nano-clone/g.mp3"></audio>
+<div class="heard bad" title="inner gap 4.59s; slow/padded 1.7 syl/s">Aşhur Arbeğine gelişme yok. Doğdaş Aşhur. Yürü sabah, kendiler kontrol edici.</div>
+<div class="dim">WER 69% · 1408 ms · 17.3s · ⚑ inner gap 4.59s; slow/padded 1.7 syl/s</div></td></tr></tbody></table></div>
+<h2>Failures</h2><ul><li><code>zonos3-native-clone (first attempts)</code>: <pre>POST /v2/generate → HTTP 400 {&quot;detail&quot;:&quot;reference-mode cloning of audio requires zac-encoder.gguf and ssl-teacher.gguf; supply --zac-encoder and --ssl-teacher&quot;}. Resolved: request speaker_mode &quot;embedding&quot; (the downloaded spk-encoder.gguf path). The first harness version also left 2 orphaned zonos3-server processes (SIGTERM hit /usr/bin/time, not the server); they were killed (pkill) and the script now signals the server PID directly.</pre></li><li><code>mlx-moss-nano-clone</code>: <pre>Ran without exceptions but output is unusable for Turkish: read-back WER 94.5% (e.g. sentence a heard as &#x27;Tanrım. Tanrım. …&#x27;, sentence f = 9.5 s of mostly silence heard as &#x27;Altyazı M.K.&#x27;). Kept in the tables as measured.</pre></li><li><code>chatterbox-default</code>: <pre>Ran, but sentence d hallucinated ~5 s of extra babble after the text (WER 143%), f read as &#x27;Dur duruldu&#x27;; clipping on d and g. Matches upstream issue #97 (short/hallucinated segments).</pre></li><li><code>pocket (MPS)</code>: <pre>Not retried: reels-lab pocket.py documents an MPS abort (&#x27;command encoder is already encoding&#x27;); all Pocket runs are CPU.</pre></li></ul>
+<h2>Skipped candidates</h2><ul><li><b>Cactus Compute</b> — Not a TTS runtime: no TTS model in the Cactus-Compute HF org and no Turkish speech (see research/tts/landscape.md). Nothing to benchmark.</li><li><b>Higgs Audio v3 4B (bosonai/higgs-audio-v3-tts-4b)</b> — 9.3 GB download (&gt; 3 GB budget) and non-commercial license.</li><li><b>Trendyol-TTS 2.38B (VoxCPM2 Turkish fine-tune)</b> — 5.1 GB torch repo / 9.3 GB MLX port (emrekoc/trendyol-tts-mlx) &gt; 3 GB budget; VoxCPM2-4bit (2.2 GB) was measured instead as the closest proxy.</li><li><b>VoxCPM2 Turkish LoRA (mramazan/voxcpm2-turkish-tts-lora)</b> — Needs the full-precision torch VoxCPM2 base; mlx-audio&#x27;s 4-bit MLX model does not load LoRA adapters [INFERENCE from mlx-audio voxcpm2 code: no LoRA path].</li><li><b>MOSS-TTS 8B</b> — Size far over the 3 GB budget.</li><li><b>TheStageAI/pocket-tts-100m-tr (Core ML / ANE build)</b> — 151 MB, but its engines.zip is QLPA-encrypted and only runs inside the paid TheStage Apple SDK (model card) — no open runtime.</li><li><b>FreyaTTS</b> — HF repo freya-tts/FreyaTTS not accessible (API 401: private or nonexistent).</li><li><b>Ahenk (teacher, 2B + LoRA)</b> — GPU teacher of Ahenk Cep; VoxCPM2-class size (&gt; 3 GB) — Ahenk Cep (the distilled 34 MB student) was measured instead.</li><li><b>Antalia-2 Mini / Ahenk Cep ONNX graphs</b> — Measured through their PyTorch packages only; the ONNX graphs need the JS/Rust bookkeeping ported (only EMA Lightning got an ONNX run here, via the reference numpy pipeline). [INFERENCE] ONNX timing ~ EMA-ONNX class.</li><li><b>Supertonic 3 via sherpa-onnx Rust crate (cargo project)</b> — Not built: the sherpa-onnx 1.13.8 Python wheel (same C++ core as the pinned crate) was measured instead.</li></ul>
+<script>
+const q=document.getElementById('q');q.oninput=()=>{const t=q.value.toLowerCase();document.querySelectorAll('tbody tr').forEach(r=>r.style.display=r.dataset.id.toLowerCase().includes(t)||r.textContent.toLowerCase().includes(t)?'':'none')};
+document.querySelectorAll('#m thead th').forEach((th,i)=>th.onclick=()=>{const tb=th.closest('table').tBodies[0],rs=[...tb.rows],asc=th.dataset.asc!=='1';th.dataset.asc=asc?'1':'0';
+rs.sort((a,b)=>{const x=a.cells[i].dataset.v,y=b.cells[i].dataset.v;const r=(x!==undefined&&y!==undefined)?(+x)-(+y):a.cells[i].textContent.localeCompare(b.cells[i].textContent);return asc?r:-r});rs.forEach(r=>tb.appendChild(r))});
+document.addEventListener('play',e=>document.querySelectorAll('audio').forEach(a=>{if(a!==e.target)a.pause()}),true);
+</script></body></html>

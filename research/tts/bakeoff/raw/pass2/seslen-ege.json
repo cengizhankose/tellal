@@ -1,0 +1,75 @@
+{
+ "run": "seslen-ege",
+ "config": {
+  "engine": "seslen",
+  "voice": "ege",
+  "ton": "notr",
+  "denetim": false
+ },
+ "import_ms": 7.8,
+ "load_ms": 819.4,
+ "device": "CPU (onnxruntime)",
+ "sample_rate": 24000,
+ "sentences": [
+  {
+   "id": "a",
+   "text": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.",
+   "synth_ms": 590.5,
+   "audio_ms": 3875.0,
+   "rtf": 0.1524,
+   "first_chunk_ms": 590.5
+  },
+  {
+   "id": "b",
+   "text": "Şimdi testleri çalıştırıyorum.",
+   "synth_ms": 282.9,
+   "audio_ms": 2100.0,
+   "rtf": 0.1347,
+   "first_chunk_ms": 282.9
+  },
+  {
+   "id": "c",
+   "text": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?",
+   "synth_ms": 753.2,
+   "audio_ms": 6400.0,
+   "rtf": 0.1177,
+   "first_chunk_ms": 511.7
+  },
+  {
+   "id": "d",
+   "text": "Pull request açıldı, deploy için onayını bekliyorum.",
+   "synth_ms": 392.4,
+   "audio_ms": 3100.0,
+   "rtf": 0.1266,
+   "first_chunk_ms": 392.4
+  },
+  {
+   "id": "e",
+   "text": "Build bitti; iOS simülatöründe ekran görüntüsü alıp rapora ekledim.",
+   "synth_ms": 518.8,
+   "audio_ms": 4125.0,
+   "rtf": 0.1258,
+   "first_chunk_ms": 518.7
+  },
+  {
+   "id": "f",
+   "text": "Durduruldu.",
+   "synth_ms": 399.6,
+   "audio_ms": 825.0,
+   "rtf": 0.4844,
+   "first_chunk_ms": 399.6
+  },
+  {
+   "id": "g",
+   "text": "Başvurularda yeni gelişme yok, dört aktif başvuru var; yarın sabah tekrar kontrol edeceğim.",
+   "synth_ms": 720.0,
+   "audio_ms": 6025.0,
+   "rtf": 0.1195,
+   "first_chunk_ms": 413.7
+  }
+ ],
+ "wall_s": 4.53,
+ "max_rss_bytes": 620675072,
+ "peak_footprint_bytes": 589333776,
+ "command": "~/.venvs/seslen/bin/python ~/dev/t3-panel/research/tts/bakeoff/harness/bench.py seslen-ege '{\"engine\": \"seslen\", \"voice\": \"ege\", \"ton\": \"notr\", \"denetim\": false}'"
+}

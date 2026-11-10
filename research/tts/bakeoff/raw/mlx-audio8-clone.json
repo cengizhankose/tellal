@@ -1,0 +1,71 @@
+{
+ "run": "mlx-audio8-clone",
+ "config": {
+  "engine": "mlx",
+  "repo": "nativ-community/Audio8-TTS-Realistic-0.6b-8bit",
+  "kwargs": {
+   "ref_audio": "~/.cache/bakeoff-models/ref-8s.wav",
+   "ref_text": "Her gün milyonlarca video yükleniyor. Peki bu dosyalar nerede saklanıyor? Sana nasıl bu kadar hızlı ulaşıyor? Çözüm şaşırtıcı derecede basit.",
+   "seed": 1
+  }
+ },
+ "import_ms": 9.3,
+ "load_ms": 891.8,
+ "device": "Metal GPU (MLX Device(gpu, 0))",
+ "sample_rate": 44100,
+ "sentences": [
+  {
+   "id": "a",
+   "text": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.",
+   "synth_ms": 5790.5,
+   "audio_ms": 4876.2,
+   "rtf": 1.1875
+  },
+  {
+   "id": "b",
+   "text": "Şimdi testleri çalıştırıyorum.",
+   "synth_ms": 1766.7,
+   "audio_ms": 1579.0,
+   "rtf": 1.1189
+  },
+  {
+   "id": "c",
+   "text": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?",
+   "synth_ms": 4926.9,
+   "audio_ms": 7012.4,
+   "rtf": 0.7026
+  },
+  {
+   "id": "d",
+   "text": "Pull request açıldı, deploy için onayını bekliyorum.",
+   "synth_ms": 3883.8,
+   "audio_ms": 3483.0,
+   "rtf": 1.1151
+  },
+  {
+   "id": "e",
+   "text": "Build bitti; iOS simülatöründe ekran görüntüsü alıp rapora ekledim.",
+   "synth_ms": 4114.8,
+   "audio_ms": 4411.8,
+   "rtf": 0.9327
+  },
+  {
+   "id": "f",
+   "text": "Durduruldu.",
+   "synth_ms": 1352.0,
+   "audio_ms": 789.5,
+   "rtf": 1.7125
+  },
+  {
+   "id": "g",
+   "text": "Başvurularda yeni gelişme yok, dört aktif başvuru var; yarın sabah tekrar kontrol edeceğim.",
+   "synth_ms": 4403.9,
+   "audio_ms": 6455.1,
+   "rtf": 0.6822
+  }
+ ],
+ "wall_s": 30.07,
+ "max_rss_bytes": 2291433472,
+ "peak_footprint_bytes": 38432476592,
+ "command": "~/.venvs/mlx-audio/bin/python ~/dev/t3-panel/research/tts/bakeoff/harness/bench.py mlx-audio8-clone '{\"engine\": \"mlx\", \"repo\": \"nativ-community/Audio8-TTS-Realistic-0.6b-8bit\", \"kwargs\": {\"ref_audio\": \"~/.cache/bakeoff-models/ref-8s.wav\", \"ref_text\": \"Her gün milyonlarca video yükleniyor. Peki bu dosyalar nerede saklanıyor? Sana nasıl bu kadar hızlı ulaşıyor? Çözüm şaşırtıcı derecede basit.\", \"seed\": 1}}'"
+}

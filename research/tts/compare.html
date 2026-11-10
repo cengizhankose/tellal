@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<style>
+  :root { color-scheme: light dark; }
+  .wrap { font-family: var(--font-sans, system-ui); font-size: 13px; color: var(--foreground, #ddd); }
+  h3 { font-size: 13px; font-weight: 600; margin: 14px 0 6px; }
+  .note { color: var(--muted-foreground, #999); font-size: 12px; margin: 0 0 8px; }
+  .grid { display: grid; grid-template-columns: 190px 1fr 64px; gap: 4px 10px; align-items: center; }
+  .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .name.base { font-weight: 600; }
+  .track { height: 12px; background: var(--secondary, #333); border-radius: 6px; overflow: hidden; }
+  .bar { height: 100%; border-radius: 6px; }
+  .val { text-align: right; font-family: var(--font-mono, monospace); font-size: 12px; }
+  .good { background: var(--success, #3c9); }
+  .mid { background: var(--warning, #db3); }
+  .bad { background: var(--destructive, #e55); }
+  .neutral { background: var(--chart-1, #59f); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted-foreground, #999); font-size: 12px; margin-top: 10px; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 4px; margin-right: 4px; vertical-align: middle; }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; margin-top: 6px; }
+  th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--border, #444); }
+  th { font-weight: 600; color: var(--muted-foreground, #999); }
+</style>
+</head>
+<body>
+<div class="wrap" id="root"></div>
+<script>
+const rows = [
+  // name, wer %, heard-first ms (TTFA + leading silence p50), rss MB, numbers ok, english words /5, rust path
+  ["Piper dfki (şu anki)", 12.7, 59, 295, "hayır", 3, "var (şu an)", true],
+  ["Supertonic 3 M2 · 8 adım", 0.0, 1317, 557, "evet", 5, "sherpa / ort"],
+  ["Supertonic 3 int8 · sherpa 1.13.8 · 8 adım", 1.8, 1416, 436, "evet", 5, "aynı crate"],
+  ["Supertonic 3 int8 · sherpa 1.13.8 · 4 adım", 9.1, 956, 432, "evet", 5, "aynı crate"],
+  ["Pocket TTS TR · female_1", 3.6, 25, 1196, "evet", 4, "Python yan süreç"],
+  ["EMA Lightning (ONNX)", 5.5, 40, 387, "evet", 3, "ort (Hitabet)"],
+  ["Ahenk Cep · kadın", 5.5, 180, 491, "evet", 3, "ort (Hitabet)"],
+  ["ZONOS3-Mini · kendi sesin", 5.5, 394, 1823, "hayır", 5, "C++ sunucu"],
+  ["Chatterbox · kendi sesin", 9.1, 11564, 5021, "hayır", 4, "yok (çok ağır)"],
+];
+const cls = (v, g, m) => v <= g ? "good" : v <= m ? "mid" : "bad";
+function section(title, note, idx, max, fmt, good, mid) {
+  let h = `<h3>${title}</h3><p class="note">${note}</p><div class="grid">`;
+  for (const r of rows) {
+    const v = r[idx];
+    const w = Math.max(2, Math.min(100, (v / max) * 100));
+    h += `<div class="name${r[7] ? " base" : ""}">${r[0]}</div><div class="track"><div class="bar ${cls(v, good, mid)}" style="width:${w}%"></div></div><div class="val">${fmt(v)}</div>`;
+  }
+  return h + "</div>";
+}
+let html = "";
+html += section("Okuma hatası (WER, düşük iyi)", "Whisper large-v3-turbo ile geri okuma; 7 panel cümlesi, ham metin (rakamlar, kesme işaretleri, İngilizce kelimeler olduğu gibi).", 1, 13, v => v.toFixed(1) + "%", 2, 6);
+html += section("İlk kelimenin duyulması (düşük iyi)", "Üretim süresi + baştaki sessizlik, cümle başına ortanca. Çubuk 2 sn'de kesildi.", 2, 2000, v => v >= 1000 ? (v / 1000).toFixed(1) + " sn" : v + " ms", 400, 1000);
+html += section("Bellek (RSS, düşük iyi)", "Süreç tepe bellek kullanımı; panel şu an ~250–300 MB.", 3, 2000, v => v >= 1000 ? (v / 1000).toFixed(1) + " GB" : v + " MB", 450, 1000);
+html += `<h3>Rakam, İngilizce kelime, Rust yolu</h3><table><tr><th>Model</th><th>"80 görevin 20'si"</th><th>PR/deploy/build/iOS</th><th>Panele bağlama</th></tr>`;
+for (const r of rows) html += `<tr><td>${r[0]}</td><td>${r[4]}</td><td>${r[5]}/5</td><td>${r[6]}</td></tr>`;
+html += `</table><div class="legend"><span><span class="dot good"></span>iyi</span><span><span class="dot mid"></span>orta</span><span><span class="dot bad"></span>zayıf</span><span>Doğallık ölçülmedi: kulakla karar verilecek.</span></div>`;
+document.getElementById("root").innerHTML = html;
+</script>
+</body>
+</html>

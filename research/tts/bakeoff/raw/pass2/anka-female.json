@@ -1,0 +1,67 @@
+{
+ "run": "anka-female",
+ "config": {
+  "engine": "anka",
+  "voice": "female",
+  "seed": 1
+ },
+ "import_ms": 20.8,
+ "load_ms": 8337.8,
+ "device": "MPS (torch, F5-TTS)",
+ "sample_rate": 24000,
+ "sentences": [
+  {
+   "id": "a",
+   "text": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.",
+   "synth_ms": 7960.3,
+   "audio_ms": 4170.7,
+   "rtf": 1.9086
+  },
+  {
+   "id": "b",
+   "text": "Şimdi testleri çalıştırıyorum.",
+   "synth_ms": 6134.3,
+   "audio_ms": 2144.0,
+   "rtf": 2.8611
+  },
+  {
+   "id": "c",
+   "text": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?",
+   "synth_ms": 9356.6,
+   "audio_ms": 6325.3,
+   "rtf": 1.4792
+  },
+  {
+   "id": "d",
+   "text": "Pull request açıldı, deploy için onayını bekliyorum.",
+   "synth_ms": 7130.4,
+   "audio_ms": 3456.0,
+   "rtf": 2.0632
+  },
+  {
+   "id": "e",
+   "text": "Build bitti; iOS simülatöründe ekran görüntüsü alıp rapora ekledim.",
+   "synth_ms": 8063.8,
+   "audio_ms": 4469.3,
+   "rtf": 1.8042
+  },
+  {
+   "id": "f",
+   "text": "Durduruldu.",
+   "synth_ms": 5224.3,
+   "audio_ms": 640.0,
+   "rtf": 8.163
+  },
+  {
+   "id": "g",
+   "text": "Başvurularda yeni gelişme yok, dört aktif başvuru var; yarın sabah tekrar kontrol edeceğim.",
+   "synth_ms": 9034.4,
+   "audio_ms": 5792.0,
+   "rtf": 1.5598
+  }
+ ],
+ "wall_s": 61.92,
+ "max_rss_bytes": 3971153920,
+ "peak_footprint_bytes": 4911631552,
+ "command": "~/.venvs/anka/bin/python ~/dev/t3-panel/research/tts/bakeoff/harness/bench.py anka-female '{\"engine\": \"anka\", \"voice\": \"female\", \"seed\": 1}'"
+}

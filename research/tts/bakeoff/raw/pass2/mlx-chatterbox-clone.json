@@ -1,0 +1,73 @@
+{
+ "run": "mlx-chatterbox-clone",
+ "config": {
+  "engine": "mlx",
+  "repo": "mlx-community/chatterbox-multilingual-v3",
+  "kwargs": {
+   "lang_code": "tr",
+   "ref_audio": "~/.cache/bakeoff-models/ref-8s.wav",
+   "exaggeration": 0.7,
+   "cfg_weight": 0.4,
+   "verbose": false
+  }
+ },
+ "import_ms": 9.8,
+ "load_ms": 2206.6,
+ "device": "Metal GPU (MLX Device(gpu, 0))",
+ "sample_rate": 24000,
+ "sentences": [
+  {
+   "id": "a",
+   "text": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.",
+   "synth_ms": 3137.8,
+   "audio_ms": 4660.0,
+   "rtf": 0.6733
+  },
+  {
+   "id": "b",
+   "text": "Şimdi testleri çalıştırıyorum.",
+   "synth_ms": 1945.9,
+   "audio_ms": 2580.0,
+   "rtf": 0.7542
+  },
+  {
+   "id": "c",
+   "text": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?",
+   "synth_ms": 4682.9,
+   "audio_ms": 7340.0,
+   "rtf": 0.638
+  },
+  {
+   "id": "d",
+   "text": "Pull request açıldı, deploy için onayını bekliyorum.",
+   "synth_ms": 2165.0,
+   "audio_ms": 3020.0,
+   "rtf": 0.7169
+  },
+  {
+   "id": "e",
+   "text": "Build bitti; iOS simülatöründe ekran görüntüsü alıp rapora ekledim.",
+   "synth_ms": 3098.7,
+   "audio_ms": 4620.0,
+   "rtf": 0.6707
+  },
+  {
+   "id": "f",
+   "text": "Durduruldu.",
+   "synth_ms": 1296.5,
+   "audio_ms": 1300.0,
+   "rtf": 0.9973
+  },
+  {
+   "id": "g",
+   "text": "Başvurularda yeni gelişme yok, dört aktif başvuru var; yarın sabah tekrar kontrol edeceğim.",
+   "synth_ms": 3641.4,
+   "audio_ms": 5580.0,
+   "rtf": 0.6526
+  }
+ ],
+ "wall_s": 22.28,
+ "max_rss_bytes": 3463774208,
+ "peak_footprint_bytes": 7992233248,
+ "command": "~/.venvs/mlx-audio/bin/python ~/dev/t3-panel/research/tts/bakeoff/harness/bench.py mlx-chatterbox-clone '{\"engine\": \"mlx\", \"repo\": \"mlx-community/chatterbox-multilingual-v3\", \"kwargs\": {\"lang_code\": \"tr\", \"ref_audio\": \"~/.cache/bakeoff-models/ref-8s.wav\", \"exaggeration\": 0.7, \"cfg_weight\": 0.4, \"verbose\": false}}'"
+}

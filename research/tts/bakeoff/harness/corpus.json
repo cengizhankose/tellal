@@ -1,0 +1,9 @@
+[
+  {"id": "a", "text": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum."},
+  {"id": "b", "text": "Şimdi testleri çalıştırıyorum."},
+  {"id": "c", "text": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?"},
+  {"id": "d", "text": "Pull request açıldı, deploy için onayını bekliyorum."},
+  {"id": "e", "text": "Build bitti; iOS simülatöründe ekran görüntüsü alıp rapora ekledim."},
+  {"id": "f", "text": "Durduruldu."},
+  {"id": "g", "text": "Başvurularda yeni gelişme yok, dört aktif başvuru var; yarın sabah tekrar kontrol edeceğim."}
+]

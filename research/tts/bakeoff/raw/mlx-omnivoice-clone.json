@@ -1,0 +1,72 @@
+{
+ "run": "mlx-omnivoice-clone",
+ "config": {
+  "engine": "mlx",
+  "repo": "mlx-community/OmniVoice-bf16",
+  "kwargs": {
+   "language": "turkish",
+   "ref_audio": "~/.cache/bakeoff-models/ref-8s.wav",
+   "ref_text": "Her gün milyonlarca video yükleniyor. Peki bu dosyalar nerede saklanıyor? Sana nasıl bu kadar hızlı ulaşıyor? Çözüm şaşırtıcı derecede basit.",
+   "num_steps": 16
+  }
+ },
+ "import_ms": 42.1,
+ "load_ms": 3560.9,
+ "device": "Metal GPU (MLX Device(gpu, 0))",
+ "sample_rate": 24000,
+ "sentences": [
+  {
+   "id": "a",
+   "text": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.",
+   "synth_ms": 3014.0,
+   "audio_ms": 4640.0,
+   "rtf": 0.6496
+  },
+  {
+   "id": "b",
+   "text": "Şimdi testleri çalıştırıyorum.",
+   "synth_ms": 1373.2,
+   "audio_ms": 2280.0,
+   "rtf": 0.6023
+  },
+  {
+   "id": "c",
+   "text": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?",
+   "synth_ms": 2105.6,
+   "audio_ms": 7600.0,
+   "rtf": 0.277
+  },
+  {
+   "id": "d",
+   "text": "Pull request açıldı, deploy için onayını bekliyorum.",
+   "synth_ms": 1668.2,
+   "audio_ms": 3760.0,
+   "rtf": 0.4437
+  },
+  {
+   "id": "e",
+   "text": "Build bitti; iOS simülatöründe ekran görüntüsü alıp rapora ekledim.",
+   "synth_ms": 1839.5,
+   "audio_ms": 4840.0,
+   "rtf": 0.3801
+  },
+  {
+   "id": "f",
+   "text": "Durduruldu.",
+   "synth_ms": 1262.2,
+   "audio_ms": 1640.0,
+   "rtf": 0.7696
+  },
+  {
+   "id": "g",
+   "text": "Başvurularda yeni gelişme yok, dört aktif başvuru var; yarın sabah tekrar kontrol edeceğim.",
+   "synth_ms": 2029.8,
+   "audio_ms": 6480.0,
+   "rtf": 0.3132
+  }
+ ],
+ "wall_s": 17.06,
+ "max_rss_bytes": 1976238080,
+ "peak_footprint_bytes": 13928647944,
+ "command": "~/.venvs/mlx-audio/bin/python ~/dev/t3-panel/research/tts/bakeoff/harness/bench.py mlx-omnivoice-clone '{\"engine\": \"mlx\", \"repo\": \"mlx-community/OmniVoice-bf16\", \"kwargs\": {\"language\": \"turkish\", \"ref_audio\": \"~/.cache/bakeoff-models/ref-8s.wav\", \"ref_text\": \"Her gün milyonlarca video yükleniyor. Peki bu dosyalar nerede saklanıyor? Sana nasıl bu kadar hızlı ulaşıyor? Çözüm şaşırtıcı derecede basit.\", \"num_steps\": 16}}'"
+}

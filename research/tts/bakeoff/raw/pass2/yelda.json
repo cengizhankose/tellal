@@ -1,0 +1,67 @@
+{
+ "run": "yelda",
+ "config": {
+  "engine": "yelda",
+  "voice": "Yelda",
+  "rate": 185
+ },
+ "import_ms": 18.5,
+ "load_ms": 18.5,
+ "device": "macOS speechsynthesisd (system process)",
+ "sample_rate": 22050,
+ "sentences": [
+  {
+   "id": "a",
+   "text": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.",
+   "synth_ms": 997.7,
+   "audio_ms": 4993.7,
+   "rtf": 0.1998
+  },
+  {
+   "id": "b",
+   "text": "Şimdi testleri çalıştırıyorum.",
+   "synth_ms": 811.6,
+   "audio_ms": 2191.2,
+   "rtf": 0.3704
+  },
+  {
+   "id": "c",
+   "text": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?",
+   "synth_ms": 847.6,
+   "audio_ms": 7228.7,
+   "rtf": 0.1173
+  },
+  {
+   "id": "d",
+   "text": "Pull request açıldı, deploy için onayını bekliyorum.",
+   "synth_ms": 820.8,
+   "audio_ms": 3663.6,
+   "rtf": 0.2241
+  },
+  {
+   "id": "e",
+   "text": "Build bitti; iOS simülatöründe ekran görüntüsü alıp rapora ekledim.",
+   "synth_ms": 844.8,
+   "audio_ms": 4847.3,
+   "rtf": 0.1743
+  },
+  {
+   "id": "f",
+   "text": "Durduruldu.",
+   "synth_ms": 751.3,
+   "audio_ms": 820.8,
+   "rtf": 0.9154
+  },
+  {
+   "id": "g",
+   "text": "Başvurularda yeni gelişme yok, dört aktif başvuru var; yarın sabah tekrar kontrol edeceğim.",
+   "synth_ms": 859.2,
+   "audio_ms": 6693.7,
+   "rtf": 0.1284
+  }
+ ],
+ "wall_s": 5.98,
+ "max_rss_bytes": 36552704,
+ "peak_footprint_bytes": 25493960,
+ "command": "~/.venvs/piper/bin/python ~/dev/t3-panel/research/tts/bakeoff/harness/bench.py yelda '{\"engine\": \"yelda\", \"voice\": \"Yelda\", \"rate\": 185}'"
+}

@@ -1,0 +1,1122 @@
+{
+ "supertonic-M1-s8": {
+  "2": {
+   "wer": 0.0,
+   "numbers_ok": true,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.0,
+     "heard": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.0,
+     "heard": "Pull request açıldı, deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.0,
+     "heard": "Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "Durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  },
+  "3": {
+   "wer": 0.018,
+   "numbers_ok": true,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.0,
+     "heard": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.0,
+     "heard": "Pull request açıldı, deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.111,
+     "heard": "Build bitti. EOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "Durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  }
+ },
+ "supertonic-M2-s8": {
+  "2": {
+   "wer": 0.0,
+   "numbers_ok": true,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.0,
+     "heard": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.0,
+     "heard": "Pull request açıldı deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.0,
+     "heard": "Build bitti, iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "Durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  },
+  "3": {
+   "wer": 0.0,
+   "numbers_ok": true,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.0,
+     "heard": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.0,
+     "heard": "Pull request açıldı, deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.0,
+     "heard": "Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "Durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  }
+ },
+ "supertonic-M2-s4": {
+  "2": {
+   "wer": 0.036,
+   "numbers_ok": true,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.0,
+     "heard": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.0,
+     "heard": "Pull request açıldı deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.0,
+     "heard": "Build bitti, iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 2.0,
+     "heard": "Dur durudu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  },
+  "3": {
+   "wer": 0.055,
+   "numbers_ok": true,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.0,
+     "heard": "80 görevin 20'si takıldı. 30'u hata verdi. Kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.0,
+     "heard": "Pull request açıldı, deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.222,
+     "heard": "Bu iz bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 1.0,
+     "heard": "Tursdurulubu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  }
+ },
+ "supertonic-F2-s8": {
+  "2": {
+   "wer": 0.036,
+   "numbers_ok": true,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.0,
+     "heard": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.0,
+     "heard": "Pull request açıldı, deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.222,
+     "heard": "Bu il bitti, iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "Durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  },
+  "3": {
+   "wer": 0.0,
+   "numbers_ok": true,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.0,
+     "heard": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.0,
+     "heard": "Pull request açıldı, deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.0,
+     "heard": "Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "Durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  }
+ },
+ "supertonic-F2-s4": {
+  "2": {
+   "wer": 0.0,
+   "numbers_ok": true,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam. Önce hataları topluyorum. Sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.0,
+     "heard": "80 görevin 20'si takıldı, 30'u hata verdi kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.0,
+     "heard": "Pull request açıldı. Deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.0,
+     "heard": "Build bitti, iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "Durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  },
+  "3": {
+   "wer": 0.091,
+   "numbers_ok": true,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.154,
+     "heard": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarı ile bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.143,
+     "heard": "Pool request açıldı, deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.0,
+     "heard": "Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 2.0,
+     "heard": "Dur durdu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  }
+ },
+ "supertonic-M4-s4": {
+  "2": {
+   "wer": 0.0,
+   "numbers_ok": true,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.0,
+     "heard": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.0,
+     "heard": "Pull request açıldı. Deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.0,
+     "heard": "Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "Durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  },
+  "3": {
+   "wer": 0.055,
+   "numbers_ok": true,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.0,
+     "heard": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.0,
+     "heard": "Pull request açıldı. Deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.333,
+     "heard": "Bu il bitti. EOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  }
+ },
+ "ema-lightning": {
+  "2": {
+   "wer": 0.073,
+   "numbers_ok": true,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam önce hataları topluyorum sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.0,
+     "heard": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.286,
+     "heard": "Pool Regist açıldı. Deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.222,
+     "heard": "Bu il bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "Durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  },
+  "3": {
+   "wer": 0.036,
+   "numbers_ok": true,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam önce hataları topluyorum sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.0,
+     "heard": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.0,
+     "heard": "Pull request açıldı, deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.222,
+     "heard": "Bu il bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "Durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  }
+ },
+ "ema-onnx": {
+  "2": {
+   "wer": 0.091,
+   "numbers_ok": true,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam önce hataları topluyorum sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.154,
+     "heard": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarı ile bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.143,
+     "heard": "Pull Regist açıldı. Deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.222,
+     "heard": "Bu it bitti, iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "Durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  },
+  "3": {
+   "wer": 0.055,
+   "numbers_ok": true,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam önce hataları topluyorum sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.0,
+     "heard": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.143,
+     "heard": "Pull Regist açıldı, deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.222,
+     "heard": "Bu it bitti, iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "Durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  }
+ },
+ "antalia-mini": {
+  "2": {
+   "wer": 0.055,
+   "numbers_ok": false,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.077,
+     "heard": "Reflexen görevin yirmisi takıldı, otuzu hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.0,
+     "heard": "Pull request açıldı. Deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.222,
+     "heard": "Bu yıl bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "Durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  },
+  "3": {
+   "wer": 0.055,
+   "numbers_ok": false,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.077,
+     "heard": "Teksten görevin yirmisi takıldı, otuzu hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.0,
+     "heard": "Pull request açıldı. Deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.222,
+     "heard": "Bu yıl bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "Durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok, dört aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  }
+ },
+ "ahenk-cep-s8": {
+  "2": {
+   "wer": 0.055,
+   "numbers_ok": true,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.0,
+     "heard": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.143,
+     "heard": "Pull Regist açıldı. Deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.222,
+     "heard": "Bu yıl bitti, iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  },
+  "3": {
+   "wer": 0.055,
+   "numbers_ok": true,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.0,
+     "heard": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.143,
+     "heard": "Pull.reus açıldı. Deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.222,
+     "heard": "Bu il bitti, iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "Durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  }
+ },
+ "pocket-female_1": {
+  "2": {
+   "wer": 0.055,
+   "numbers_ok": true,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.0,
+     "heard": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.0,
+     "heard": "Pull request açıldı. Deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.222,
+     "heard": "Bu il bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 1.0,
+     "heard": "Durduruldu. Durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  },
+  "3": {
+   "wer": 0.055,
+   "numbers_ok": true,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.0,
+     "heard": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.0,
+     "heard": "Pull request açıldı. Deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.333,
+     "heard": "Bu il bitti. iOS simülatöründe ekran görüntüsü alıp raporu ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "Durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  }
+ },
+ "pocket-male_1": {
+  "2": {
+   "wer": 0.073,
+   "numbers_ok": false,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam. Önce hataları topluyorum. Sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.077,
+     "heard": "80 görevin 20'si takıldı. 30'a hata verdi. Kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.143,
+     "heard": "Pull request açıldı. Tepgo için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.222,
+     "heard": "Bu yıl bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  },
+  "3": {
+   "wer": 0.091,
+   "numbers_ok": true,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.0,
+     "heard": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.286,
+     "heard": "Cool Request açıldı. Depwe için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.333,
+     "heard": "Bu ilk bitti. IOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  }
+ },
+ "seslen-ayse": {
+  "2": {
+   "wer": 0.036,
+   "numbers_ok": true,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.0,
+     "heard": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.0,
+     "heard": "Pull request açıldı, deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.222,
+     "heard": "Bu il bitti, iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "Durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  },
+  "3": {
+   "wer": 0.036,
+   "numbers_ok": true,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.0,
+     "heard": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.0,
+     "heard": "Pull request açıldı, deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.222,
+     "heard": "Bu il bitti, iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "Durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  }
+ },
+ "seslen-ege": {
+  "2": {
+   "wer": 0.073,
+   "numbers_ok": true,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam önce hataları topluyorum, sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.0,
+     "heard": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.286,
+     "heard": "Bull Request açıldı, Diploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.222,
+     "heard": "Bu yıl bitti, iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "Durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  },
+  "3": {
+   "wer": 0.073,
+   "numbers_ok": true,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam önce hataları topluyorum, sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.0,
+     "heard": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.286,
+     "heard": "Bull Request açıldı, Diploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.222,
+     "heard": "Bu yıl bitti, iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "Durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok, 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  }
+ },
+ "mlx-voxcpm2-clone": {
+  "2": {
+   "wer": 0.073,
+   "numbers_ok": false,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam önce hataları topluyorum. Sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.077,
+     "heard": "Görevin 20'si takıldı. 30'u hata verdi. Kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.286,
+     "heard": "Puldra küfası açıldı. Deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.111,
+     "heard": "Build bitti. IOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "Durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda? Yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  },
+  "3": {
+   "wer": 0.018,
+   "numbers_ok": false,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam. Önce hataları topluyorum. Sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.077,
+     "heard": "Çarışı görevin 20'si takıldı. 30'u hata verdi. Kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.0,
+     "heard": "Pull request açıldı. Deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.0,
+     "heard": "Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "Durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  }
+ },
+ "mlx-zonos3-clone": {
+  "2": {
+   "wer": 0.073,
+   "numbers_ok": false,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam. Önce hataları topluyorum. Sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.308,
+     "heard": "Kifij yörebin dirisi takıldı. Otuzlu hata verdi. Kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.0,
+     "heard": "Pull request açıldı. Deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.0,
+     "heard": "Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  },
+  "3": {
+   "wer": 0.036,
+   "numbers_ok": false,
+   "sentences": {
+    "a": {
+     "wer": 0.0,
+     "heard": "Tamam önce hataları topluyorum. Sonra en sık olanı düzeltiyorum."
+    },
+    "b": {
+     "wer": 0.0,
+     "heard": "Şimdi testleri çalıştırıyorum."
+    },
+    "c": {
+     "wer": 0.154,
+     "heard": "Hissin görevin yerisi takıldı. Otuzu hata verdi. Kalanı uyarıyla bitti. Hatalardan mı başlayalım?"
+    },
+    "d": {
+     "wer": 0.0,
+     "heard": "Pull request açıldı. Deploy için onayını bekliyorum."
+    },
+    "e": {
+     "wer": 0.0,
+     "heard": "Build bitti. iOS simülatöründe ekran görüntüsü alıp rapora ekledim."
+    },
+    "f": {
+     "wer": 0.0,
+     "heard": "Durduruldu."
+    },
+    "g": {
+     "wer": 0.0,
+     "heard": "Başvurularda yeni gelişme yok. 4 aktif başvuru var. Yarın sabah tekrar kontrol edeceğim."
+    }
+   }
+  }
+ }
+}

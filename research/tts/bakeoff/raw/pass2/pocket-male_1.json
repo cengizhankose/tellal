@@ -1,0 +1,73 @@
+{
+ "run": "pocket-male_1",
+ "config": {
+  "engine": "pocket",
+  "voice": "male_1"
+ },
+ "import_ms": 9.2,
+ "load_ms": 3185.4,
+ "device": "CPU (torch; MPS aborts in Metal per reels-lab)",
+ "sample_rate": 24000,
+ "sentences": [
+  {
+   "id": "a",
+   "text": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.",
+   "synth_ms": 506.3,
+   "audio_ms": 4000.0,
+   "rtf": 0.1266,
+   "first_chunk_ms": 239.5
+  },
+  {
+   "id": "b",
+   "text": "Şimdi testleri çalıştırıyorum.",
+   "synth_ms": 162.3,
+   "audio_ms": 2000.0,
+   "rtf": 0.0812,
+   "first_chunk_ms": 23.5
+  },
+  {
+   "id": "c",
+   "text": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?",
+   "synth_ms": 491.5,
+   "audio_ms": 6470.0,
+   "rtf": 0.076,
+   "first_chunk_ms": 29.4
+  },
+  {
+   "id": "d",
+   "text": "Pull request açıldı, deploy için onayını bekliyorum.",
+   "synth_ms": 242.9,
+   "audio_ms": 3040.0,
+   "rtf": 0.0799,
+   "first_chunk_ms": 24.9
+  },
+  {
+   "id": "e",
+   "text": "Build bitti; iOS simülatöründe ekran görüntüsü alıp rapora ekledim.",
+   "synth_ms": 299.5,
+   "audio_ms": 4000.0,
+   "rtf": 0.0749,
+   "first_chunk_ms": 23.8
+  },
+  {
+   "id": "f",
+   "text": "Durduruldu.",
+   "synth_ms": 104.7,
+   "audio_ms": 1200.0,
+   "rtf": 0.0872,
+   "first_chunk_ms": 25.5
+  },
+  {
+   "id": "g",
+   "text": "Başvurularda yeni gelişme yok, dört aktif başvuru var; yarın sabah tekrar kontrol edeceğim.",
+   "synth_ms": 363.4,
+   "audio_ms": 5120.0,
+   "rtf": 0.071,
+   "first_chunk_ms": 23.7
+  }
+ ],
+ "wall_s": 5.67,
+ "max_rss_bytes": 1253523456,
+ "peak_footprint_bytes": 1134610064,
+ "command": "~/.venvs/pocket/bin/python ~/dev/t3-panel/research/tts/bakeoff/harness/bench.py pocket-male_1 '{\"engine\": \"pocket\", \"voice\": \"male_1\"}'"
+}

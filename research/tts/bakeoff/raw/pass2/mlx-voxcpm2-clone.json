@@ -1,0 +1,69 @@
+{
+ "run": "mlx-voxcpm2-clone",
+ "config": {
+  "engine": "mlx",
+  "repo": "mlx-community/VoxCPM2-4bit",
+  "kwargs": {
+   "ref_audio": "~/.cache/bakeoff-models/ref-8s.wav"
+  }
+ },
+ "import_ms": 9.3,
+ "load_ms": 1816.8,
+ "device": "Metal GPU (MLX Device(gpu, 0))",
+ "sample_rate": 48000,
+ "sentences": [
+  {
+   "id": "a",
+   "text": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.",
+   "synth_ms": 2722.8,
+   "audio_ms": 4320.2,
+   "rtf": 0.6303
+  },
+  {
+   "id": "b",
+   "text": "Şimdi testleri çalıştırıyorum.",
+   "synth_ms": 1099.5,
+   "audio_ms": 1760.2,
+   "rtf": 0.6246
+  },
+  {
+   "id": "c",
+   "text": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?",
+   "synth_ms": 4119.2,
+   "audio_ms": 6560.2,
+   "rtf": 0.6279
+  },
+  {
+   "id": "d",
+   "text": "Pull request açıldı, deploy için onayını bekliyorum.",
+   "synth_ms": 1658.8,
+   "audio_ms": 2720.2,
+   "rtf": 0.6098
+  },
+  {
+   "id": "e",
+   "text": "Build bitti; iOS simülatöründe ekran görüntüsü alıp rapora ekledim.",
+   "synth_ms": 1994.8,
+   "audio_ms": 3520.2,
+   "rtf": 0.5667
+  },
+  {
+   "id": "f",
+   "text": "Durduruldu.",
+   "synth_ms": 799.9,
+   "audio_ms": 1120.2,
+   "rtf": 0.7141
+  },
+  {
+   "id": "g",
+   "text": "Başvurularda yeni gelişme yok, dört aktif başvuru var; yarın sabah tekrar kontrol edeceğim.",
+   "synth_ms": 3686.6,
+   "audio_ms": 4640.2,
+   "rtf": 0.7945
+  }
+ ],
+ "wall_s": 18.8,
+ "max_rss_bytes": 2584543232,
+ "peak_footprint_bytes": 28672200496,
+ "command": "~/.venvs/mlx-audio/bin/python ~/dev/t3-panel/research/tts/bakeoff/harness/bench.py mlx-voxcpm2-clone '{\"engine\": \"mlx\", \"repo\": \"mlx-community/VoxCPM2-4bit\", \"kwargs\": {\"ref_audio\": \"~/.cache/bakeoff-models/ref-8s.wav\"}}'"
+}

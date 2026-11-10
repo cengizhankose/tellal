@@ -1,0 +1,68 @@
+{
+ "run": "supertonic-M5-s4",
+ "config": {
+  "engine": "supertonic",
+  "voice": "M5",
+  "steps": 4,
+  "speed": 1.05
+ },
+ "import_ms": 9.0,
+ "load_ms": 342.6,
+ "device": "CPU (onnxruntime CPUExecutionProvider)",
+ "sample_rate": 44100,
+ "sentences": [
+  {
+   "id": "a",
+   "text": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.",
+   "synth_ms": 450.0,
+   "audio_ms": 5363.8,
+   "rtf": 0.0839
+  },
+  {
+   "id": "b",
+   "text": "Şimdi testleri çalıştırıyorum.",
+   "synth_ms": 267.2,
+   "audio_ms": 2507.8,
+   "rtf": 0.1066
+  },
+  {
+   "id": "c",
+   "text": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?",
+   "synth_ms": 589.0,
+   "audio_ms": 7523.3,
+   "rtf": 0.0783
+  },
+  {
+   "id": "d",
+   "text": "Pull request açıldı, deploy için onayını bekliyorum.",
+   "synth_ms": 352.3,
+   "audio_ms": 3761.6,
+   "rtf": 0.0936
+  },
+  {
+   "id": "e",
+   "text": "Build bitti; iOS simülatöründe ekran görüntüsü alıp rapora ekledim.",
+   "synth_ms": 504.9,
+   "audio_ms": 5642.4,
+   "rtf": 0.0895
+  },
+  {
+   "id": "f",
+   "text": "Durduruldu.",
+   "synth_ms": 179.7,
+   "audio_ms": 1393.2,
+   "rtf": 0.129
+  },
+  {
+   "id": "g",
+   "text": "Başvurularda yeni gelişme yok, dört aktif başvuru var; yarın sabah tekrar kontrol edeceğim.",
+   "synth_ms": 524.3,
+   "audio_ms": 6478.4,
+   "rtf": 0.0809
+  }
+ ],
+ "wall_s": 3.25,
+ "max_rss_bytes": 585039872,
+ "peak_footprint_bytes": 557630712,
+ "command": "~/.venvs/supertonic/bin/python ~/dev/t3-panel/research/tts/bakeoff/harness/bench.py supertonic-M5-s4 '{\"engine\": \"supertonic\", \"voice\": \"M5\", \"steps\": 4, \"speed\": 1.05}'"
+}

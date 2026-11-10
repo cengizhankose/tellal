@@ -1,0 +1,86 @@
+{
+ "run": "zonos3-native-clone",
+ "config": {
+  "engine": "zonos_native",
+  "ref": "~/.cache/bakeoff-models/ref-8s.wav",
+  "seed": 1,
+  "port": 19191
+ },
+ "import_ms": 0,
+ "load_ms": 495.3,
+ "voice_cache_ms": 47.1,
+ "device": "Metal GPU (ggml, native C++ server)",
+ "sample_rate": 44100,
+ "sentences": [
+  {
+   "id": "a",
+   "text": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.",
+   "synth_ms": 2160.3,
+   "first_chunk_ms": 1898.1,
+   "audio_ms": 4333.3,
+   "rtf": 0.4985
+  },
+  {
+   "id": "b",
+   "text": "Şimdi testleri çalıştırıyorum.",
+   "synth_ms": 210.9,
+   "first_chunk_ms": 30.2,
+   "audio_ms": 2733.3,
+   "rtf": 0.0772
+  },
+  {
+   "id": "c",
+   "text": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?",
+   "synth_ms": 434.4,
+   "first_chunk_ms": 22.4,
+   "audio_ms": 7000.0,
+   "rtf": 0.0621
+  },
+  {
+   "id": "d",
+   "text": "Pull request açıldı, deploy için onayını bekliyorum.",
+   "synth_ms": 254.4,
+   "first_chunk_ms": 21.0,
+   "audio_ms": 3666.7,
+   "rtf": 0.0694
+  },
+  {
+   "id": "e",
+   "text": "Build bitti; iOS simülatöründe ekran görüntüsü alıp rapora ekledim.",
+   "synth_ms": 325.7,
+   "first_chunk_ms": 21.0,
+   "audio_ms": 5066.7,
+   "rtf": 0.0643
+  },
+  {
+   "id": "f",
+   "text": "Durduruldu.",
+   "synth_ms": 127.6,
+   "first_chunk_ms": 15.9,
+   "audio_ms": 1533.3,
+   "rtf": 0.0832
+  },
+  {
+   "id": "g",
+   "text": "Başvurularda yeni gelişme yok, dört aktif başvuru var; yarın sabah tekrar kontrol edeceğim.",
+   "synth_ms": 393.5,
+   "first_chunk_ms": 22.0,
+   "audio_ms": 6333.3,
+   "rtf": 0.0621
+  }
+ ],
+ "max_rss_bytes": 1911783424,
+ "peak_footprint_bytes": 1963297864,
+ "command": "python3 harness/zonos_server.py zonos3-native-clone  (server: build/zonos3-server gguf/zonos3-ptq.gguf --port 19191)",
+ "decoder": {
+  "causal": true,
+  "checkpoint": "zac-keep2.gguf",
+  "codec": "opus_dual_3n_600k_sched600k_r4096_step600000",
+  "expect_step": null,
+  "headroom_db": 3.0,
+  "id": "keep2_plain",
+  "kind": "istft_mr",
+  "label": "Multi-resolution iSTFT head (zac-keep2.gguf); causal"
+ },
+ "wall_s": 4.66
+}

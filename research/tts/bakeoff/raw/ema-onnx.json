@@ -1,0 +1,73 @@
+{
+ "run": "ema-onnx",
+ "config": {
+  "engine": "ema_onnx",
+  "seed": 1
+ },
+ "import_ms": 8.5,
+ "load_ms": 2312.0,
+ "device": "CPU (onnxruntime 1.31.1; torch only for text frontend)",
+ "sample_rate": 48000,
+ "sentences": [
+  {
+   "id": "a",
+   "text": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.",
+   "synth_ms": 1000.4,
+   "audio_ms": 3640.0,
+   "rtf": 0.2748,
+   "first_chunk_ms": 76.8
+  },
+  {
+   "id": "b",
+   "text": "Şimdi testleri çalıştırıyorum.",
+   "synth_ms": 40.8,
+   "audio_ms": 1440.0,
+   "rtf": 0.0283,
+   "first_chunk_ms": 30.6
+  },
+  {
+   "id": "c",
+   "text": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?",
+   "synth_ms": 109.5,
+   "audio_ms": 5600.0,
+   "rtf": 0.0196,
+   "first_chunk_ms": 43.6
+  },
+  {
+   "id": "d",
+   "text": "Pull request açıldı, deploy için onayını bekliyorum.",
+   "synth_ms": 58.9,
+   "audio_ms": 2840.0,
+   "rtf": 0.0208,
+   "first_chunk_ms": 33.6
+  },
+  {
+   "id": "e",
+   "text": "Build bitti; iOS simülatöründe ekran görüntüsü alıp rapora ekledim.",
+   "synth_ms": 74.7,
+   "audio_ms": 3600.0,
+   "rtf": 0.0208,
+   "first_chunk_ms": 40.6
+  },
+  {
+   "id": "f",
+   "text": "Durduruldu.",
+   "synth_ms": 25.4,
+   "audio_ms": 760.0,
+   "rtf": 0.0334,
+   "first_chunk_ms": 25.3
+  },
+  {
+   "id": "g",
+   "text": "Başvurularda yeni gelişme yok, dört aktif başvuru var; yarın sabah tekrar kontrol edeceğim.",
+   "synth_ms": 89.5,
+   "audio_ms": 5000.0,
+   "rtf": 0.0179,
+   "first_chunk_ms": 40.5
+  }
+ ],
+ "wall_s": 3.91,
+ "max_rss_bytes": 405684224,
+ "peak_footprint_bytes": 334939264,
+ "command": "~/.venvs/ema/bin/python ~/dev/t3-panel/research/tts/bakeoff/harness/bench.py ema-onnx '{\"engine\": \"ema_onnx\", \"seed\": 1}'"
+}

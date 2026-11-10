@@ -1,0 +1,73 @@
+{
+ "run": "ema-lightning",
+ "config": {
+  "engine": "ema",
+  "seed": 1
+ },
+ "import_ms": 8.6,
+ "load_ms": 1232.4,
+ "device": "CPU (torch)",
+ "sample_rate": 48000,
+ "sentences": [
+  {
+   "id": "a",
+   "text": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.",
+   "synth_ms": 177.9,
+   "audio_ms": 3640.0,
+   "rtf": 0.0489,
+   "first_chunk_ms": 90.1
+  },
+  {
+   "id": "b",
+   "text": "Şimdi testleri çalıştırıyorum.",
+   "synth_ms": 113.4,
+   "audio_ms": 1440.0,
+   "rtf": 0.0787,
+   "first_chunk_ms": 113.3
+  },
+  {
+   "id": "c",
+   "text": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?",
+   "synth_ms": 254.7,
+   "audio_ms": 5600.0,
+   "rtf": 0.0455,
+   "first_chunk_ms": 96.8
+  },
+  {
+   "id": "d",
+   "text": "Pull request açıldı, deploy için onayını bekliyorum.",
+   "synth_ms": 143.7,
+   "audio_ms": 2840.0,
+   "rtf": 0.0506,
+   "first_chunk_ms": 91.8
+  },
+  {
+   "id": "e",
+   "text": "Build bitti; iOS simülatöründe ekran görüntüsü alıp rapora ekledim.",
+   "synth_ms": 177.4,
+   "audio_ms": 3600.0,
+   "rtf": 0.0493,
+   "first_chunk_ms": 103.6
+  },
+  {
+   "id": "f",
+   "text": "Durduruldu.",
+   "synth_ms": 67.9,
+   "audio_ms": 760.0,
+   "rtf": 0.0893,
+   "first_chunk_ms": 67.8
+  },
+  {
+   "id": "g",
+   "text": "Başvurularda yeni gelişme yok, dört aktif başvuru var; yarın sabah tekrar kontrol edeceğim.",
+   "synth_ms": 191.6,
+   "audio_ms": 5000.0,
+   "rtf": 0.0383,
+   "first_chunk_ms": 85.7
+  }
+ ],
+ "wall_s": 2.53,
+ "max_rss_bytes": 417906688,
+ "peak_footprint_bytes": 347948208,
+ "command": "~/.venvs/ema/bin/python ~/dev/t3-panel/research/tts/bakeoff/harness/bench.py ema-lightning '{\"engine\": \"ema\", \"seed\": 1}'"
+}

@@ -1,0 +1,73 @@
+{
+ "run": "xtts-gilberto",
+ "config": {
+  "engine": "xtts",
+  "speaker": "Gilberto Mathias"
+ },
+ "import_ms": 16.1,
+ "load_ms": 20492.8,
+ "device": "MPS (torch)",
+ "sample_rate": 24000,
+ "sentences": [
+  {
+   "id": "a",
+   "text": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.",
+   "synth_ms": 1872.9,
+   "audio_ms": 5152.0,
+   "rtf": 0.3635,
+   "first_chunk_ms": 343.4
+  },
+  {
+   "id": "b",
+   "text": "Şimdi testleri çalıştırıyorum.",
+   "synth_ms": 642.5,
+   "audio_ms": 1664.0,
+   "rtf": 0.3861,
+   "first_chunk_ms": 264.7
+  },
+  {
+   "id": "c",
+   "text": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?",
+   "synth_ms": 2382.1,
+   "audio_ms": 6677.3,
+   "rtf": 0.3567,
+   "first_chunk_ms": 305.8
+  },
+  {
+   "id": "d",
+   "text": "Pull request açıldı, deploy için onayını bekliyorum.",
+   "synth_ms": 1508.0,
+   "audio_ms": 4501.3,
+   "rtf": 0.335,
+   "first_chunk_ms": 264.6
+  },
+  {
+   "id": "e",
+   "text": "Build bitti; iOS simülatöründe ekran görüntüsü alıp rapora ekledim.",
+   "synth_ms": 1477.0,
+   "audio_ms": 4544.0,
+   "rtf": 0.325,
+   "first_chunk_ms": 261.8
+  },
+  {
+   "id": "f",
+   "text": "Durduruldu.",
+   "synth_ms": 815.6,
+   "audio_ms": 2218.7,
+   "rtf": 0.3676,
+   "first_chunk_ms": 277.9
+  },
+  {
+   "id": "g",
+   "text": "Başvurularda yeni gelişme yok, dört aktif başvuru var; yarın sabah tekrar kontrol edeceğim.",
+   "synth_ms": 2080.9,
+   "audio_ms": 6357.3,
+   "rtf": 0.3273,
+   "first_chunk_ms": 277.6
+  }
+ ],
+ "wall_s": 44.03,
+ "max_rss_bytes": 4314742784,
+ "peak_footprint_bytes": 4735650696,
+ "command": "~/.venvs/xtts/bin/python ~/dev/t3-panel/research/tts/bakeoff/harness/bench.py xtts-gilberto '{\"engine\": \"xtts\", \"speaker\": \"Gilberto Mathias\"}'"
+}

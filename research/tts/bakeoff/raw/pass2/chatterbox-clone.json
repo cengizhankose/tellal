@@ -1,0 +1,68 @@
+{
+ "run": "chatterbox-clone",
+ "config": {
+  "engine": "chatterbox",
+  "ref": "~/dev/videos/voice-ref/voice-ref.wav",
+  "exaggeration": 0.7,
+  "cfg_weight": 0.4
+ },
+ "import_ms": 14.5,
+ "load_ms": 14059.4,
+ "device": "MPS (torch)",
+ "sample_rate": 24000,
+ "sentences": [
+  {
+   "id": "a",
+   "text": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.",
+   "synth_ms": 11928.4,
+   "audio_ms": 4040.0,
+   "rtf": 2.9526
+  },
+  {
+   "id": "b",
+   "text": "Şimdi testleri çalıştırıyorum.",
+   "synth_ms": 9094.9,
+   "audio_ms": 4040.0,
+   "rtf": 2.2512
+  },
+  {
+   "id": "c",
+   "text": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?",
+   "synth_ms": 16106.5,
+   "audio_ms": 6560.0,
+   "rtf": 2.4553
+  },
+  {
+   "id": "d",
+   "text": "Pull request açıldı, deploy için onayını bekliyorum.",
+   "synth_ms": 8429.0,
+   "audio_ms": 3360.0,
+   "rtf": 2.5086
+  },
+  {
+   "id": "e",
+   "text": "Build bitti; iOS simülatöründe ekran görüntüsü alıp rapora ekledim.",
+   "synth_ms": 12315.7,
+   "audio_ms": 5120.0,
+   "rtf": 2.4054
+  },
+  {
+   "id": "f",
+   "text": "Durduruldu.",
+   "synth_ms": 7604.1,
+   "audio_ms": 2080.0,
+   "rtf": 3.6558
+  },
+  {
+   "id": "g",
+   "text": "Başvurularda yeni gelişme yok, dört aktif başvuru var; yarın sabah tekrar kontrol edeceğim.",
+   "synth_ms": 11925.5,
+   "audio_ms": 5120.0,
+   "rtf": 2.3292
+  }
+ ],
+ "wall_s": 92.91,
+ "max_rss_bytes": 5264343040,
+ "peak_footprint_bytes": 23665356464,
+ "command": "~/.venvs/chatterbox/bin/python ~/dev/t3-panel/research/tts/bakeoff/harness/bench.py chatterbox-clone '{\"engine\": \"chatterbox\", \"ref\": \"~/dev/videos/voice-ref/voice-ref.wav\", \"exaggeration\": 0.7, \"cfg_weight\": 0.4}'"
+}

@@ -1,0 +1,73 @@
+{
+ "run": "antalia-mini",
+ "config": {
+  "engine": "antalia",
+  "seed": 1
+ },
+ "import_ms": 7.9,
+ "load_ms": 967.6,
+ "device": "CPU (torch, 2 threads)",
+ "sample_rate": 48000,
+ "sentences": [
+  {
+   "id": "a",
+   "text": "Tamam, önce hataları topluyorum, sonra en sık olanı düzeltiyorum.",
+   "synth_ms": 478.9,
+   "audio_ms": 4533.3,
+   "rtf": 0.1056,
+   "first_chunk_ms": 478.9
+  },
+  {
+   "id": "b",
+   "text": "Şimdi testleri çalıştırıyorum.",
+   "synth_ms": 64.8,
+   "audio_ms": 2005.3,
+   "rtf": 0.0323,
+   "first_chunk_ms": 64.8
+  },
+  {
+   "id": "c",
+   "text": "80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?",
+   "synth_ms": 180.8,
+   "audio_ms": 7224.0,
+   "rtf": 0.025,
+   "first_chunk_ms": 118.4
+  },
+  {
+   "id": "d",
+   "text": "Pull request açıldı, deploy için onayını bekliyorum.",
+   "synth_ms": 90.1,
+   "audio_ms": 3477.3,
+   "rtf": 0.0259,
+   "first_chunk_ms": 90.1
+  },
+  {
+   "id": "e",
+   "text": "Build bitti; iOS simülatöründe ekran görüntüsü alıp rapora ekledim.",
+   "synth_ms": 108.4,
+   "audio_ms": 4832.0,
+   "rtf": 0.0224,
+   "first_chunk_ms": 108.4
+  },
+  {
+   "id": "f",
+   "text": "Durduruldu.",
+   "synth_ms": 52.0,
+   "audio_ms": 1013.3,
+   "rtf": 0.0513,
+   "first_chunk_ms": 52.0
+  },
+  {
+   "id": "g",
+   "text": "Başvurularda yeni gelişme yok, dört aktif başvuru var; yarın sabah tekrar kontrol edeceğim.",
+   "synth_ms": 134.4,
+   "audio_ms": 6368.0,
+   "rtf": 0.0211,
+   "first_chunk_ms": 134.3
+  }
+ ],
+ "wall_s": 2.35,
+ "max_rss_bytes": 426672128,
+ "peak_footprint_bytes": 372048904,
+ "command": "~/.venvs/antalia/bin/python ~/dev/t3-panel/research/tts/bakeoff/harness/bench.py antalia-mini '{\"engine\": \"antalia\", \"seed\": 1}'"
+}

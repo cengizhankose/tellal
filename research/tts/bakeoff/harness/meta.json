@@ -1,0 +1,420 @@
+{
+ "machine": "Apple M4 Pro, 48 GB, macOS 27 (user's Mac, other apps running); timings from a single run each",
+ "method": {
+  "load": "fresh python process per engine/voice; load_ms = process start (imports included) → model ready. Weights were already on disk and mostly in the OS file cache (not a cold-boot disk read).",
+  "synth": "perf_counter around the engine call per sentence, sentences a→g in order in the same process; first sentence includes any first-call warm-up.",
+  "ttfa": "first_chunk_ms if the engine streams (Piper: per sentence; Pocket: ~80 ms frames; XTTS: inference_stream 2nd pass; EMA/Antalia/Seslen: per sentence/clause; mlx stream=True), else synth_ms",
+  "rss": "/usr/bin/time -l 'maximum resident set size' and 'peak memory footprint' for the whole process (MPS/Metal allocations show up in footprint, not RSS)",
+  "wer": "whisper-cli 1.x, ggml-large-v3-turbo-q8_0, -l tr; digits → Turkish words on both sides, Turkish lowercase (I→ı, İ→i), suffix apostrophes dropped; word-level Levenshtein / reference words, weighted over the 7 sentences",
+  "numbers_ok": "sentence c heard as containing 'seksen', 'yirmisi', 'otuzu' (whisper may write digits; they are spelled out first)",
+  "loudness": "listening copies: ffmpeg loudnorm I=-16:TP=-1.5:LRA=11 (single pass) → mp3 VBR q2",
+  "flags": "silencedetect -40 dB/0.25 s on raw wav: lead >0.5 s, trail >1 s, inner gap >0.8 s; syllable rate (vowels of the written text with numbers spelled / speech span) >8.5 or <3 syl/s; peak ≥ 0.999 (clipping)",
+  "english_ok": "count of English tech words heard as such: d → pull, request, deploy; e → build, ios (5 total)"
+ },
+ "families": {
+  "piper": {
+   "license": "Voice data: dfki CC-BY-NC-SA-4.0 (non-commercial); fahrettin CC0 (reels-lab piper.json). piper1 code GPL-3.0.",
+   "rust": "Current panel path: sherpa-onnx crate =1.13.8 VITS in-process (2.x dropped espeak-ng → needs lexicon/phoneme_codepoints or GPL piper-phonemize). https://k2-fsa.github.io/sherpa/onnx/c-api/html/tts.html"
+  },
+  "supertonic": {
+   "license": "Weights BigScience OpenRAIL-M (commercial OK with use restrictions, disclose synthetic speech); SDK MIT.",
+   "rust": "Same sherpa-onnx crate the panel already pins (=1.13.8 has OfflineTtsSupertonicModelConfig; GenerationConfig extra lang=\"tr\"): https://github.com/k2-fsa/sherpa-onnx/blob/master/rust-api-examples/examples/supertonic_tts.rs ; or 4 ONNX graphs via `ort` (official Rust example in supertone-inc/supertonic rust/, archived). Port must keep NFKD combining marks."
+  },
+  "sherpa": {
+   "license": "Supertonic 3 weights OpenRAIL-M (int8 re-export by k2-fsa); sherpa-onnx Apache-2.0.",
+   "rust": "Drop-in for the panel: sherpa-onnx crate OfflineTtsSupertonicModelConfig (present in =1.13.8 and 2.0.1), int8 package 129 MB: https://k2-fsa.github.io/sherpa/onnx/tts/all/Turkish/supertonic-3-tr.html . Measured here with sherpa-onnx 2.0.1 Python wheel (same C++ core) [INFERENCE: 1.13.8 timings similar]."
+  },
+  "pocket": {
+   "license": "CC-BY-4.0 weights (attribution: wite-tech/pocket-tts-turkish + Kyutai Pocket TTS); code Apache-2.0.",
+   "rust": "No ready Turkish path: Rust/candle port babybirdprd/pocket-tts (https://github.com/babybirdprd/pocket-tts) and sherpa-onnx Pocket family target base Kyutai weights; loading the Turkish fine-tune + its sentence/number frontend is [INFERENCE]/needs a port. Realistic today: Python sidecar."
+  },
+  "chatterbox": {
+   "license": "MIT (Resemble AI); outputs carry Perth watermark.",
+   "rust": "No native Rust. ONNX (onnx-community/chatterbox-multilingual-ONNX) via `ort` multi-graph [INFERENCE] or GGUF via llama.cpp PR [INFERENCE]; realistic: Python sidecar (torch/MPS)."
+  },
+  "xtts": {
+   "license": "CPML (Coqui Public Model License) — NON-COMMERCIAL only.",
+   "rust": "xtts-rs candle port (https://github.com/rzafiamy/xtts-rs) only en/fr tested; realistic: Python sidecar."
+  },
+  "yelda": {
+   "license": "Apple macOS system voice, OS license (commercial use of output unclear).",
+   "rust": "In-process via objc2-avf-audio AVSpeechSynthesizer (+ write(_:toBufferCallback:) for PCM) or `tts` crate AVFoundation backend: https://docs.rs/objc2-avf-audio/latest/objc2_avf_audio/all.html"
+  },
+  "ema": {
+   "license": "Apache-2.0 (canberkkkkkk/ema-lightning); normalizer-tr bundled.",
+   "rust": "ONNX export exists (ozcancelik/ema-lightning-web; mesutde/Hitabet-Turkce-TTS scripts/export_onnx.py ~40 MB) — working Tauri/Rust app runs it in-process with `ort` + Rust Turkish normalizer: https://github.com/mesutde/Hitabet-Turkce-TTS . Also LiteRT build: https://huggingface.co/litert-community/EMA-Lightning-LiteRT"
+  },
+  "antalia": {
+   "license": "Apache-2.0 (cloud0day3/antalia-mini).",
+   "rust": "Official ONNX graphs (text/cond/flow/vocoder, incl. int8) in https://huggingface.co/spaces/cloud0day3/antalia-mini ; Rust+ort reference with Rust normalizer (antalia_engine.rs/antalia_text.rs): https://github.com/mesutde/Hitabet-Turkce-TTS . Its normalizer is Python upstream."
+  },
+  "seslen": {
+   "license": "Weights CC BY-SA 4.0 (seslen-tr/seslen-tts); ONNX-only StyleTTS2.",
+   "rust": "Already ONNX (onnxruntime in Python) → `ort` in-process feasible but the Turkish frontend (stress, PL-BERT, sentence planning) is Python and would need porting [INFERENCE]. https://github.com/seslen-tr/seslen-tts"
+  },
+  "ahenk": {
+   "license": "Weights CC-BY-4.0 (ozgurguler/ahenk-cep-tr; attribution incl. Alania datasets); code Apache-2.0.",
+   "rust": "Ships ready ONNX (text/cond/step/decoder, f16/int8) in the HF repo → `ort`; Hitabet-Turkce-TTS runs it from Rust (scripts/fetch_ahenk_onnx.py). Needs trnorm (Python) or a Rust normalizer port."
+  },
+  "mlx": {
+   "license": "see per-run note",
+   "rust": "MLX (Python mlx-audio) → local sidecar process; no in-process Rust path verified."
+  },
+  "ema_onnx": {
+   "license": "Apache-2.0 (canberkkkkkk/ema-lightning); normalizer-tr bundled. ONNX conversion: ozcancelik/ema-lightning-onnx (Apache-2.0).",
+   "rust": "This IS the shippable path: text/sound/decoder ONNX (35 MB) via `ort`; bookkeeping (plan/windows) is ~300 lines in web/tts.js (https://huggingface.co/ozcancelik/ema-lightning-onnx); normalizer-tr exists as Rust→wasm (normalizer-wasm/ in the same repo) → usable as a Rust crate. Reference Rust app: https://github.com/mesutde/Hitabet-Turkce-TTS"
+  },
+  "pocket4": {
+   "license": "MIT weights (alperiox/pocket-tts-turkish, trained on CC-BY-4.0 Alania synthetic data); pocket-tts MIT.",
+   "rust": "Same as Pocket: candle port babybirdprd/pocket-tts targets Kyutai configs [INFERENCE: a 6-layer config should load]; realistic today: Python sidecar."
+  },
+  "zonos_native": {
+   "license": "Apache-2.0",
+   "rust": "see run"
+  },
+  "anka": {
+   "license": "CC-BY-NC-4.0 weights (non-commercial), F5-TTS based (krmkayabasi/Anka-TTS).",
+   "rust": "None: PyTorch F5-TTS + Vocos → Python sidecar; F5-TTS ONNX exports exist upstream [INFERENCE]."
+  }
+ },
+ "runs": {
+  "piper-dfki": {
+   "label": "Piper tr_TR-dfki-medium (panel baseline)",
+   "note": "Python piper-tts 1.8.0 here; panel uses the same ONNX via sherpa-onnx in Rust. length 1.0 / noise 0.667 / noise_w 0.8 (piper.json cta mood = defaults)."
+  },
+  "piper-fahrettin": {
+   "label": "Piper tr_TR-fahrettin-medium",
+   "note": "same settings as dfki"
+  },
+  "yelda": {
+   "label": "macOS say -v Yelda (rate 185)",
+   "note": "Only Turkish system voice installed (say -v '?' lists Yelda only; no Enhanced/Premium). Synthesis runs in speechsynthesisd, so RSS/CPU of the real work is NOT in the measured process; synth_ms includes `say` process spawn."
+  },
+  "chatterbox-default": {
+   "label": "Chatterbox Multilingual — built-in voice",
+   "note": "torch MPS, exaggeration 0.5, cfg 0.5, seed 1"
+  },
+  "chatterbox-clone": {
+   "label": "Chatterbox Multilingual — user's clone (benim-sesim-ref)",
+   "note": "exaggeration 0.7, cfg 0.4 (chatterbox.json); clone conditionals prepared once at load (counted in load)"
+  },
+  "xtts-gilberto": {
+   "label": "XTTS-v2 — Gilberto Mathias",
+   "note": "MPS; xtts.json base+cta (temp 0.65, speed 1.0, rep 5.0, top_k 50, top_p 0.85); load includes a 'Merhaba.' MPS probe/warm-up (reels-lab xtts.py). TTFA = inference_stream first chunk in a second pass."
+  },
+  "xtts-ana": {
+   "label": "XTTS-v2 — Ana Florence (female)",
+   "note": "as Gilberto"
+  },
+  "ema-lightning": {
+   "label": "EMA Lightning 1.1.2 (single voice)",
+   "note": "NEW (Community). CPU torch, seed 1, 48 kHz, stream(); built-in normalizer-tr 0.8.1. Weights pre-downloaded and batch-size probe cached before timing."
+  },
+  "antalia-mini": {
+   "label": "Antalia-2 Mini (single male voice)",
+   "note": "NEW (Landscape). CPU torch 2 threads (auto), seed 1, 48 kHz, stream(); own normalizer."
+  },
+  "seslen-ege": {
+   "label": "Seslen TTS — ege (male)",
+   "note": "NEW (Community). seslen-tts 0.3.1, StyleTTS2 ONNX, ton=notr, self-check (denetim) off, per-clause streaming."
+  },
+  "seslen-ayse": {
+   "label": "Seslen TTS — ayse (female)",
+   "note": "as ege"
+  },
+  "ahenk-cep-s16": {
+   "label": "Ahenk Cep (f022 female) 16 steps",
+   "note": "NEW (Community). PyTorch ahenk_cep.py + trnorm, cfg 2.0, seed 1, CPU. First process paid one-time pyc/disk warm-up."
+  },
+  "ahenk-cep-s8": {
+   "label": "Ahenk Cep (f022 female) 8 steps",
+   "note": "as s16"
+  },
+  "pocket-male_1": {
+   "label": "Pocket TTS Turkish — male_1",
+   "note": "CPU, no emotion tag, seed 1, stream()"
+  },
+  "supertonic-M1-s8": {
+   "label": "Supertonic 3 M1 · 8 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1 (default steps)"
+  },
+  "supertonic-M1-s4": {
+   "label": "Supertonic 3 M1 · 4 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1"
+  },
+  "supertonic-M1-s2": {
+   "label": "Supertonic 3 M1 · 2 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1"
+  },
+  "supertonic-M2-s8": {
+   "label": "Supertonic 3 M2 · 8 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1 (default steps)"
+  },
+  "supertonic-M2-s4": {
+   "label": "Supertonic 3 M2 · 4 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1"
+  },
+  "supertonic-M2-s2": {
+   "label": "Supertonic 3 M2 · 2 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1"
+  },
+  "supertonic-M3-s8": {
+   "label": "Supertonic 3 M3 · 8 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1 (default steps)"
+  },
+  "supertonic-M3-s4": {
+   "label": "Supertonic 3 M3 · 4 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1"
+  },
+  "supertonic-M3-s2": {
+   "label": "Supertonic 3 M3 · 2 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1"
+  },
+  "supertonic-M4-s8": {
+   "label": "Supertonic 3 M4 · 8 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1 (default steps)"
+  },
+  "supertonic-M4-s4": {
+   "label": "Supertonic 3 M4 · 4 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1"
+  },
+  "supertonic-M4-s2": {
+   "label": "Supertonic 3 M4 · 2 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1"
+  },
+  "supertonic-M5-s8": {
+   "label": "Supertonic 3 M5 · 8 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1 (default steps)"
+  },
+  "supertonic-M5-s4": {
+   "label": "Supertonic 3 M5 · 4 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1"
+  },
+  "supertonic-M5-s2": {
+   "label": "Supertonic 3 M5 · 2 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1"
+  },
+  "supertonic-F1-s8": {
+   "label": "Supertonic 3 F1 · 8 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1 (default steps)"
+  },
+  "supertonic-F1-s4": {
+   "label": "Supertonic 3 F1 · 4 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1"
+  },
+  "supertonic-F1-s2": {
+   "label": "Supertonic 3 F1 · 2 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1"
+  },
+  "supertonic-F2-s8": {
+   "label": "Supertonic 3 F2 · 8 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1 (default steps)"
+  },
+  "supertonic-F2-s4": {
+   "label": "Supertonic 3 F2 · 4 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1"
+  },
+  "supertonic-F2-s2": {
+   "label": "Supertonic 3 F2 · 2 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1"
+  },
+  "supertonic-F3-s8": {
+   "label": "Supertonic 3 F3 · 8 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1 (default steps)"
+  },
+  "supertonic-F3-s4": {
+   "label": "Supertonic 3 F3 · 4 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1"
+  },
+  "supertonic-F3-s2": {
+   "label": "Supertonic 3 F3 · 2 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1"
+  },
+  "supertonic-F4-s8": {
+   "label": "Supertonic 3 F4 · 8 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1 (default steps)"
+  },
+  "supertonic-F4-s4": {
+   "label": "Supertonic 3 F4 · 4 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1"
+  },
+  "supertonic-F4-s2": {
+   "label": "Supertonic 3 F4 · 2 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1"
+  },
+  "supertonic-F5-s8": {
+   "label": "Supertonic 3 F5 · 8 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1 (default steps)"
+  },
+  "supertonic-F5-s4": {
+   "label": "Supertonic 3 F5 · 4 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1"
+  },
+  "supertonic-F5-s2": {
+   "label": "Supertonic 3 F5 · 2 steps",
+   "note": "supertonic SDK 1.3.1 fp32 ONNX CPU, speed 1.05 (supertonic.json 'explain'), numpy seed 1"
+  },
+  "pocket-male_2": {
+   "label": "Pocket TTS Turkish — male_2",
+   "note": "CPU (MPS aborts), no emotion tag, seed 1, stream() — TTFA = first ~80 ms frame"
+  },
+  "pocket-female_1": {
+   "label": "Pocket TTS Turkish — female_1",
+   "note": "CPU (MPS aborts), no emotion tag, seed 1, stream() — TTFA = first ~80 ms frame"
+  },
+  "pocket-female_2": {
+   "label": "Pocket TTS Turkish — female_2",
+   "note": "CPU (MPS aborts), no emotion tag, seed 1, stream() — TTFA = first ~80 ms frame"
+  },
+  "sherpa-st3int8-sid0-s8": {
+   "label": "Supertonic 3 int8 via sherpa-onnx · sid 0 · 8 steps",
+   "note": "NEW path (Landscape): sherpa-onnx 2.0.1 Python, int8 package, 2 threads, speed 1.05. sid→voice-name mapping undocumented."
+  },
+  "sherpa-st3int8-sid0-s4": {
+   "label": "Supertonic 3 int8 via sherpa-onnx · sid 0 · 4 steps",
+   "note": "NEW path (Landscape): sherpa-onnx 2.0.1 Python, int8 package, 2 threads, speed 1.05. sid→voice-name mapping undocumented."
+  },
+  "sherpa-st3int8-sid5-s8": {
+   "label": "Supertonic 3 int8 via sherpa-onnx · sid 5 · 8 steps",
+   "note": "NEW path (Landscape): sherpa-onnx 2.0.1 Python, int8 package, 2 threads, speed 1.05. sid→voice-name mapping undocumented."
+  },
+  "sherpa-st3int8-sid5-s4": {
+   "label": "Supertonic 3 int8 via sherpa-onnx · sid 5 · 4 steps",
+   "note": "NEW path (Landscape): sherpa-onnx 2.0.1 Python, int8 package, 2 threads, speed 1.05. sid→voice-name mapping undocumented."
+  },
+  "sherpa-st3int8-sid0-s4-t4": {
+   "label": "Supertonic 3 int8 via sherpa-onnx · sid 0 · 4 steps · 4 threads",
+   "note": "as above, num_threads 4"
+  },
+  "mlx-zonos3-clone": {
+   "label": "ZONOS3-Mini (MLX) — clone of user's voice",
+   "note": "NEW (Landscape). mlx-audio git main, lang_code tr, ref = first 8.26 s of voice-ref.wav, seed 1, stream=True (0.5 s interval). No Turkish text normalization upstream; ref re-encoded every call.",
+   "license": "Apache-2.0 weights, MIT code (Zyphra)",
+   "rust": "Native C++/ggml zonos3-cli/zonos3-server with Metal + GGUF (no Python) → FFI [INFERENCE: no C API documented] or HTTP sidecar: https://raw.githubusercontent.com/Zyphra/ZONOS3-Mini/main/servers/ggml/README.md"
+  },
+  "mlx-moss-nano-clone": {
+   "label": "MOSS-TTS-Nano-100M (MLX) — clone",
+   "note": "NEW (Landscape). voice_clone mode with ref audio + transcript; no streaming in mlx-audio; ref encoded every call.",
+   "license": "HF metadata Apache-2.0 but GitHub README: not yet licensed for redistribution",
+   "rust": "Official ONNX CPU backend (--backend onnx) → `ort` [INFERENCE]: https://github.com/OpenMOSS/MOSS-TTS-Nano"
+  },
+  "mlx-audio8-clone": {
+   "label": "Audio8-TTS-Realistic 0.6B 8-bit (MLX) — clone",
+   "note": "NEW (Landscape). ref audio + transcript, seed 1, 44.1 kHz, no streaming.",
+   "license": "Apache-2.0 (Edge0)",
+   "rust": "None; MLX sidecar or mlx-rs port [INFERENCE]"
+  },
+  "mlx-omnivoice-clone": {
+   "label": "OmniVoice bf16 (MLX) — clone",
+   "note": "NEW (Landscape). language turkish, 16 steps, ref audio + transcript.",
+   "license": "CC-BY-NC weights (non-commercial), Apache code (k2-fsa)",
+   "rust": "None official; sherpa-onnx request https://github.com/k2-fsa/sherpa-onnx/issues/3486 ; community WebGPU ONNX → `ort` [INFERENCE]"
+  },
+  "mlx-chatterbox-clone": {
+   "label": "Chatterbox Multilingual v3 (MLX) — clone",
+   "note": "NEW (Landscape). lang_code tr, exaggeration 0.7, cfg 0.4, 8.26 s ref; MLX port of the torch engine above.",
+   "license": "MIT",
+   "rust": "MLX sidecar"
+  },
+  "mlx-voxcpm2-clone": {
+   "label": "VoxCPM2 2B 4-bit (MLX) — clone",
+   "note": "NEW (Landscape). ref_audio only (mode 4), no Turkish LoRA.",
+   "license": "Apache-2.0 (OpenBMB)",
+   "rust": "llama.cpp-omni voxcpm2 GGUF with Metal (C++) [INFERENCE FFI] or MLX sidecar"
+  },
+  "sherpa113-st3int8-sid0-s8": {
+   "label": "Supertonic 3 int8 · sherpa-onnx 1.13.8 (panel's pinned version) · sid 0 · 8 steps",
+   "note": "Python wheel 1.13.8 = same C++ core as the panel's pinned Rust crate; 2 threads, speed 1.05."
+  },
+  "sherpa113-st3int8-sid0-s4": {
+   "label": "Supertonic 3 int8 · sherpa-onnx 1.13.8 (panel's pinned version) · sid 0 · 4 steps",
+   "note": "Python wheel 1.13.8 = same C++ core as the panel's pinned Rust crate; 2 threads, speed 1.05."
+  },
+  "sherpa113-st3int8-sid5-s4": {
+   "label": "Supertonic 3 int8 · sherpa-onnx 1.13.8 (panel's pinned version) · sid 5 · 4 steps",
+   "note": "Python wheel 1.13.8 = same C++ core as the panel's pinned Rust crate; 2 threads, speed 1.05."
+  },
+  "ema-onnx": {
+   "label": "EMA Lightning — ONNX graphs (onnxruntime CPU)",
+   "note": "NEW path (parent/Community): ozcancelik/ema-lightning-onnx text/sound/decoder; frontend+chunker from the ema-lightning Python package (so torch is imported: RSS/load include it); numpy noise seed 1 (different noise than torch run); 1 s first decoder window → first_chunk_ms."
+  },
+  "pocket-alperiox-6l-clone": {
+   "label": "Pocket TTS Turkish (alperiox 6-layer) — clone",
+   "note": "NEW (parent). pocket-tts 4.0.1, turkish_6l.yaml, voice prompt = 8.26 s ref (cached at load), Turkish-lowercased input per model card, temp 0.3 (config default). First load downloaded Mimi/kyutai assets → see 2nd-pass load."
+  },
+  "zonos3-native-clone": {
+   "label": "ZONOS3-Mini native C++/ggml server (Metal) — clone",
+   "note": "NEW (Landscape). zonos3-server built from Zyphra/ZONOS3-Mini servers/ggml (cmake Release, 37 s), gguf/zonos3-ptq.gguf + zac-keep2 + spk-encoder (1.16 GB). Voice cached once via POST /v2/speakers (8.26 s ref, embedding mode), stream=true float32 44.1 kHz, text_normalization off (no Turkish normalizer), seed 1. RSS = server process.",
+   "license": "Apache-2.0 weights, MIT code (Zyphra)",
+   "rust": "No Python at runtime: run zonos3-server as a local sidecar (HTTP streaming PCM) or link libzonos3.a via FFI [INFERENCE: no documented C API]. https://raw.githubusercontent.com/Zyphra/ZONOS3-Mini/main/servers/ggml/README.md"
+  },
+  "anka-male": {
+   "label": "Anka TTS v0.1 — built-in male",
+   "note": "NEW (Community mention). anka-tts 0.1.6, torch MPS (auto), default nfe_step, built-in Turkish normalizer, seed 1, 24 kHz, sentence chunking."
+  },
+  "anka-female": {
+   "label": "Anka TTS v0.1 — built-in female",
+   "note": "NEW (Community mention). anka-tts 0.1.6, torch MPS (auto), default nfe_step, built-in Turkish normalizer, seed 1, 24 kHz, sentence chunking."
+  }
+ },
+ "failures": [
+  {
+   "id": "zonos3-native-clone (first attempts)",
+   "error": "POST /v2/generate → HTTP 400 {\"detail\":\"reference-mode cloning of audio requires zac-encoder.gguf and ssl-teacher.gguf; supply --zac-encoder and --ssl-teacher\"}. Resolved: request speaker_mode \"embedding\" (the downloaded spk-encoder.gguf path). The first harness version also left 2 orphaned zonos3-server processes (SIGTERM hit /usr/bin/time, not the server); they were killed (pkill) and the script now signals the server PID directly."
+  },
+  {
+   "id": "mlx-moss-nano-clone",
+   "error": "Ran without exceptions but output is unusable for Turkish: read-back WER 94.5% (e.g. sentence a heard as 'Tanrım. Tanrım. …', sentence f = 9.5 s of mostly silence heard as 'Altyazı M.K.'). Kept in the tables as measured."
+  },
+  {
+   "id": "chatterbox-default",
+   "error": "Ran, but sentence d hallucinated ~5 s of extra babble after the text (WER 143%), f read as 'Dur duruldu'; clipping on d and g. Matches upstream issue #97 (short/hallucinated segments)."
+  },
+  {
+   "id": "pocket (MPS)",
+   "error": "Not retried: reels-lab pocket.py documents an MPS abort ('command encoder is already encoding'); all Pocket runs are CPU."
+  }
+ ],
+ "skipped": [
+  {
+   "name": "Cactus Compute",
+   "reason": "Not a TTS runtime: no TTS model in the Cactus-Compute HF org and no Turkish speech (see research/tts/landscape.md). Nothing to benchmark."
+  },
+  {
+   "name": "Higgs Audio v3 4B (bosonai/higgs-audio-v3-tts-4b)",
+   "reason": "9.3 GB download (> 3 GB budget) and non-commercial license."
+  },
+  {
+   "name": "Trendyol-TTS 2.38B (VoxCPM2 Turkish fine-tune)",
+   "reason": "5.1 GB torch repo / 9.3 GB MLX port (emrekoc/trendyol-tts-mlx) > 3 GB budget; VoxCPM2-4bit (2.2 GB) was measured instead as the closest proxy."
+  },
+  {
+   "name": "VoxCPM2 Turkish LoRA (mramazan/voxcpm2-turkish-tts-lora)",
+   "reason": "Needs the full-precision torch VoxCPM2 base; mlx-audio's 4-bit MLX model does not load LoRA adapters [INFERENCE from mlx-audio voxcpm2 code: no LoRA path]."
+  },
+  {
+   "name": "MOSS-TTS 8B",
+   "reason": "Size far over the 3 GB budget."
+  },
+  {
+   "name": "TheStageAI/pocket-tts-100m-tr (Core ML / ANE build)",
+   "reason": "151 MB, but its engines.zip is QLPA-encrypted and only runs inside the paid TheStage Apple SDK (model card) — no open runtime."
+  },
+  {
+   "name": "FreyaTTS",
+   "reason": "HF repo freya-tts/FreyaTTS not accessible (API 401: private or nonexistent)."
+  },
+  {
+   "name": "Ahenk (teacher, 2B + LoRA)",
+   "reason": "GPU teacher of Ahenk Cep; VoxCPM2-class size (> 3 GB) — Ahenk Cep (the distilled 34 MB student) was measured instead."
+  },
+  {
+   "name": "Antalia-2 Mini / Ahenk Cep ONNX graphs",
+   "reason": "Measured through their PyTorch packages only; the ONNX graphs need the JS/Rust bookkeeping ported (only EMA Lightning got an ONNX run here, via the reference numpy pipeline). [INFERENCE] ONNX timing ~ EMA-ONNX class."
+  },
+  {
+   "name": "Supertonic 3 via sherpa-onnx Rust crate (cargo project)",
+   "reason": "Not built: the sherpa-onnx 1.13.8 Python wheel (same C++ core as the pinned crate) was measured instead."
+  }
+ ]
+}
