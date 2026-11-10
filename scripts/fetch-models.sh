@@ -1,28 +1,23 @@
 #!/usr/bin/env bash
-# Idempotently downloads the Turkish Piper (VITS) model in sherpa-onnx format into the
-# default `Config::model_dir` (or $T3P_MODEL_DIR) and prints the resulting file sizes.
+# Idempotently downloads the EMA Lightning ONNX voice (Turkish, Apache-2.0,
+# huggingface.co/ozcancelik/ema-lightning-onnx) into the default `Config::model_dir`
+# (or $T3P_MODEL_DIR) and prints the resulting file sizes.
 set -euo pipefail
 
-NAME="vits-piper-tr_TR-dfki-medium"
-URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/${NAME}.tar.bz2"
-MODEL_DIR="${T3P_MODEL_DIR:-$HOME/Library/Application Support/t3-panel/models/$NAME}"
-PARENT="$(dirname "$MODEL_DIR")"
+REPO="https://huggingface.co/ozcancelik/ema-lightning-onnx/resolve/main"
+FILES=(meta.json text.onnx sound.onnx decoder.onnx LICENSE NOTICE)
+MODEL_DIR="${T3P_MODEL_DIR:-$HOME/Library/Application Support/t3-panel/models/ema-lightning-onnx}"
 
-if [[ -f "$MODEL_DIR/tr_TR-dfki-medium.onnx" && -f "$MODEL_DIR/tokens.txt" && -d "$MODEL_DIR/espeak-ng-data" ]]; then
-  echo "model already present: $MODEL_DIR"
-else
-  mkdir -p "$PARENT"
-  tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' EXIT
-  echo "downloading $URL"
-  curl -fL --retry 3 -o "$tmp/$NAME.tar.bz2" "$URL"
-  tar -xjf "$tmp/$NAME.tar.bz2" -C "$tmp"
-  rm -rf "$MODEL_DIR"
-  mv "$tmp/$NAME" "$MODEL_DIR"
-  echo "installed: $MODEL_DIR"
-fi
+mkdir -p "$MODEL_DIR"
+for f in "${FILES[@]}"; do
+  if [[ -s "$MODEL_DIR/$f" ]]; then
+    continue
+  fi
+  echo "downloading $f"
+  curl -fsSL --retry 3 -o "$MODEL_DIR/$f.part" "$REPO/$f"
+  mv "$MODEL_DIR/$f.part" "$MODEL_DIR/$f"
+done
 
 echo "files:"
-(cd "$MODEL_DIR" && find . -maxdepth 1 -type f -exec du -h {} + | sort -k2)
-echo "espeak-ng-data: $(du -sh "$MODEL_DIR/espeak-ng-data" | cut -f1)"
+(cd "$MODEL_DIR" && du -h "${FILES[@]}")
 echo "total: $(du -sh "$MODEL_DIR" | cut -f1)"

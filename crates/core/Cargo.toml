@@ -12,8 +12,11 @@ anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 crossbeam-channel.workspace = true
-# 2.x dropped the built-in espeak-ng frontend, so Piper voices need an external phonemizer there.
-sherpa-onnx = "=1.13.8"
+# EMA Lightning voice: ONNX Runtime (prebuilt binaries fetched at build time) + Turkish text normalizer.
+ort = { version = "=2.0.0-rc.15", default-features = false, features = ["std", "download-binaries", "tls-native", "copy-dylibs", "api-31"] }
+normalizer-tr = "0.8.1"
+unicode-normalization = "0.1.26"
+regex = "1.13"
 rodio = { version = "0.23.0", default-features = false, features = ["playback"] }
 sysinfo = { version = "0.40.1", default-features = false, features = ["system"] }
 libc = "0.2"

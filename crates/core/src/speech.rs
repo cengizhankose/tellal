@@ -1,4 +1,4 @@
-//! Local TTS (sherpa-onnx VITS/Piper) and the channel scheduler.
+//! Local TTS (EMA Lightning on ONNX Runtime, see `ema.rs`) and the channel scheduler.
 //!
 //! Every thread is a channel ([`ChannelView`]). Utterances come from the catch-up worker
 //! (unmute), the live tail (new assistant messages, waiting requests) and the poller (stopped
@@ -15,9 +15,10 @@ use std::time::{Duration, Instant};
 
 use crossbeam_channel::Sender;
 use serde_json::{Value, json};
-use sherpa_onnx::{GenerationConfig, OfflineTts, OfflineTtsConfig, OfflineTtsModelConfig, OfflineTtsVitsModelConfig};
 
+use crate::ema::{self, Ema};
 use crate::extract::{extract, normalize, split_sentences};
+use crate::lexicon::Lexicon;
 use crate::telemetry::{self, Telemetry, current_rss_mb, ms, now_unix_ms, rfc3339_from_ms, round2};
 use crate::{ChannelView, Config, CoreEvent, ThreadView, t3};
 
@@ -32,14 +33,12 @@ const LABEL_AFTER_SILENCE: Duration = Duration::from_secs(20);
 /// Titles up to this many chars are the label; longer ones are cut to [`LABEL_WORDS`] words.
 const LABEL_MAX_CHARS: usize = 30;
 const LABEL_WORDS: usize = 4;
-const ONNX_THREADS: i32 = 2;
 
-/// A loaded sherpa-onnx VITS/Piper voice.
+/// The loaded voice: EMA Lightning plus the pronunciation lexicon.
 pub struct TtsEngine {
-    tts: OfflineTts,
-    gen_cfg: GenerationConfig,
+    ema: Mutex<Ema>,
+    lexicon: Lexicon,
     pub sample_rate: u32,
-    pub num_speakers: i32,
 }
 
 /// One synthesized sentence.
@@ -51,53 +50,32 @@ pub struct Synth {
 }
 
 impl TtsEngine {
-    /// Loads `<model_dir>/*.onnx` + `tokens.txt` + `espeak-ng-data`; logs `tts.load`.
-    pub fn load(tel: &Telemetry, model_dir: &Path) -> anyhow::Result<TtsEngine> {
+    /// Loads the EMA ONNX graphs from `cfg.model_dir` and the lexicon; logs `tts.load`.
+    pub fn load(tel: &Telemetry, cfg: &Config) -> anyhow::Result<TtsEngine> {
         let start = Instant::now();
         let rss_before = current_rss_mb();
-        let input = json!({"model_dir": model_dir, "num_threads": ONNX_THREADS});
-        let res = (|| {
-            let model = std::fs::read_dir(model_dir)?
-                .filter_map(Result::ok)
-                .map(|e| e.path())
-                .find(|p| p.extension().is_some_and(|e| e == "onnx"))
-                .ok_or_else(|| anyhow::anyhow!("no .onnx model in {} (run scripts/fetch-models.sh)", model_dir.display()))?;
-            let path = |p: &Path| Some(p.to_string_lossy().into_owned());
-            let config = OfflineTtsConfig {
-                model: OfflineTtsModelConfig {
-                    vits: OfflineTtsVitsModelConfig {
-                        model: path(&model),
-                        tokens: path(&model_dir.join("tokens.txt")),
-                        data_dir: path(&model_dir.join("espeak-ng-data")),
-                        ..Default::default()
-                    },
-                    num_threads: ONNX_THREADS,
-                    provider: Some("cpu".into()),
-                    ..Default::default()
-                },
-                max_num_sentences: 1,
-                ..Default::default()
-            };
-            let tts = OfflineTts::create(&config)
-                .ok_or_else(|| anyhow::anyhow!("sherpa-onnx rejected model {}", model.display()))?;
-            anyhow::Ok((tts, model))
-        })();
+        let input = json!({"engine": "ema-lightning-onnx", "model_dir": cfg.model_dir, "threads": cfg.tts_threads,
+                           "lexicon": cfg.lexicon_path});
+        let res = Ema::load(&cfg.model_dir, cfg.tts_threads)
+            .and_then(|ema| Lexicon::load(&cfg.lexicon_path).map(|lexicon| (ema, lexicon)));
         let load_ms = ms(start.elapsed());
         match res {
-            Ok((tts, model)) => {
-                let sample_rate = u32::try_from(tts.sample_rate()).unwrap_or(22_050);
-                let num_speakers = tts.num_speakers();
-                let rss_delta = round2(current_rss_mb() - rss_before);
+            Ok((ema, lexicon)) => {
+                let sample_rate = ema.sample_rate;
+                let model_bytes: u64 =
+                    ema::FILES.iter().filter_map(|f| std::fs::metadata(cfg.model_dir.join(f)).ok()).map(|m| m.len()).sum();
                 tel.event(
                     "tts.load",
                     Some(load_ms),
                     true,
                     input,
-                    json!({"model": model, "sample_rate": sample_rate, "num_speakers": num_speakers,
-                           "load_ms": load_ms, "rss_delta_mb": rss_delta}),
+                    json!({"sample_rate": sample_rate, "model_mb": round2(model_bytes as f64 / 1_048_576.0),
+                           "steps_ms": ema.load_ms.iter().map(|(k, v)| (*k, round2(*v))).collect::<HashMap<_, _>>(),
+                           "lexicon_entries": lexicon.entries, "lexicon_user_entries": lexicon.user_entries,
+                           "load_ms": load_ms, "rss_delta_mb": round2(current_rss_mb() - rss_before)}),
                     None,
                 );
-                Ok(TtsEngine { tts, gen_cfg: GenerationConfig::default(), sample_rate, num_speakers })
+                Ok(TtsEngine { ema: Mutex::new(ema), lexicon, sample_rate })
             }
             Err(e) => {
                 tel.event("tts.load", Some(load_ms), false, input, Value::Null, Some(&format!("{e:#}")));
@@ -106,18 +84,23 @@ impl TtsEngine {
         }
     }
 
-    /// Synthesizes one sentence; logs `tts.synth` (with `wav` = the utterance file, if any).
+    /// Synthesizes one sentence; logs `tts.synth` with the text as written, as respelled by the
+    /// lexicon, and as the model read it (after normalizer-tr).
     pub fn synth(&self, tel: &Telemetry, text: &str, wav: Option<&Path>) -> anyhow::Result<Synth> {
         let start = Instant::now();
-        let chars = text.chars().count();
-        let audio = self.tts.generate_with_config(text, &self.gen_cfg, None::<fn(&[f32], f32) -> bool>);
+        let respelled = self.lexicon.apply(text);
+        let res = self.ema.lock().unwrap_or_else(|p| p.into_inner()).speak(&respelled);
         let synth_ms = ms(start.elapsed());
-        let input = json!({"text": text, "chars": chars});
-        let Some(audio) = audio else {
-            tel.event("tts.synth", Some(synth_ms), false, input, Value::Null, Some("sherpa-onnx generate failed"));
-            anyhow::bail!("sherpa-onnx generate failed");
+        let input = json!({"text": text, "chars": text.chars().count(),
+                           "respelled": (respelled != text).then_some(&respelled)});
+        let spoken = match res {
+            Ok(s) => s,
+            Err(e) => {
+                tel.event("tts.synth", Some(synth_ms), false, input, Value::Null, Some(&format!("{e:#}")));
+                return Err(e);
+            }
         };
-        let samples = audio.samples().to_vec();
+        let samples = spoken.samples;
         let audio_ms = round2(samples.len() as f64 * 1000.0 / f64::from(self.sample_rate));
         let rtf = if audio_ms > 0.0 { (synth_ms / audio_ms * 10_000.0).round() / 10_000.0 } else { 0.0 };
         tel.event(
@@ -125,7 +108,8 @@ impl TtsEngine {
             Some(synth_ms),
             true,
             input,
-            json!({"samples": samples.len(), "audio_ms": audio_ms, "rtf": rtf, "wav": wav}),
+            json!({"spoken": spoken.text, "pieces": spoken.pieces, "samples": samples.len(), "audio_ms": audio_ms,
+                   "rtf": rtf, "wav": wav}),
             None,
         );
         tel.update_stats(|s| {
@@ -602,8 +586,8 @@ impl Speech {
         }
         {
             let shared = shared.clone();
-            let model_dir = cfg.model_dir.clone();
-            std::thread::Builder::new().name("t3p-tts".into()).spawn(move || player_loop(&shared, &model_dir))?;
+            let cfg = cfg.clone();
+            std::thread::Builder::new().name("t3p-tts".into()).spawn(move || player_loop(&shared, &cfg))?;
         }
         Ok(Speech { shared, catchup_tx })
     }
@@ -980,9 +964,9 @@ fn prefetch(tel: &Telemetry, engine: &TtsEngine, text: &str) -> Prefetch {
 }
 
 /// The `t3p-tts` thread: owns the voice, the audio device and every `Player`.
-fn player_loop(sh: &Shared, model_dir: &Path) {
+fn player_loop(sh: &Shared, cfg: &Config) {
     let tel = &*sh.tel;
-    let engine = TtsEngine::load(tel, model_dir)
+    let engine = TtsEngine::load(tel, cfg)
         .inspect_err(|e| {
             let _ = sh.events.send(CoreEvent::Error(format!("TTS model load failed: {e:#}")));
         })
@@ -1272,8 +1256,9 @@ mod tests {
         assert_eq!(label_for("Kısa başlık").as_deref(), Some("Kısa başlık."));
         assert_eq!(
             label_for("t3-panel test: sadece 'Tamam, hazirım.' yaz ve bitir.").as_deref(),
-            Some("t3-panel test: sadece 'Tamam.")
+            Some("t3-panel test sadece Tamam.")
         );
+        assert_eq!(label_for("Eternals’a Sürpriz Ara Sahne Ekleme").as_deref(), Some("Eternals’a Sürpriz Ara Sahne."));
         assert_eq!(label_for("  "), None);
     }
 }

@@ -1,6 +1,8 @@
 //! `t3p-bench` — TTS / T3 / end-to-end benchmarks that write a run dir like the app.
 //!
-//! * default: cold model load + synthesize a fixed Turkish corpus, per-sentence numbers.
+//! * default: cold model load + synthesize a fixed Turkish corpus, per-sentence numbers; each
+//!   sentence is saved as `<run_dir>/audio/bench-NN.wav` (unless `T3P_SAVE_AUDIO=0`).
+//!   `--corpus FILE` reads the sentences from FILE instead (one per line).
 //! * `--play`: same, and play each sentence.
 //! * `--t3`: 3 rounds of listing every watched project.
 //! * `--e2e`: headless `Core::start` → first `ThreadsUpdated` → `set_listening(id, true)` on the
@@ -11,7 +13,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::json;
 use t3_panel_core::telemetry::{self, Telemetry, ms};
-use t3_panel_core::tts::{TtsEngine, open_output, samples_source};
+use t3_panel_core::tts::{TtsEngine, open_output, samples_source, write_wav};
 use t3_panel_core::{Config, Core, CoreEvent, t3};
 
 const CORPUS: [&str; 10] = [
@@ -49,31 +51,43 @@ fn main() -> anyhow::Result<()> {
     if has("--t3") {
         bench_t3(&tel, &cfg)?;
     } else {
-        bench_tts(&tel, &cfg, has("--play"))?;
+        let corpus: Vec<String> = match args.iter().position(|a| a == "--corpus").and_then(|i| args.get(i + 1)) {
+            Some(path) => std::fs::read_to_string(path)?.lines().map(str::trim).filter(|l| !l.is_empty()).map(str::to_owned).collect(),
+            None => CORPUS.iter().map(|s| (*s).to_owned()).collect(),
+        };
+        bench_tts(&tel, &cfg, &corpus, has("--play"))?;
     }
     println!("peak_rss_mb={:.1}", telemetry::peak_rss_mb());
     println!("run_dir={}", tel.run_dir().display());
     Ok(())
 }
 
-fn bench_tts(tel: &Arc<Telemetry>, cfg: &Config, play: bool) -> anyhow::Result<()> {
+fn bench_tts(tel: &Arc<Telemetry>, cfg: &Config, corpus: &[String], play: bool) -> anyhow::Result<()> {
     let rss0 = telemetry::current_rss_mb();
     let t = Instant::now();
-    let engine = TtsEngine::load(tel, &cfg.model_dir)?;
+    let engine = TtsEngine::load(tel, cfg)?;
     println!(
-        "cold_load_ms={:.1} rss_after_load_mb={:.1} (+{:.1}) sample_rate={} speakers={}",
+        "cold_load_ms={:.1} rss_after_load_mb={:.1} (+{:.1}) sample_rate={} threads={}",
         ms(t.elapsed()),
         telemetry::current_rss_mb(),
         telemetry::current_rss_mb() - rss0,
         engine.sample_rate,
-        engine.num_speakers
+        cfg.tts_threads
     );
+    let audio_dir = tel.run_dir().join("audio");
+    if cfg.save_audio {
+        std::fs::create_dir_all(&audio_dir)?;
+    }
     let device = if play { Some(open_output()?) } else { None };
     let player = device.as_ref().map(|d| rodio::Player::connect_new(d.mixer()));
     println!("{:>3} {:>5} {:>9} {:>9} {:>7}  text", "#", "chars", "synth_ms", "audio_ms", "rtf");
     let (mut synth_sum, mut audio_sum) = (0.0, 0.0);
-    for (i, text) in CORPUS.iter().enumerate() {
-        let s = engine.synth(tel, text, None)?;
+    for (i, text) in corpus.iter().enumerate() {
+        let wav = cfg.save_audio.then(|| audio_dir.join(format!("bench-{:02}.wav", i + 1)));
+        let s = engine.synth(tel, text, wav.as_deref())?;
+        if let Some(path) = &wav {
+            write_wav(path, &s.samples, engine.sample_rate)?;
+        }
         synth_sum += s.synth_ms;
         audio_sum += s.audio_ms;
         println!("{:>3} {:>5} {:>9.1} {:>9.1} {:>7.4}  {text}", i + 1, text.chars().count(), s.synth_ms, s.audio_ms, s.rtf);

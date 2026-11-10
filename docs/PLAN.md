@@ -47,8 +47,8 @@ Kaynak: 10 Kasım 2026 isteği (çift tık, uygulamada açma, Cevapla + Wispr, b
 - Paneli sabitle / kenara gizle.
 
 ### Faz 4: ses ve kaynak
-- `int8` model, boşta modeli bellekten çıkarma (RSS ~250–300 MB).
-- Daha doğal Türkçe ses denemesi (Chatterbox multilingual, MLX).
+- ✅ Daha doğal Türkçe ses: 59 denemelik karşılaştırmadan sonra EMA Lightning (ONNX, Rust içinde) seçildi; RSS ~250–300 MB → ~150–200 MB, tıklama→ses ~300 → 247 ms ([research/tts](../research/tts/README.md)).
+- Kalan: ikinci ses seçeneği (Pocket TTS Türkçe ya da ZONOS3-Mini ile kendi sesin), canlı mesajlarda ilk parçayı akışla çalma.
 
 ## Bilinen eksikler (v0.2)
 - Denenmedi: `N yeni` rozeti, `seni bekliyor`, "Durduruldu." okunması, panelden ⏸/⏭/canlıya geç butonlarına gerçek tık (aynı işlevler sürücüyle denendi), Cevapla'yı açıkken başka satıra taşımak, IME (marked text).

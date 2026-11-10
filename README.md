@@ -1,11 +1,11 @@
 # t3-panel
 
-Her uygulamanın üstünde duran, T3 Code thread'lerini listeleyen ve tıklanınca durumu Türkçe, lokal sesle okuyan panel. Rust + [GPUI](https://gpui.rs) (Zed'in UI framework'ü) + [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (Piper `tr_TR-dfki-medium`). Ücretli API yok; her şey bu Mac'te çalışır.
+Her uygulamanın üstünde duran, T3 Code thread'lerini listeleyen ve tıklanınca durumu Türkçe, lokal sesle okuyan panel. Rust + [GPUI](https://gpui.rs) (Zed'in UI framework'ü) + [EMA Lightning](https://huggingface.co/canberkkkkkk/ema-lightning) (8,6M parametreli Türkçe ses modeli, Apache-2.0) üzerinde ONNX Runtime ([`ort`](https://crates.io/crates/ort)). Ücretli API yok; her şey bu Mac'te çalışır.
 
 ## Kurulum
 
 ```bash
-./scripts/fetch-models.sh          # ~79 MB Türkçe Piper modeli → ~/Library/Application Support/t3-panel/models
+./scripts/fetch-models.sh          # ~34 MB EMA Lightning ONNX modeli → ~/Library/Application Support/t3-panel/models
 cargo build --release --workspace
 target/release/t3-panel
 ```
@@ -25,7 +25,9 @@ target/release/t3-panel
 | `T3P_T3_BIN` | `~/.t3/bin/t3` | T3 CLI |
 | `T3P_PROJECTS` | T3 state DB'den keşif | İzlenecek proje id/yolları, virgülle |
 | `T3P_POLL_MS` | `5000` | Sorgu aralığı |
-| `T3P_MODEL_DIR` | `~/Library/Application Support/t3-panel/models/vits-piper-tr_TR-dfki-medium` | TTS modeli |
+| `T3P_MODEL_DIR` | `~/Library/Application Support/t3-panel/models/ema-lightning-onnx` | TTS modeli (`meta.json`, `text.onnx`, `sound.onnx`, `decoder.onnx`) |
+| `T3P_TTS_THREADS` | `2` | Ses modelinin ONNX Runtime iş parçacığı sayısı |
+| `T3P_LEXICON` | `~/Library/Application Support/t3-panel/lexicon.tsv` | Kullanıcı telaffuz sözlüğü (aşağıya bakın) |
 | `T3P_LOG_ROOT` | `~/Library/Logs/t3-panel` | Telemetri kökü |
 | `T3P_SAVE_AUDIO` | `1` | Her konuşmayı WAV olarak sakla (`0` kapatır) |
 | `T3P_SELFTEST` | — | `1`: ilk bitmiş thread'i dinlemeye alır, ses bitince `mute_all` yapıp kapanır. `reply:<thread_id>`: o thread için Cevapla akışı, `T3P_SELFTEST_STOP_AFTER_MS` (varsayılan `8000`) sonra Gönder; `T3P_SELFTEST_NOSEND=1` ise göndermek yerine `ui.selftest_reply {text, source}` yazar; ReplySent'ten 3 sn sonra ya da 60 sn'de kapanır |
@@ -51,7 +53,7 @@ Her çalıştırma `~/Library/Logs/t3-panel/<YYYYMMDD-HHMMSS-pid>/` altına yaza
   - T3: `t3.discover`, `t3.changes`, `t3.list`, `t3.messages`, `t3.poll`; her alt süreç için argv, süre, stdout byte, çıkış kodu, child CPU ms, max RSS.
   - Canlı takip: `live.poll` (`threads`, `rows`, `new_msgs`, `waiting`, child CPU), `live.message` (`thread`, `message_id`, `created_at`, `rule`, `action`: `enqueued` | `unheard` | `before_listen` | `empty`, okunacak metin), `wait.detect`.
   - Kanallar: `channel.listen`, `channel.pause`, `channel.skip`, `channel.live`, `channel.mute_all`.
-  - Konuşma: `speak.enqueue` (kaynak `catchup` | `live` | `wait` | `stopped`, metin), `tts.load`, `tts.synth` (karakter, ses ms, RTF), `audio.open`, `audio.close`, `audio.play` (utterance başına: `msg_to_audio_ms`, `click_to_audio_ms`, `paused_ms`, `skipped`/`dropped`, `label_spoken`, `prefetched`, wav).
+  - Konuşma: `speak.enqueue` (kaynak `catchup` | `live` | `wait` | `stopped`, metin), `tts.load` (adım adım yükleme ms'si, model MB, sözlük boyutu), `tts.synth` (yazılan metin, sözlükle değişen hali `respelled`, modelin okuduğu hali `spoken`, parça sayısı, ses ms, RTF), `audio.open`, `audio.close`, `audio.play` (utterance başına: `msg_to_audio_ms`, `click_to_audio_ms`, `paused_ms`, `skipped`/`dropped`, `label_spoken`, `prefetched`, wav).
   - Cevap ve dikte: `reply.dictation_start`, `reply.dictation_stop`, `reply.dictation_cancel` (argv, url), `wispr.history` (satır alanları, metin, `e2eLatency`, `latency_from_stop_ms`, `latency_from_start_ms`), `reply.send` (argv, önekli metin, çıkış kodu, stdout + JSON, `queued`).
   - Durum ve arayüz: `state.change`, `thread.open` (`link`, `app_url`), `ui.*`.
 - `metrics.jsonl`: saniyede bir RSS, CPU, thread sayısı, kuyruk, child CPU toplamı.
@@ -59,7 +61,8 @@ Her çalıştırma `~/Library/Logs/t3-panel/<YYYYMMDD-HHMMSS-pid>/` altına yaza
 
 ```bash
 target/release/t3p-report latest   # kind başına p50/p95/max, RSS/CPU, live.poll maliyeti, msg→ses, tıklama→ses, dikte gecikmesi, reply.send, kanal eylemleri + report.json + report.html
-target/release/t3p-bench           # TTS: soğuk yükleme, cümle başına synth ms / RTF, tepe RSS
+target/release/t3p-bench           # TTS: soğuk yükleme, cümle başına synth ms / RTF, tepe RSS; her cümle run klasörüne WAV
+target/release/t3p-bench --corpus cumleler.txt   # aynısı, kendi cümlelerinle (satır başına bir cümle)
 target/release/t3p-bench --t3      # tüm projeleri 3 tur listeleme maliyeti
 target/release/t3p-bench --e2e     # başsız uçtan uca: ilk bitmiş thread'i dinlemeye alır, yakalama cümlesini okur
 ```
@@ -78,7 +81,15 @@ target/release/t3p-bench --e2e     # başsız uçtan uca: ilk bitmiş thread'i d
 
 [`sesli`](../cengo-skills/sesli/SKILL.md) skill'i (`~/.agents/skills`, `~/.claude/skills`, `~/.codex/skills`): ara adımlar tek cümle, son mesaj `🔊` (okunacak) ve `👀` (okunmaz, ekranda bakılacak) satırlarıyla biter. Panel önce `🔊` satırını okur.
 
+## Ses
+
+- Motor: EMA Lightning ONNX grafikleri ([`ozcancelik/ema-lightning-onnx`](https://huggingface.co/ozcancelik/ema-lightning-onnx), Apache-2.0) `crates/core/src/ema.rs` içinde Rust'a taşındı: [`normalizer-tr`](https://crates.io/crates/normalizer-tr) (rakam, saat, yüzde, kısaltma) → modelin alfabesi → ≤10 sn'lik parçalar → `text.onnx` → kare planı → `sound.onnx` (4 adım) → `decoder.onnx`. 48 kHz, sonunda 15 ms sönümleme (çıtırtıya karşı).
+- Telaffuz sözlüğü (`crates/core/src/lexicon.rs`): model İngilizce kelimeleri Türkçe kurallarla okur ("build" → "bu il"). Sık geçen teknik kelimeler normalleştiriciden önce yeniden yazılır ("pull request" → "pul rikuest", "PR'ı" → "pi ar'ı", "T3" → "ti tri"). Yalnızca okunan metin değişir. Kendi eklemelerin `T3P_LEXICON` dosyasına, satır başına `yazılan<TAB>okunan`; `*` ile biten anahtar çekimli halleri de yakalar (`push*` → "pushladım" = "puşladım"). Dosya yerleşik girdileri ezer; panel yeniden açılınca okunur.
+- Ölçüm (M4 Pro, 7 panel cümlesi): soğuk yükleme ~0,6 sn, cümle başına 30–250 ms (RTF ~0,04), tepe RSS ~140–200 MB, tıklama→ses 247 ms. Whisper geri okumasında rakamlar, "pull request", "deploy", "iOS", "Durduruldu" doğru. Ayrıntı: [`research/tts/`](research/tts/README.md).
+- Sınır: tek ses (kadın). İngilizce thread başlıkları Türkçe kurallarla okunur.
+
 ## Kararlar
 
-- `sherpa-onnx = "=1.13.8"`: 2.0.1 Piper için espeak-ng fonem adımını içermiyor; Türkçe sentez `phoneme_codepoints is empty` hatası veriyor.
+- Ses için `ort` `AutoDevicePolicy::PreferCPU`: `ort`'un varsayılanı macOS'ta CoreML'i devreye sokuyor; CoreML ile bellek ~700 MB'a, açılış 2,5 sn'ye çıkıyordu. CPU ile ~150 MB ve 0,6 sn, hız neredeyse aynı.
+- sherpa-onnx ve Piper kaldırıldı (eski model klasörü `models/vits-piper-tr_TR-dfki-medium` artık kullanılmıyor, silinebilir).
 - `gpui` `runtime_shaders`: Metal Toolchain (`xcrun metal`) kurulu değil; shader'lar açılışta derleniyor (açılış ~110 ms).

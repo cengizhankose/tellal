@@ -14,7 +14,9 @@ pub use crossbeam_channel::Receiver;
 use crossbeam_channel::Sender;
 use serde_json::{Value, json};
 
+mod ema;
 pub mod extract;
+mod lexicon;
 mod live;
 mod speech;
 pub mod t3;
@@ -37,9 +39,15 @@ pub struct Config {
     pub projects: Option<Vec<String>>,
     /// Thread list poll interval. Default 5s. Env `T3P_POLL_MS`.
     pub poll_interval: Duration,
-    /// Piper/sherpa model directory. Default
-    /// `~/Library/Application Support/t3-panel/models/vits-piper-tr_TR-dfki-medium`. Env `T3P_MODEL_DIR`.
+    /// EMA Lightning ONNX model directory (`meta.json`, `text.onnx`, `sound.onnx`,
+    /// `decoder.onnx`). Default `~/Library/Application Support/t3-panel/models/ema-lightning-onnx`.
+    /// Env `T3P_MODEL_DIR`.
     pub model_dir: PathBuf,
+    /// ONNX Runtime intra-op threads for the voice. Default 2. Env `T3P_TTS_THREADS`.
+    pub tts_threads: usize,
+    /// User pronunciation lexicon (`written<TAB>spoken` per line), added to the built-in one.
+    /// Default `~/Library/Application Support/t3-panel/lexicon.tsv`. Env `T3P_LEXICON`.
+    pub lexicon_path: PathBuf,
     /// Root for per-run telemetry dirs. Default `~/Library/Logs/t3-panel`. Env `T3P_LOG_ROOT`.
     pub log_root: PathBuf,
     /// Save every synthesized utterance as WAV in the run dir. Default true. Env `T3P_SAVE_AUDIO=0` disables.
@@ -72,9 +80,12 @@ impl Config {
                 .and_then(|v| v.trim().parse().ok())
                 .map_or(Duration::from_secs(5), Duration::from_millis),
             model_dir: var("T3P_MODEL_DIR").map_or_else(
-                || home.join("Library/Application Support/t3-panel/models/vits-piper-tr_TR-dfki-medium"),
+                || home.join("Library/Application Support/t3-panel/models/ema-lightning-onnx"),
                 PathBuf::from,
             ),
+            tts_threads: var("T3P_TTS_THREADS").and_then(|v| v.trim().parse().ok()).filter(|&n| n > 0).unwrap_or(2),
+            lexicon_path: var("T3P_LEXICON")
+                .map_or_else(|| home.join("Library/Application Support/t3-panel/lexicon.tsv"), PathBuf::from),
             log_root: var("T3P_LOG_ROOT").map_or_else(|| home.join("Library/Logs/t3-panel"), PathBuf::from),
             save_audio: var("T3P_SAVE_AUDIO").is_none_or(|v| v.trim() != "0"),
             recent_window: Duration::from_secs(6 * 3600),
@@ -93,6 +104,7 @@ impl Config {
         json!({
             "t3_bin": self.t3_bin, "projects": self.projects,
             "poll_interval_ms": self.poll_interval.as_millis() as u64, "model_dir": self.model_dir,
+            "tts_threads": self.tts_threads, "lexicon_path": self.lexicon_path,
             "log_root": self.log_root, "save_audio": self.save_audio,
             "recent_window_s": self.recent_window.as_secs(), "max_threads": self.max_threads,
             "live_poll_interval_ms": self.live_poll_interval.as_millis() as u64,
