@@ -850,19 +850,21 @@ impl Speech {
 }
 
 /// Short spoken label from a thread title: the title if ≤ 30 chars, else its first 4 words.
+/// Brackets, double quotes and inner punctuation become spaces and apostrophes are trimmed at
+/// word edges, so the label reads as one phrase ("t3-panel test: sadece 'Tamam, …" →
+/// "t3-panel test sadece Tamam.") while Turkish suffixes keep theirs ("Eternals’a").
 fn label_for(title: &str) -> Option<String> {
-    const PUNCT: [char; 7] = ['.', '!', '?', '…', ':', ';', ','];
-    let title = normalize(title);
-    let title = title.trim().trim_end_matches(PUNCT);
-    if title.is_empty() {
+    const NOISE: &[char] = &['.', '!', '?', '…', ':', ';', ',', '"', '“', '”', '(', ')', '[', ']', '{', '}'];
+    const APOSTROPHES: &[char] = &['\'', '‘', '’'];
+    let cleaned: String = normalize(title).chars().map(|c| if NOISE.contains(&c) { ' ' } else { c }).collect();
+    let words: Vec<&str> =
+        cleaned.split_whitespace().map(|w| w.trim_matches(APOSTROPHES)).filter(|w| !w.is_empty()).collect();
+    if words.is_empty() {
         return None;
     }
-    let short = if title.chars().count() <= LABEL_MAX_CHARS {
-        title.to_owned()
-    } else {
-        title.split_whitespace().take(LABEL_WORDS).collect::<Vec<_>>().join(" ")
-    };
-    Some(format!("{}.", short.trim_end_matches(PUNCT)))
+    let full = words.join(" ");
+    let short = if full.chars().count() <= LABEL_MAX_CHARS { full } else { words[..words.len().min(LABEL_WORDS)].join(" ") };
+    Some(format!("{short}."))
 }
 
 /// Unmute catch-up line: latest messages from the state DB → `extract` → enqueue.
