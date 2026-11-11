@@ -7,7 +7,7 @@ Kaynaklar:
 - [community.md](community.md): Reddit, HF, GitHub, Türkçe forum yorumları; ajan seslendirme projeleri.
 - [bakeoff.md](bakeoff.md) ve [bakeoff/index.html](bakeoff/index.html): bu Mac'te 59 çalıştırma, 7 panel cümlesi, 413 ses dosyası.
 - [compare.html](compare.html): öne çıkan adayların grafiği.
-- [listen/](listen/): aday başına 3 cümlelik dinleme dosyası (baştaki sessizlik kesildi, ses seviyesi eşitlendi).
+- `listen/`: aday başına 3 cümlelik dinleme dosyası (baştaki sessizlik kesildi, ses seviyesi eşitlendi). Ses dosyaları yereldir, depoya girmez (`.gitignore`).
 
 ## Karar (11 Kasım 2026)
 
@@ -15,7 +15,7 @@ Cengo 5 (EMA Lightning), 7 (Pocket TTS female_1) ve 8 (ZONOS3-Mini klon) numaral
 
 Rust'taki ölçüm (aynı 7 cümle, M4 Pro): soğuk yükleme 0,58 sn, cümle başına 32–252 ms, RTF 0,044, tepe RSS 143 MB, tıklama→ses 247 ms. Whisper geri okumasında 7 cümlenin 6'sı birebir doğru; "Build" yazımı sözlükle "bilt" yapıldıktan sonra o da doğru. Bake-off'taki Python ONNX koşusunda İngilizce kelimeler 3/5'ti; telaffuz sözlüğüyle "pull request", "deploy", "iOS", "PR", "commit", "push", "merge", "backend" doğru duyuluyor.
 
-Dinle: [listen/10-ema-panel-rust.mp3](listen/10-ema-panel-rust.mp3) (panelin kendi Rust motoru).
+Dinle: `listen/10-ema-panel-rust.mp3` (yerel; panelin kendi Rust motoru). Depoda ses dosyası yok; panelin sesi [demo videosunda](../../docs/media/demo.mp4) duyulur.
 
 ## Sonuç
 

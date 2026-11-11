@@ -5,19 +5,19 @@ be calm, small and instantly readable. This spec is the contract for the v0.3 re
 cites where it comes from.
 
 Sources:
-- **E** = evidence rules, `~/.agents/skills/ui-evidence/` (`kb/GOLDEN-RULES.md`, G-IDs, grade A/B).
-- **A** = Atlas design notes saved in [`research/ui/atlas/`](../research/ui/atlas/): "Tasarımın 14 kuralı", "15 grafik tasarım trendi", Kıble and Kazan design systems (token architecture, motion, empty states).
+- **E** = evidence rules from the author's `ui-evidence` knowledge base (`kb/GOLDEN-RULES.md`, rule ids G…, grade A/B). It is private and not published; every rule this spec relies on is stated where it is cited.
+- **A** = Atlas: private design-system notes ("Tasarımın 14 kuralı", "15 grafik tasarım trendi" and two design-system write-ups covering token architecture, motion and empty states). They are not published; the principles taken from them are summarized in §1 below. `A: DS §n` cites a section of the design-system write-ups.
 - **T3** = T3 Code's own sidebar (study: [`research/ui/t3-sidebar.md`](../research/ui/t3-sidebar.md), source: github.com/pingdotgg/t3code `apps/web`). The panel should feel like a detached piece of that sidebar.
 
 ## 1. Principles
 
-1. **Calm by default** (A: Kıble §3.1; E: G1-8). Low visual complexity: one surface colour, one accent, hairline borders, no decorative gradients. Detail appears only when it carries state.
+1. **Calm by default** (A: DS §3.1; E: G1-8). Low visual complexity: one surface colour, one accent, hairline borders, no decorative gradients. Detail appears only when it carries state.
 2. **One focal point** (A: rule 01 Emphasis, 10 Hierarchy). The thing being spoken is the hero: the *Now playing* bar. Everything else is quieter.
 3. **Position carries priority, not colour** (E: G1-2). Attention items at the top, the player at the bottom, the list in between; these places never move.
 4. **Stable order** (E: G2-4; T3: "thread activity does not change the order"). Rows never jump because a thread got a new message. New threads appear at the top of their group with a short enter transition (E: G1-11).
 5. **Every clickable thing looks clickable; nothing lives only behind hover** (E: G1-1, G2-11). The listen toggle is always visible. Row actions that appear on hover are also on the keyboard and on the selected row.
 6. **Meaning never by colour alone** (E: G1-5). Status = icon shape + colour + tooltip text.
-7. **Motion explains state, never decorates** (A: Kıble §56; E: G1-10, G1-11). Nothing moves continuously unless the user started it (audio they unmuted). Running threads get a *static* activity glyph, not a spinner. Honour macOS Reduce Motion.
+7. **Motion explains state, never decorates** (A: DS §56; E: G1-10, G1-11). Nothing moves continuously unless the user started it (audio they unmuted). Running threads get a *static* activity glyph, not a spinner. Honour macOS Reduce Motion.
 8. **Legible** (E: G1-3, G1-4). Body 13 px, secondary 12 px, nothing under 11 px (11 only for badges and section labels). Text ≥ 4.5:1 contrast on its background in every theme.
 9. **Speak the user's words** (E: G2-2, G3-11, G3-12). Turkish UI copy, short, first word carries meaning; errors say what happened and what to do.
 
@@ -45,9 +45,9 @@ All colours come from `Core::theme()` (`ThemeView`), i.e. the theme selected in 
 
 Type: T3's interface font (`ThemeView.font_family`, empty = system). Thread titles 14 px / 500 (T3), body `font_size - 1`, secondary/meta 12 px, badges 11 px; section labels 12 px / 500 in sentence case (T3). Weights: 600 headings, 500 titles and labels, 400 body. Tabular numerals for times and metrics.
 
-Spacing scale 4 / 8 / 12 / 16; radius 6 (controls), 10 (cards), 14 (window). Elevation: one shadow for the window, none inside (A: Kazan/Kıble elevation: shadows only for floating layers).
+Spacing scale 4 / 8 / 12 / 16; radius 6 (controls), 10 (cards), 14 (window). Elevation: one shadow for the window, none inside (A: DS elevation: shadows only for floating layers).
 
-## 4. Motion tokens (A: Kıble §57–59)
+## 4. Motion tokens (A: DS §57–59)
 
 | token | ms | easing | used for |
 |---|---|---|---|
@@ -66,20 +66,20 @@ Allowed continuous motion, only while audio the user enabled is playing: the pla
 ┌─────────────────────────────────────────┐
 │ T3 Panel •                 ⌕  ▤  ⤡  ✕  │ header 40px, drag area
 ├─────────────────────────────────────────┤
-│ ⚠ 2 thread seni bekliyor  ·  Kazan, …  →│ attention card (only when ≥1 waiting)
+│ ⚠ 2 thread seni bekliyor · acme-web, … →│ attention card (only when ≥1 waiting)
 ├─────────────────────────────────────────┤
 │ Çalışıyor 4                          ▾  │ section header (12px/500, count, chevron)
-│ 🍲 Kalan işleri planla   ◌  OM  🔊  16dk│ row 36px: project · title · status · provider · listen · time/timer
+│ 🌐 Fix flaky auth tests     ◌  ✳  🔊  16dk│ row 36px: project · title · status · provider · listen · time/timer
 │    “Şimdi testleri çalıştırıyorum.”     │ second line only when it carries state
 │ Aktif 8                              ▾  │
-│ DE İsim kontrolü         ✓  OM  🔈  1sa │
+│ AS Add rate limiting       ✓  ✳  🔈  1sa │
 │ Ertelendi 1                          ▸  │ shelves start collapsed
 ├─────────────────────────────────────────┤
-│ ♪ Kazan · Kalan işleri planla      2 sırada│ Now playing (only when speaking/paused/queued)
+│ ♪ acme-web · Fix flaky auth…    2 sırada│ Now playing (only when speaking/paused/queued)
 │ “Şimdi testleri çalıştırıyorum.”        │
 │ ━━━━━━━━━━━━━━━━━━──────   ⏸  ⏭  ⇥  🔇 │ progress + controls
 ├─────────────────────────────────────────┤
-│ → Kalan işleri planla                   │ Reply dock (when open)
+│ → Fix flaky auth tests                  │ Reply dock (when open)
 │ [ metin kutusu                       ]  │
 │ 🎙 Wispr dinliyor…        [İptal][Gönder]│
 ├─────────────────────────────────────────┤
@@ -149,7 +149,7 @@ Every new interaction logs `ui.*` through `Core::log_ui` (key, target, before/af
 
 ## 9. v0.3 implementation: deviations and review
 
-Implemented in `crates/app/src` (modules: `theme`, `motion`, `icons` + `assets` (embedded via `build.rs`), `model` (sections), `panel/{header,list,player,dock,metrics,keys,selftest}`, `hotkey`, `mac`). Screenshots: `research/ui/shots/v03-*.png` (T3 Chat dark, the user's live theme) and `v03-light-*.png` (same theme, light appearance via a temp copy of T3's localStorage).
+Implemented in `crates/app/src` (modules: `theme`, `motion`, `icons` + `assets` (embedded via `build.rs`), `model` (sections), `panel/{header,list,player,dock,metrics,keys,selftest}`, `hotkey`, `mac`). Screenshots, made from the demo fixture ([`demo/fixture.json`](../demo/fixture.json)), dark and light: [`docs/media/`](media/) (`panel-dark.png`, `panel-light.png`, `now-playing.png`, `reply.png`, `drawer.png`, `compact.png`).
 
 ### Deviations from the original text above
 

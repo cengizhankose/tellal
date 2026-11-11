@@ -10,9 +10,8 @@ This study measures T3 Code's thread sidebar so the 380 px panel can feel like a
   - Bare component names live under `apps/web/src/components/`.
   - Full URL form: `https://github.com/pingdotgg/t3code/blob/17a6a01d84e3adf9f29df2639d6b6079a434e1b2/<path>#L<n>`.
 - **Bundle** is the installed `T3 Code (Nightly)` 0.1.8-nightly.20261109.4399. Its extracted copy is `/tmp/t3asar`. The CSS is `apps/server/dist/client/assets/main-vDPMgj0W.css`. Every value I checked matches `index.css`.
-- **Shot** is a real screenshot of the user's T3 window: [`shots/t3-window-theme.png`](shots/t3-window-theme.png).
-  - The sidebar crop is [`shots/t3-sidebar-crop.png`](shots/t3-sidebar-crop.png), at 1×, 396 pt wide.
-  - The user's sidebar is resized to 396 pt. The default width is 256.
+- **Shot** is a screenshot of the author's own T3 window, taken for this study. It showed private threads and projects, so it is not published; the notes below keep only what it showed about layout, glyphs and colours.
+  - The sidebar in it was resized to 396 pt. The default width is 256.
 - **Units:** pixel values assume T3's default 16 px root.
   - Tailwind v4: 1 unit = 4 px (bundle `--spacing:.25rem`); `text-xs` = 12/16; `text-sm` = 14/20.
   - The interface-size setting (12–20 px) scales every rem value (`packages/contracts/src/settings.ts:166-172`, `appearanceFonts.ts:72-105`).
@@ -94,7 +93,7 @@ Custom and built-in themes override these through `--app-theme-*` (`index.css:13
   - otherwise "Dev" in development and "Beta" elsewhere.
 
 **F6 — Channel artwork (the default and the user's setting).**
-- `environmentIdentificationMode` defaults to `"artwork"` (`SidebarStageBackdrop.tsx:16`). This Mac has `"artwork"` (`~/.t3/userdata/client-settings.json`).
+- `environmentIdentificationMode` defaults to `"artwork"` (`SidebarStageBackdrop.tsx:16`). The author's T3 used `"artwork"` as well (T3's `client-settings.json`).
 - For Nightly, the header has no pill. It draws an **80 px starry purple backdrop** behind it (`SidebarStageBackdrop.tsx:52-60`).
   - The backdrop is procedural SVG `0 0 8192 96`, faded with `linear-gradient(black 0–55 %, transparent 92 %)` (`index.css:528-532`).
   - Over it, brand and buttons turn white, with "Code" at 70 %.
@@ -133,14 +132,14 @@ Custom and built-in themes override these through `--app-theme-*` (`index.css:13
   - It is **14 px / 500**, `text-foreground`, single line with ellipsis (`:1026-1054`).
   - When the meta line is empty, the provider icon follows the title on this line (`:1193-1201`).
 - **Meta line** (16 px, 2 px above; `:1153`): 12 px `--secondary-label`, gap 6.
-  - Left: the branch (worktree icon plus middle-truncated name) or the machine label (laptop icon plus "Sino's MacBook Pro (2)").
+  - Left: the branch (worktree icon plus middle-truncated name) or the machine label (laptop icon plus the machine's name).
   - Then: terminal and PR badge (`git-pull-request` icon plus number, green when open, e.g. "↱ 899").
   - Right, `ml-auto gap-1`: the machine icon, then the **provider icon**.
 - **Receded rows** (`Sidebar.logic.ts:827-849`) are working, waiting, or done-and-seen threads.
   - The title drops to `text-foreground/75` and weight 400.
   - A working row is also at `opacity-70` until hovered (`:957-978,1026-1054`).
   - Rows needing you (input, request, unread) never recede.
-  - In the shot: "First mate" (Done, unseen) is bright 500, and the working rows are grey.
+  - In the shot: a Done, unseen thread is bright 500, and the working rows are grey.
 
 **F10 — Slim row** (`SidebarThreadRow.tsx:1203-1400`).
 - Size: **36 px** tall (`h-9`), 10 px gap and side padding (`:1230-1237`).
@@ -233,7 +232,7 @@ These sources back the table:
 - **Instance badge.** When several enabled instances share a driver (or an instance has an accent colour), a pill is drawn on the mark's bottom-right (`ProviderInstanceIcon.tsx:175-190`; `packages/client-runtime/src/state/providerInstanceDisplay.ts:64-…`).
   - Geometry: offset −3 px, 12 px tall, 7 px text, weight 600, card background.
   - Content: the 2-letter instance initials (`providerInstanceDisplay.ts:29-45`).
-- **omp on this Mac.** The instances `omp` ("omp") and `omp-firstmate` ("omp (firstmate)") are both local `acpRegistry` instances with no registry agent id (`~/.t3/userdata/settings.json`).
+- **omp on the author's Mac.** Two local `acpRegistry` instances of omp (ids starting `omp`), with no registry agent id (T3's `settings.json`).
   - T3 therefore draws the ACP Registry mark with badges **OM** and **OF**. This is visible in the shot.
   - "Home" threads show **HE** on the same mark.
   - `claude-proxy` is a `claudeAgent` instance, drawn as the Claude spark.
@@ -242,7 +241,7 @@ These sources back the table:
 ## E. Project identity
 
 **F18 — Project icon kinds.** Contract: `packages/contracts/src/project.ts:48-110`. Each kind renders at 16 px (`size-4`) through `ProjectFavicon`:
-- **lucide** `{name, color}`: a lucide icon tinted by colour (`ProjectFavicon.tsx:59-76`). An unknown name falls back to `folder-code` (`:20`). The shot shows "Kazan" with a red `cooking-pot`.
+- **lucide** `{name, color}`: a lucide icon tinted by colour (`ProjectFavicon.tsx:59-76`). An unknown name falls back to `folder-code` (`:20`). The shot shows a project with a red `cooking-pot`.
 - **emoji**: the glyph fills 80 % of the box (`:50-58,136-147`).
 - **monogram** `{text, color}`, or **no icon**: a project favicon image (radius 25 %). If that is missing, a **derived monogram** (`:129-134`).
   - With no name at all: `folder-code` in `text-icon-muted` (`:150`).
@@ -256,7 +255,7 @@ These sources back the table:
   - the first digit inside that word,
   - else the first letter of the last word,
   - else the first word's last glyph.
-- Upper-cased; "PR" when the name is empty. Examples: "demo" → **DO**, "Mobile App" → **MA**, "firstmate" → **FE**.
+- Upper-cased; "PR" when the name is empty. Examples: "dashboard" → **DD**, "Mobile App" → **MA**, "web2" → **W2**.
 - Colour: `index = (index·31 + codepoint) mod 18` over the lower-cased name, giving one of the 18 colours below (`projectIdentity.ts:27-34`).
 
 **F20 — Project colour names → hex.**
