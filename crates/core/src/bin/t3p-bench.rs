@@ -12,6 +12,13 @@
 //!   catch-up line, sampling `ChannelView` progress every 250 ms, pausing ~1.2 s in for 1.5 s →
 //!   `SpeakingFinished` → `mute_all`. With `T3P_DEMO` the listed threads must be exactly the
 //!   fixture's.
+//! * `--computer [--secs N] [--warmup N]`: headless `Core::start`, prints `Core::computer()` on
+//!   every `ComputerUpdated` and `TaskStarted`, then this process's CPU% over the `N` seconds
+//!   after the warmup (default 60 / 15). Real mode with `--stop-on-session`: the first live
+//!   session triggers `computer_stop_all` 3 s later. Demo mode (`T3P_DEMO`): listens to the
+//!   first fixture thread whose computer session is scripted (`t-notes`), grants permissions at
+//!   3 s, dictates `NEW_TASK` at 38 s and starts the task with the transcript, stops all
+//!   computer sessions at 58 s.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -19,7 +26,7 @@ use std::time::{Duration, Instant};
 use serde_json::json;
 use t3_panel_core::telemetry::{self, Telemetry, ms};
 use t3_panel_core::tts::{TtsEngine, open_output, samples_source, write_wav};
-use t3_panel_core::{Config, Core, CoreEvent, ThreadView, t3, theme};
+use t3_panel_core::{Config, Core, CoreEvent, NEW_TASK, ThreadView, t3, theme};
 
 const CORPUS: [&str; 10] = [
     "Tamam.",
@@ -40,6 +47,10 @@ fn main() -> anyhow::Result<()> {
     let cfg = Config::from_env();
     if has("--e2e") {
         return e2e(cfg);
+    }
+    if has("--computer") {
+        let num = |f: &str, d: u64| args.iter().position(|a| a == f).and_then(|i| args.get(i + 1)?.parse().ok()).unwrap_or(d);
+        return computer(cfg, num("--secs", 60), num("--warmup", 15), has("--stop-on-session"));
     }
     if has("--theme") {
         return print_theme(&cfg);
@@ -246,6 +257,102 @@ fn e2e(cfg: Config) -> anyhow::Result<()> {
     println!("peak_rss_mb={:.1}", telemetry::peak_rss_mb());
     println!("run_dir={}", run_dir.display());
     Ok(())
+}
+
+fn computer(cfg: Config, secs: u64, warmup: u64, stop_on_session: bool) -> anyhow::Result<()> {
+    let demo = cfg.demo.is_some();
+    let (core, rx) = Core::start(cfg)?;
+    let run_dir = core.live_stats().run_dir;
+    let t0 = Instant::now();
+    let at = |s: u64| t0 + Duration::from_secs(s);
+    let end = at(warmup + secs);
+    println!("initial computer(): {:#?}", core.computer());
+    // Demo walkthrough beats and the real-mode stop (one shot each).
+    let (mut granted, mut dictated, mut stopped) = (!demo, !demo, !demo && !stop_on_session);
+    let mut stop_at: Option<Instant> = None;
+    let mut window: Option<(Instant, f64)> = None;
+    if demo {
+        core.set_listening("t-notes", true);
+    }
+    while Instant::now() < end {
+        if window.is_none() && Instant::now() >= at(warmup) {
+            window = Some((Instant::now(), self_cpu_ms()));
+            println!("[{:>5.1}s] cpu window starts", t0.elapsed().as_secs_f64());
+        }
+        if !granted && Instant::now() >= at(3) {
+            granted = true;
+            println!("[{:>5.1}s] -> computer_grant_permissions", t0.elapsed().as_secs_f64());
+            core.computer_grant_permissions();
+        }
+        if !dictated && Instant::now() >= at(38) {
+            dictated = true;
+            println!("[{:>5.1}s] -> dictation_start(NEW_TASK)", t0.elapsed().as_secs_f64());
+            core.dictation_start(NEW_TASK);
+        }
+        if (!stopped && demo && Instant::now() >= at(58)) || stop_at.is_some_and(|s| Instant::now() >= s) {
+            stopped = true;
+            stop_at = None;
+            println!("[{:>5.1}s] -> computer_stop_all ({} live)", t0.elapsed().as_secs_f64(), core.computer().sessions.len());
+            core.computer_stop_all();
+        }
+        let ts = t0.elapsed().as_secs_f64();
+        match rx.recv_timeout(Duration::from_millis(200)) {
+            Ok(CoreEvent::ComputerUpdated) => {
+                let v = core.computer();
+                println!("[{ts:>5.1}s] ComputerUpdated: {v:#?}");
+                if stop_on_session && !stopped && stop_at.is_none() && !v.sessions.is_empty() {
+                    stop_at = Some(Instant::now() + Duration::from_secs(3));
+                }
+            }
+            Ok(CoreEvent::DictationTranscript { thread_id, text }) => {
+                println!("[{ts:>5.1}s] DictationTranscript {thread_id}: {text}");
+                if thread_id == NEW_TASK {
+                    println!("[{ts:>5.1}s] -> start_task");
+                    core.start_task(&text);
+                }
+            }
+            Ok(CoreEvent::TaskStarted { thread_id, ok, detail }) => {
+                println!("[{ts:>5.1}s] TaskStarted ok={ok} thread={thread_id:?} detail={detail}");
+                if let Some(t) = core.threads().iter().find(|t| Some(&t.id) == thread_id.as_ref()) {
+                    let ch = core.channels().get(&t.id).cloned().unwrap_or_default();
+                    println!("         listed: [{}] {} · {} ({}/{}) listening={}", t.status, t.title, t.project, t.provider, t.model, ch.listening);
+                }
+            }
+            Ok(CoreEvent::SpeakingStarted { thread_id }) => {
+                let text = core.channels().get(&thread_id).and_then(|c| c.now_text.clone()).unwrap_or_default();
+                println!("[{ts:>5.1}s] SpeakingStarted {thread_id}: {text}");
+            }
+            Ok(CoreEvent::DictationFailed { thread_id, error }) => println!("[{ts:>5.1}s] DictationFailed {thread_id}: {error}"),
+            Ok(CoreEvent::Error(e)) => eprintln!("[{ts:>5.1}s] core error: {e}"),
+            Ok(_) | Err(crossbeam_channel::RecvTimeoutError::Timeout) => {}
+            Err(e) => anyhow::bail!("core channel: {e}"),
+        }
+    }
+    if let Some((start, cpu0)) = window {
+        let wall = start.elapsed().as_secs_f64() * 1000.0;
+        let cpu = self_cpu_ms() - cpu0;
+        println!(
+            "cpu window {:.1}s: self_cpu_ms={cpu:.1} self_cpu_pct={:.2} children_cpu_ms_total={:.1}",
+            wall / 1000.0,
+            100.0 * cpu / wall,
+            telemetry::children_cpu_ms()
+        );
+    }
+    println!("final computer(): {:#?}", core.computer());
+    println!("run_dir={}", run_dir.display());
+    Ok(())
+}
+
+/// User + system CPU of this process so far (ms).
+fn self_cpu_ms() -> f64 {
+    // SAFETY: getrusage only writes into the provided, properly sized struct.
+    let ru = unsafe {
+        let mut ru: libc::rusage = std::mem::zeroed();
+        libc::getrusage(libc::RUSAGE_SELF, &mut ru);
+        ru
+    };
+    let tv = |t: libc::timeval| t.tv_sec as f64 * 1000.0 + t.tv_usec as f64 / 1000.0;
+    tv(ru.ru_utime) + tv(ru.ru_stime)
 }
 
 /// Demo mode: the snapshot lists exactly the fixture's thread ids.

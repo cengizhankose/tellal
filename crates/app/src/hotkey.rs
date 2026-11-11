@@ -1,6 +1,7 @@
-//! Global show/hide shortcut (default ⌃⌥Space, `T3P_HOTKEY=<mods+key>` or `off`). Carbon's
-//! `RegisterEventHotKey` needs no Accessibility permission; presses arrive on a channel the
-//! panel's pump drains.
+//! Global shortcuts (Carbon `RegisterEventHotKey`, no Accessibility permission needed): show/hide
+//! (default ⌃⌥Space, `T3P_HOTKEY`) and the computer-use emergency stop (default ⌃⌥⎋,
+//! `T3P_STOP_HOTKEY`). `<mods+key>` in `global-hotkey` syntax or `off`. One manager owns both;
+//! presses arrive on its single global channel, which the panel's pump drains once per tick.
 
 use std::str::FromStr;
 
@@ -9,45 +10,78 @@ use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
 use serde_json::json;
 use t3_panel_core::Core;
 
-const DEFAULT: &str = "ctrl+alt+space";
+const DEFAULT_TOGGLE: &str = "ctrl+alt+space";
+/// ⌃⌥⎋: next to macOS's Force Quit (⌘⌥⎋) in meaning, but not taken by the system.
+const DEFAULT_STOP: &str = "ctrl+alt+escape";
 
-pub struct Hotkey {
-    /// Must stay alive (and on the main thread) for the registration to hold.
-    _manager: GlobalHotKeyManager,
+pub struct Binding {
     id: u32,
     pub spec: String,
 }
 
-impl Hotkey {
-    /// Registers the shortcut; logs `ui.hotkey {spec, ok, error}`. `None` when disabled or taken.
-    pub fn register(core: &Core) -> Option<Hotkey> {
-        let spec = std::env::var("T3P_HOTKEY").ok().map(|s| s.trim().to_owned()).filter(|s| !s.is_empty());
-        let spec = spec.unwrap_or_else(|| DEFAULT.to_owned());
-        if spec.eq_ignore_ascii_case("off") {
-            core.log_ui("ui.hotkey", json!({"spec": spec, "ok": false, "disabled": true}));
-            return None;
-        }
-        let registered = HotKey::from_str(&spec).map_err(|e| e.to_string()).and_then(|hotkey| {
-            let manager = GlobalHotKeyManager::new().map_err(|e| e.to_string())?;
-            manager.register(hotkey).map_err(|e| e.to_string())?;
-            Ok(Hotkey { _manager: manager, id: hotkey.id(), spec: spec.clone() })
-        });
-        match registered {
-            Ok(hotkey) => {
-                core.log_ui("ui.hotkey", json!({"spec": spec, "ok": true}));
-                Some(hotkey)
-            }
-            Err(error) => {
-                core.log_ui("ui.hotkey", json!({"spec": spec, "ok": false, "error": error}));
-                None
-            }
-        }
+pub struct Hotkeys {
+    /// Must stay alive (and on the main thread) for the registrations to hold.
+    _manager: Option<GlobalHotKeyManager>,
+    pub toggle: Option<Binding>,
+    pub stop: Option<Binding>,
+}
+
+/// Which shortcuts were pressed since the last [`Hotkeys::drain`].
+#[derive(Default)]
+pub struct Pressed {
+    pub toggle: bool,
+    pub stop: bool,
+}
+
+impl Hotkeys {
+    /// Registers both shortcuts; logs `ui.hotkey` / `ui.stop_hotkey` `{spec, ok, error}`.
+    pub fn register(core: &Core) -> Hotkeys {
+        let manager = GlobalHotKeyManager::new().map_err(|e| e.to_string());
+        let toggle = bind(core, manager.as_ref(), "T3P_HOTKEY", DEFAULT_TOGGLE, "ui.hotkey");
+        let stop = bind(core, manager.as_ref(), "T3P_STOP_HOTKEY", DEFAULT_STOP, "ui.stop_hotkey");
+        Hotkeys { _manager: manager.ok(), toggle, stop }
     }
 
-    /// Drains pending events; true if the shortcut was pressed since the last call.
-    pub fn pressed(&self) -> bool {
-        GlobalHotKeyEvent::receiver()
-            .try_iter()
-            .fold(false, |hit, e| hit | (e.id() == self.id && e.state() == HotKeyState::Pressed))
+    pub fn drain(&self) -> Pressed {
+        let id = |b: &Option<Binding>| b.as_ref().map(|b| b.id);
+        let (toggle, stop) = (id(&self.toggle), id(&self.stop));
+        GlobalHotKeyEvent::receiver().try_iter().filter(|e| e.state() == HotKeyState::Pressed).fold(
+            Pressed::default(),
+            |mut p, e| {
+                p.toggle |= Some(e.id()) == toggle;
+                p.stop |= Some(e.id()) == stop;
+                p
+            },
+        )
+    }
+}
+
+/// `None` when disabled (`off`), unparsable or taken by another app.
+fn bind(
+    core: &Core,
+    manager: Result<&GlobalHotKeyManager, &String>,
+    env: &str,
+    default: &str,
+    kind: &str,
+) -> Option<Binding> {
+    let spec = std::env::var(env).ok().map(|s| s.trim().to_owned()).filter(|s| !s.is_empty());
+    let spec = spec.unwrap_or_else(|| default.to_owned());
+    if spec.eq_ignore_ascii_case("off") {
+        core.log_ui(kind, json!({"spec": spec, "ok": false, "disabled": true}));
+        return None;
+    }
+    let registered = HotKey::from_str(&spec).map_err(|e| e.to_string()).and_then(|hotkey| {
+        manager.map_err(String::clone)?.register(hotkey).map_err(|e| e.to_string())?;
+        Ok(hotkey.id())
+    });
+    match registered {
+        Ok(id) => {
+            core.log_ui(kind, json!({"spec": spec, "ok": true}));
+            Some(Binding { id, spec })
+        }
+        Err(error) => {
+            core.log_ui(kind, json!({"spec": spec, "ok": false, "error": error}));
+            None
+        }
     }
 }

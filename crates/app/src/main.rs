@@ -34,7 +34,8 @@ const SCREEN_MARGIN: f32 = 16.;
 fn main() -> anyhow::Result<()> {
     let process_start = Instant::now();
     let selftest = SelfTestMode::from_env();
-    let (core, events) = Core::start(Config::from_env())?;
+    let config = Config::from_env();
+    let (core, events) = Core::start(config.clone())?;
 
     Application::new().with_assets(assets::Assets).run(move |cx: &mut App| {
         // Runs after gpui's applicationDidFinishLaunching set the policy to Regular.
@@ -91,7 +92,7 @@ fn main() -> anyhow::Result<()> {
                     "selftest": selftest.to_json(),
                 }),
             );
-            cx.new(|cx| Panel::new(ui_core, events, process_start, selftest, window, cx))
+            cx.new(|cx| Panel::new(ui_core, events, process_start, selftest, &config, window, cx))
         });
         if let Err(err) = opened {
             core.log_ui("ui.window_error", json!({"error": format!("{err:#}")}));

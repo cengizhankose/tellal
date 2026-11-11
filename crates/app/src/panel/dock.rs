@@ -1,11 +1,13 @@
 //! Reply dock (v0.2 behaviour, restyled): Wispr Flow hands-free dictation, focus/activate and
 //! restore of the previous app, paste/typing, Wispr History fill-or-compare, auto-send after
-//! Gönder, retarget to another thread, and every step logged.
+//! Gönder, retarget to another thread, and every step logged. In new-task mode (target
+//! [`NEW_TASK`]) the same flow ends in `Core::start_task` instead of a reply.
 
 use std::time::{Duration, Instant};
 
 use gpui::{AnyElement, Context, Entity, Focusable, FontWeight, Rgba, SharedString, Window, div, prelude::*, px};
 use serde_json::json;
+use t3_panel_core::NEW_TASK;
 
 use super::selftest::{SelfTest, SelfTestMode};
 use super::{DOCK_H, FOCUS_CHECK_DELAY, Panel, ms};
@@ -55,7 +57,9 @@ impl ReplyPhase {
 }
 
 pub(super) struct ReplyDock {
+    /// The thread replied to, or [`NEW_TASK`] (new-task mode: the text starts a new thread).
     pub(super) thread_id: String,
+    /// Thread title, or the task project's name in new-task mode.
     title: SharedString,
     phase: ReplyPhase,
     /// Wispr History transcript waiting for the fill-or-compare decision.
@@ -64,7 +68,7 @@ pub(super) struct ReplyDock {
     sources: Vec<EditSource>,
     /// App to re-activate when the dock closes (`None` if we were already frontmost).
     prev_app: Option<FrontApp>,
-    opened_at: Instant,
+    pub(super) opened_at: Instant,
     seq: usize,
 }
 
@@ -79,6 +83,7 @@ impl ReplyDock {
                 (Icon::MessageSquare, "Yaz ya da düzenle · Enter gönderir".into(), t.text_muted)
             }
             ReplyPhase::WaitingText => (Icon::Mic, "Wispr metni bekleniyor…".into(), t.warning),
+            ReplyPhase::Sending if self.is_new_task() => (Icon::Send, "Görev başlatılıyor…".into(), t.text_muted),
             ReplyPhase::Sending => (Icon::Send, "Gönderiliyor…".into(), t.text_muted),
         }
     }
@@ -87,12 +92,24 @@ impl ReplyDock {
         let names: Vec<&str> = self.sources.iter().map(|s| s.as_str()).collect();
         names.join("+")
     }
+
+    pub(super) fn is_new_task(&self) -> bool {
+        self.thread_id == NEW_TASK
+    }
+
+    /// `start_task` failed: keep the text, say why and how to retry (G2-5).
+    pub(super) fn task_failed(&mut self, detail: &str) {
+        self.phase = ReplyPhase::Editing {
+            note: Some((format!("Görev başlatılamadı ({detail}) · Gönder ile tekrar dene").into(), Tone::Bad)),
+        };
+    }
 }
 
 impl Panel {
     /// "Cevapla": open (or retarget) the dock, make the panel key, focus the input and start
-    /// Wispr dictation for `thread_id`. `live = false` is the dock-only self-test state: no
-    /// dictation and no focus change. The `demo` walkthrough dictates without taking the focus.
+    /// Wispr dictation for `thread_id` ([`NEW_TASK`]: a new task). `live = false` is the
+    /// dock-only self-test state: no dictation and no focus change. The `demo` and `shots`
+    /// walkthroughs dictate without taking the focus.
     pub(super) fn open_reply(
         &mut self,
         thread_id: &str,
@@ -101,10 +118,15 @@ impl Panel {
         window: &mut Window,
         cx: &mut Context<Panel>,
     ) {
-        let title = self
-            .thread(thread_id)
-            .map_or_else(|| SharedString::from(thread_id.to_owned()), |t| SharedString::from(t.title.clone()));
-        self.mark_seen(thread_id);
+        let new_task = thread_id == NEW_TASK;
+        let title = match self.thread(thread_id) {
+            _ if new_task => self.task_project_label(),
+            Some(t) => SharedString::from(t.title.clone()),
+            None => SharedString::from(thread_id.to_owned()),
+        };
+        if !new_task {
+            self.mark_seen(thread_id);
+        }
         let focus = live && !self.selftest_mode.leaves_focus();
         let mut retarget_from = None;
         let prev_app = match self.reply.take() {
@@ -234,7 +256,7 @@ impl Panel {
         }
         let nosend = matches!(self.selftest_mode, SelfTestMode::Reply { nosend: true, .. });
         self.core.log_ui(
-            "ui.reply_send",
+            if dock.is_new_task() { "ui.task_send" } else { "ui.reply_send" },
             json!({
                 "thread": dock.thread_id, "chars": text.chars().count(), "source": dock.source_label(),
                 "nosend": nosend, "open_ms": ms(dock.opened_at.elapsed()),
@@ -250,7 +272,11 @@ impl Panel {
             self.close_reply(cx);
         } else {
             dock.phase = ReplyPhase::Sending;
-            self.core.send_reply(&dock.thread_id, &text);
+            if dock.is_new_task() {
+                self.core.start_task(&text);
+            } else {
+                self.core.send_reply(&dock.thread_id, &text);
+            }
         }
     }
 
@@ -271,7 +297,7 @@ impl Panel {
     }
 
     /// Hides the dock, clears the input and gives the keyboard back to the previous app.
-    fn close_reply(&mut self, cx: &mut Context<Panel>) {
+    pub(super) fn close_reply(&mut self, cx: &mut Context<Panel>) {
         let Some(dock) = self.reply.take() else {
             return;
         };
@@ -390,7 +416,11 @@ impl Panel {
         let sending = dock.phase == ReplyPhase::Sending;
         let send = text_button("send", Some(Icon::Send), "Gönder", ButtonKind::Primary, t, ty.secondary)
             .when(sending, |d| d.opacity(0.5))
-            .tooltip(tip("gönder (Enter) · dikte sürüyorsa önce bitirir"))
+            .tooltip(tip(if dock.is_new_task() {
+                "görevi başlat (Enter) · dikte sürüyorsa önce bitirir"
+            } else {
+                "gönder (Enter) · dikte sürüyorsa önce bitirir"
+            }))
             .on_click(cx.listener(|panel, _, _, cx| panel.submit_reply("button", cx)));
         let cancel = text_button("cancel", None, "İptal", ButtonKind::Secondary, t, ty.secondary)
             .tooltip(tip("vazgeç (Esc)"))
@@ -413,8 +443,8 @@ impl Panel {
                     .gap_1p5()
                     .text_size(px(ty.secondary))
                     .text_color(t.text_muted)
-                    .child(icon(Icon::MessageSquare, 13., t.text_muted))
-                    .child("Cevap →")
+                    .when(!dock.is_new_task(), |d| d.child(icon(Icon::MessageSquare, 13., t.text_muted)))
+                    .child(if dock.is_new_task() { "→ Yeni görev ·" } else { "Cevap →" })
                     .child(
                         div()
                             .flex_1()

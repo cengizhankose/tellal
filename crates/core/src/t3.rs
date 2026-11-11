@@ -10,7 +10,7 @@ use std::process::{Command, Stdio};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
-use crossbeam_channel::Sender;
+use crossbeam_channel::{Receiver, RecvTimeoutError, Sender};
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
@@ -506,6 +506,26 @@ pub fn list_all(tel: &Telemetry, cfg: &Config, projects: &[Project]) -> Vec<anyh
     results.into_iter().map(|r| r.expect("every project listed")).collect()
 }
 
+/// T3's "No project": the live project whose workspace root is `~/.t3/scratch` (read-only).
+pub fn scratch_project() -> anyhow::Result<String> {
+    #[derive(Deserialize)]
+    struct Row {
+        project_id: String,
+    }
+    let root = PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".t3/scratch");
+    let sql = format!(
+        "select project_id from projection_projects where workspace_root = {} and deleted_at is null \
+         and archived_at is null limit 1;",
+        sql_str(&root.to_string_lossy())
+    );
+    let (_, res) = sqlite_json::<Row>(&state_db(), &sql);
+    let (_, rows) = res?;
+    rows.into_iter()
+        .next()
+        .map(|r| r.project_id)
+        .ok_or_else(|| anyhow::anyhow!("no T3 project with workspace root {}", root.display()))
+}
+
 /// Filters (unsettled, pinned, or updated within `recent_window`), fills project/pin/snooze
 /// state from `meta`, sorts in T3's sidebar order and caps to `max_threads`:
 /// 1. pinned threads by `pinOrderKey` ascending (missing keys last), then newest `created_at`;
@@ -553,12 +573,14 @@ fn newest(changes: &HashMap<String, String>, canonical: &HashMap<String, String>
 /// Spawns the poller thread: discover once, then every `poll_interval` run the cheap
 /// `t3.changes` query and `t3 thread list` only the projects whose newest `updated_at` moved
 /// (all projects on the first tick, every [`FULL_RELIST`], or when the query fails).
-/// `on_status(thread, to)` runs for every logged `state.change`.
+/// `on_status(thread, to)` runs for every logged `state.change`. A message on `wake` starts the
+/// next tick right away (e.g. after `Core::start_task`).
 pub(crate) fn spawn_poller(
     tel: Arc<Telemetry>,
     cfg: Config,
     snapshot: Arc<RwLock<Vec<ThreadView>>>,
     tx: Sender<CoreEvent>,
+    wake: Receiver<()>,
     on_status: impl Fn(&str, &str) + Send + 'static,
 ) -> std::io::Result<()> {
     std::thread::Builder::new().name("t3p-poller".into()).spawn(move || {
@@ -698,7 +720,13 @@ pub(crate) fn spawn_poller(
                 let _ = tx.send(CoreEvent::Error(format!("t3 list failed: {}", failed.join("; "))));
             }
             let _ = tx.send(CoreEvent::ThreadsUpdated);
-            std::thread::sleep(cfg.poll_interval.saturating_sub(tick.elapsed()).max(Duration::from_millis(200)));
+            let wait = cfg.poll_interval.saturating_sub(tick.elapsed()).max(Duration::from_millis(200));
+            match wake.recv_timeout(wait) {
+                Ok(()) => while wake.try_recv().is_ok() {},
+                Err(RecvTimeoutError::Timeout) => {}
+                // `Core` is gone; keep the plain cadence.
+                Err(RecvTimeoutError::Disconnected) => std::thread::sleep(wait),
+            }
         }
     })?;
     Ok(())

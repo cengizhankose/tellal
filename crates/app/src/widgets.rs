@@ -62,6 +62,9 @@ pub enum ButtonKind {
     Primary,
     Secondary,
     Ghost,
+    /// Destructive / emergency action: canvas-coloured text on a `danger` fill (core keeps
+    /// `danger` ≥ 4.5:1 against `canvas`, so the label keeps that contrast).
+    Danger,
 }
 
 /// Labelled button (icon optional), 28 px tall.
@@ -77,6 +80,7 @@ pub fn text_button(
         ButtonKind::Primary => (t.accent_text, Some(t.accent), crate::theme::mix(t.accent, t.canvas, 0.15)),
         ButtonKind::Secondary => (t.text, Some(t.surface_hover), t.border),
         ButtonKind::Ghost => (t.text, None, t.surface_hover),
+        ButtonKind::Danger => (t.canvas, Some(t.danger), crate::theme::mix(t.danger, t.canvas, 0.15)),
     };
     div()
         .id(id)

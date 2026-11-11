@@ -189,6 +189,10 @@ impl Theme {
                 "accent_text/accent": round2(contrast(t.accent_text, t.accent)),
                 "accent/canvas": round2(contrast(t.accent, t.canvas)),
                 "danger/surface": round2(contrast(t.danger, t.surface)),
+                // Durdur button label, and the computer-use banner's text on its 10 % danger tint.
+                "canvas/danger": round2(contrast(t.canvas, t.danger)),
+                "text/danger_tint": round2(contrast(t.text, mix(t.canvas, t.danger, 0.10))),
+                "text_muted/danger_tint": round2(contrast(t.text_muted, mix(t.canvas, t.danger, 0.10))),
             },
             "min_text_contrast": round2(
                 [contrast(t.text, t.canvas), contrast(t.text_muted, t.canvas), contrast(t.text_muted, t.surface),

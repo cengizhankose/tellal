@@ -45,6 +45,14 @@ pub enum Icon {
     Send,
     Folder,
     Check,
+    /// Computer use: an agent drives the pointer.
+    MousePointer2,
+    /// Emergency stop (`Durdur`).
+    OctagonX,
+    /// Computer-use permissions missing.
+    ShieldAlert,
+    /// New task.
+    Plus,
 }
 
 impl Icon {
@@ -82,10 +90,14 @@ impl Icon {
             Icon::Send => "icons/send.svg",
             Icon::Folder => "icons/folder.svg",
             Icon::Check => "icons/check.svg",
+            Icon::MousePointer2 => "icons/mouse-pointer-2.svg",
+            Icon::OctagonX => "icons/octagon-x.svg",
+            Icon::ShieldAlert => "icons/shield-alert.svg",
+            Icon::Plus => "icons/plus.svg",
         }
     }
 
-    pub const ALL: [Icon; 32] = [
+    pub const ALL: [Icon; 36] = [
         Icon::Logo,
         Icon::ChevronRight,
         Icon::ChevronDown,
@@ -118,6 +130,10 @@ impl Icon {
         Icon::Send,
         Icon::Folder,
         Icon::Check,
+        Icon::MousePointer2,
+        Icon::OctagonX,
+        Icon::ShieldAlert,
+        Icon::Plus,
     ];
 }
 

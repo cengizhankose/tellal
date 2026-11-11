@@ -3,7 +3,8 @@
   "projects": [
     {"id": "p-web", "title": "acme-web", "icon": {"kind": "lucide", "name": "globe-2", "color": "sky"}, "pinned": true},
     {"id": "p-billing", "title": "billing-api", "icon": {"kind": "lucide", "name": "server", "color": "violet"}, "pinned": false},
-    {"id": "p-mobile", "title": "field-app", "icon": {"kind": "lucide", "name": "smartphone", "color": "emerald"}, "pinned": false}
+    {"id": "p-mobile", "title": "field-app", "icon": {"kind": "lucide", "name": "smartphone", "color": "emerald"}, "pinned": false},
+    {"id": "scratch", "title": "No project"}
   ],
   "threads": [
     {
@@ -69,6 +70,24 @@
       ]
     },
     {
+      "id": "t-notes", "project": "scratch", "title": "Write meeting notes in TextEdit", "label": "Toplantı notları",
+      "status": "running", "provider": "omp", "model": "claude-sonnet-4-5",
+      "pinned": false, "settled": false, "snoozed": false,
+      "created_ago_s": 75, "updated_ago_s": 30, "running_for_s": 75,
+      "messages": [
+        {"role": "user", "text": "TextEdit'te bugünkü toplantının notlarını yaz ve masaüstüne kaydet.", "en": "Write today's meeting notes in TextEdit and save them to the desktop.", "ago_s": 75},
+        {"role": "assistant", "text": "Ekranı kullanarak TextEdit'te yazacağım; imleci panelde görebilirsin.", "en": "I'll use the screen to type it in TextEdit; you can follow the cursor from the panel.", "ago_s": 30}
+      ],
+      "script": [
+        {"at_s": 9, "text": "TextEdit'i açtım, boş bir belge oluşturdum.", "en": "I opened TextEdit and created a blank document."},
+        {"at_s": 15, "text": "Notları yazıyorum: üç karar ve iki yapılacak iş var.", "en": "Typing the notes: three decisions and two to-dos."},
+        {"at_s": 24, "text": "Belgeyi masaüstüne toplantı notları adıyla kaydettim.", "en": "I saved the document to the desktop as meeting notes."},
+        {"at_s": 34, "status": "completed",
+         "text": "Saved `~/Desktop/Toplantı Notları.rtf`: 3 decisions, 2 action items with owners.\n\n🔊 Toplantı notları TextEdit'te yazıldı ve masaüstüne kaydedildi.",
+         "en": "The meeting notes were written in TextEdit and saved to the desktop."}
+      ]
+    },
+    {
       "id": "t-onboarding", "project": "p-mobile", "title": "Redesign onboarding screens", "label": "Karşılama ekranları",
       "status": "completed", "provider": "omp", "model": "gpt-5",
       "pinned": false, "settled": false, "snoozed": false,
@@ -114,5 +133,36 @@
          "en": "Payment requests are now protected against repeats, and all 64 tests pass.", "ago_s": 10800}
       ]
     }
-  ]
+  ],
+  "computer": {
+    "installed": true, "version": "0.38.0", "daemon_running": true, "permissions_ok": false, "permission_mode": "standard",
+    "sessions": [
+      {"at_s": 8, "session": "notes-7f3a", "client": "omp", "app": "TextEdit", "action": "open_app \"TextEdit\""},
+      {"at_s": 12, "session": "web-91c2", "client": "claude-code", "app": "Safari", "action": "get_window_state \"Safari\""},
+      {"at_s": 14, "session": "notes-7f3a", "action": "type_text \"Toplantı notları — 11 Kasım\""},
+      {"at_s": 17, "session": "web-91c2", "action": "scroll \"Safari\" ↓"},
+      {"at_s": 22, "session": "web-91c2", "end": true},
+      {"at_s": 23, "session": "notes-7f3a", "action": "click \"Kaydet\""},
+      {"at_s": 35, "session": "notes-7f3a", "end": true},
+      {"at_s": 50, "session": "desk-c4e8", "client": "omp", "app": "Finder", "action": "list_windows \"Finder\""},
+      {"at_s": 62, "session": "desk-c4e8", "action": "click \"Masaüstü\""},
+      {"at_s": 75, "session": "desk-c4e8", "action": "drag \"Ekran Resmi 2026-11-10\" → \"2026-11-10\""},
+      {"at_s": 110, "session": "desk-c4e8", "end": true}
+    ]
+  },
+  "new_task": {
+    "dictation": "Masaüstündeki ekran görüntülerini tarihe göre klasörle.",
+    "dictation_en": "Sort the screenshots on the desktop into folders by date.",
+    "title": "Sort desktop screenshots into folders by date",
+    "project": "scratch", "provider": "omp",
+    "ack": "🔊 Tamam, masaüstündeki ekran görüntülerini tarihlerine göre klasörlere taşıyacağım.",
+    "ack_en": "Okay, I'll move the screenshots on the desktop into folders by their dates.",
+    "steps": [
+      {"after_s": 6, "text": "Masaüstünde 37 ekran görüntüsü buldum, 9 farklı güne ait.", "en": "I found 37 screenshots on the desktop from 9 different days."},
+      {"after_s": 12, "text": "Her gün için bir klasör açtım, dosyaları taşıyorum.", "en": "I made a folder for each day and I'm moving the files."},
+      {"after_s": 18, "status": "completed",
+       "text": "Moved 37 screenshots into 9 dated folders under `~/Desktop/Ekran Görüntüleri/`.\n\n🔊 Ekran görüntüleri 9 tarih klasörüne taşındı, masaüstü artık temiz.",
+       "en": "The screenshots were moved into 9 date folders; the desktop is clean now."}
+    ]
+  }
 }

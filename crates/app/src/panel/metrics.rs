@@ -152,7 +152,17 @@ impl Panel {
         };
         let run_dir = s.run_dir.display().to_string();
         let hotkey =
-            self.hotkey.as_ref().map_or_else(|| "kısayol kapalı".to_owned(), |h| format!("kısayol {}", h.spec));
+            self.hotkeys.toggle.as_ref().map_or_else(|| "kısayol kapalı".to_owned(), |h| format!("kısayol {}", h.spec));
+        let stop_key = self.hotkeys.stop.as_ref().map_or_else(|| "kapalı".to_owned(), |h| h.spec.clone());
+        let mut computer_cells = self.computer.cells();
+        computer_cells.push(("durdur", stop_key));
+        let computer = div()
+            .id("computer_status")
+            .flex()
+            .flex_col()
+            .tooltip(tip("cua-driver: ajanların ekranı kullandığı yerel servis · durdur = global kısayol (panelde ⌘.)"))
+            .child(div().h(px(18.)).font_weight(FontWeight::MEDIUM).child("Bilgisayar kullanımı"))
+            .child(div().grid().grid_cols(2).gap_x_4().children(computer_cells.into_iter().map(cell)));
         div()
             .flex()
             .flex_none()
@@ -166,6 +176,7 @@ impl Panel {
             .bg(t.surface)
             .text_size(px(ty.badge + 0.5))
             .child(div().grid().grid_cols(2).gap_x_4().children(cells.into_iter().map(cell)))
+            .child(computer)
             .child(
                 div()
                     .flex()

@@ -5,7 +5,7 @@
 //! The modules below are public for the `t3p-bench` / `t3p-report` tools.
 
 use std::collections::HashMap;
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -14,6 +14,7 @@ pub use crossbeam_channel::Receiver;
 use crossbeam_channel::Sender;
 use serde_json::{Value, json};
 
+mod computer;
 mod demo;
 mod ema;
 pub mod extract;
@@ -145,6 +146,7 @@ impl Config {
             "reply_prefix": self.reply_prefix, "wispr_db": self.wispr_db,
             "t3_app": self.t3_app, "t3_app_data": self.t3_app_data,
             "demo": self.demo, "output_volume": self.output_volume,
+            "cua_driver": self.cua_driver, "task_project": self.task_project,
         })
     }
 }
@@ -383,19 +385,22 @@ struct Inner {
     source: Source,
     events: Sender<CoreEvent>,
     reply_prefix: String,
+    computer: Arc<RwLock<ComputerView>>,
 }
 
 /// Where threads, messages, dictation and replies come from.
 enum Source {
-    /// T3 (`t3` CLI + read-only state DB) and Wispr Flow.
-    T3 { wispr: wispr::Wispr, t3_bin: PathBuf },
+    /// T3 (`t3` CLI + read-only state DB), Wispr Flow and cua-driver. `poll` wakes the T3
+    /// poller for an immediate tick.
+    T3 { wispr: wispr::Wispr, t3_bin: PathBuf, computer: computer::Computer, poll: Sender<()>, task_project: Option<String> },
     /// `Config.demo` fixture; no subprocess at all.
     Demo(demo::Demo),
 }
 
 impl Core {
-    /// Creates the run dir, starts the poller, live tail, TTS worker and metrics sampler (in demo
-    /// mode the fixture driver replaces the poller, live tail and Wispr bridge).
+    /// Creates the run dir, starts the poller, live tail, cua-driver watcher, TTS worker and
+    /// metrics sampler (in demo mode the fixture driver replaces the poller, live tail, Wispr
+    /// bridge and cua-driver watcher).
     pub fn start(config: Config) -> anyhow::Result<(Core, Receiver<CoreEvent>)> {
         let start_ms = telemetry::now_unix_ms();
         let tel = Telemetry::create(&config.log_root)?;
@@ -414,8 +419,16 @@ impl Core {
         let (tx, rx) = crossbeam_channel::unbounded();
         let threads = Arc::new(RwLock::new(Vec::new()));
         let reply_prefix = config.reply_prefix.clone();
+        let computer_view = Arc::new(RwLock::new(ComputerView::default()));
         let demo = match &config.demo {
-            Some(path) => Some(demo::Demo::load(tel.clone(), &config, path, threads.clone(), tx.clone())?),
+            Some(path) => Some(demo::Demo::load(
+                tel.clone(),
+                &config,
+                path,
+                threads.clone(),
+                computer_view.clone(),
+                tx.clone(),
+            )?),
             None => None,
         };
         let (messages, labels): (speech::MessageSource, _) = match &demo {
@@ -436,14 +449,18 @@ impl Core {
                 live::spawn(tel.clone(), config.live_poll_interval, start_ms, threads.clone(), speech.clone())?;
                 let wispr = wispr::Wispr::new(tel.clone(), config.wispr_db.clone(), tx.clone());
                 let t3_bin = config.t3_bin.clone();
+                let task_project = config.task_project.clone();
+                let computer =
+                    computer::Computer::spawn(tel.clone(), config.cua_driver.clone(), computer_view.clone(), tx.clone())?;
+                let (poll, poll_wake) = crossbeam_channel::unbounded();
                 let on_status = speech.clone();
-                t3::spawn_poller(tel.clone(), config, threads.clone(), tx.clone(), move |thread, to| {
+                t3::spawn_poller(tel.clone(), config, threads.clone(), tx.clone(), poll_wake, move |thread, to| {
                     status_changed(&on_status, thread, to);
                 })?;
-                Source::T3 { wispr, t3_bin }
+                Source::T3 { wispr, t3_bin, computer, poll, task_project }
             }
         };
-        let inner = Inner { tel, threads, theme, speech, source, events: tx, reply_prefix };
+        let inner = Inner { tel, threads, theme, speech, source, events: tx, reply_prefix, computer: computer_view };
         Ok((Core { inner: Arc::new(inner) }, rx))
     }
     /// Latest snapshot of threads (never blocks on I/O). Order mirrors T3's sidebar and is
@@ -516,7 +533,7 @@ impl Core {
         let t3_bin = match &self.inner.source {
             Source::T3 { t3_bin, .. } => t3_bin.clone(),
             Source::Demo(d) => {
-                self.inner.speech.listen_from(thread_id, telemetry::now_unix_ms());
+                self.inner.speech.listen_from(thread_id, telemetry::now_unix_ms(), "reply");
                 let (ok, queued, detail) = d.send_reply(thread_id, &payload);
                 let _ = self.inner.events.send(CoreEvent::ReplySent { thread_id: thread_id.to_owned(), ok, queued, detail });
                 return;
@@ -539,7 +556,7 @@ impl Core {
             threads.iter().find(|t| t.id == thread).map(|t| t.status.clone()).unwrap_or_default()
         };
         let queued = status == "running";
-        inner.speech.listen_from(thread, telemetry::now_unix_ms());
+        inner.speech.listen_from(thread, telemetry::now_unix_ms(), "reply");
         let argv: [&OsStr; 6] =
             [t3_bin.as_os_str(), "thread".as_ref(), "send".as_ref(), thread.as_ref(), "-".as_ref(), "--json".as_ref()];
         let input = json!({"thread": thread, "argv": t3::argv_json(&argv), "text_with_prefix": payload,
@@ -602,20 +619,126 @@ impl Core {
     pub fn live_stats(&self) -> LiveStats {
         self.inner.tel.live_stats()
     }
-    /// Computer-use state (never blocks on I/O).
+    /// Computer-use state (never blocks on I/O). Real mode: the `t3p-computer` watcher of the
+    /// cua-driver daemon (see `computer.rs` for sources and cadence); demo mode: the fixture's
+    /// `computer` block.
     pub fn computer(&self) -> ComputerView {
-        ComputerView::default()
+        self.inner.computer.read().unwrap_or_else(|p| p.into_inner()).clone()
     }
     /// Emergency stop: revoke every live cua-driver session (`cua-driver revoke --all`) so no
     /// agent can act on the screen until it reconnects. Non-blocking; → `ComputerUpdated`.
-    pub fn computer_stop_all(&self) {}
+    /// Demo mode: every live scripted session ends at once.
+    pub fn computer_stop_all(&self) {
+        match &self.inner.source {
+            Source::T3 { computer, .. } => computer.stop_all(),
+            Source::Demo(d) => d.computer_stop_all(),
+        }
+    }
     /// Opens CuaDriver's macOS permission flow (`cua-driver permissions grant`: Accessibility,
     /// Screen Recording). Non-blocking; the user approves the system dialogs; → `ComputerUpdated`.
-    pub fn computer_grant_permissions(&self) {}
+    /// Demo mode: nothing runs; permissions turn granted ~1.5 s later.
+    pub fn computer_grant_permissions(&self) {
+        match &self.inner.source {
+            Source::T3 { computer, .. } => computer.grant_permissions(),
+            Source::Demo(d) => d.computer_grant_permissions(),
+        }
+    }
     /// Starts a new T3 thread with `text` (prefixed with `Config.reply_prefix`) in
     /// `Config.task_project`, using the provider/model of the most recently created thread, and
     /// listens to it from its first message. Non-blocking; → `TaskStarted`.
-    pub fn start_task(&self, _text: &str) {}
+    ///
+    /// Runs `t3 thread start --json --provider <p> --model <m> --title <first line of text>
+    /// <project> -` (stdin = the prefixed text; the title keeps the prefix out of T3's sidebar).
+    /// `Config.task_project == None` resolves T3's "No project" (the state DB project whose
+    /// workspace root is `~/.t3/scratch`). Logged as `task.start`. On success the new thread
+    /// listens from the send time (no catch-up line, like `send_reply`) and the poller lists it
+    /// at once. Demo mode: the fixture `new_task` block scripts the new thread.
+    pub fn start_task(&self, text: &str) {
+        let inner = &*self.inner;
+        let payload = format!("{}{text}", inner.reply_prefix);
+        let send_ms = telemetry::now_unix_ms();
+        if text.trim().is_empty() {
+            let err = "empty task text";
+            inner.tel.event("task.start", None, false, json!({"text": text}), Value::Null, Some(err));
+            let _ = inner.events.send(CoreEvent::TaskStarted { thread_id: None, ok: false, detail: err.to_owned() });
+            return;
+        }
+        let (t3_bin, task_project, poll) = match &inner.source {
+            Source::T3 { t3_bin, task_project, poll, .. } => (t3_bin.clone(), task_project.clone(), poll.clone()),
+            Source::Demo(d) => {
+                d.start_task(text, &payload, send_ms);
+                return;
+            }
+        };
+        let core = self.clone();
+        let text = text.to_owned();
+        let spawned = std::thread::Builder::new()
+            .name("t3p-task".into())
+            .spawn(move || core.task(&t3_bin, task_project, &poll, &text, &payload, send_ms));
+        if let Err(e) = spawned {
+            let _ = inner.events.send(CoreEvent::Error(format!("task thread: {e}")));
+        }
+    }
+
+    fn task(&self, t3_bin: &Path, task_project: Option<String>, poll: &Sender<()>, text: &str, payload: &str, send_ms: i64) {
+        let inner = &*self.inner;
+        let latest = latest_model(&inner.threads.read().unwrap_or_else(|p| p.into_inner()));
+        let title = task_title(text);
+        let mut input = json!({"text": text, "text_with_prefix": payload, "title": title,
+                               "model_from_thread": latest.as_ref().map(|l| &l.0)});
+        let project = match task_project {
+            Some(p) => Ok((p, "config")),
+            None => t3::scratch_project().map(|p| (p, "scratch")),
+        };
+        let prepared = match (project, latest) {
+            (Err(e), _) => Err(format!("task project: {e:#}")),
+            (_, None) => Err("no listed thread with a provider and model to copy".to_owned()),
+            (Ok(p), Some(m)) => Ok((p, m)),
+        };
+        let (thread_id, detail) = match prepared {
+            Err(err) => {
+                inner.tel.event("task.start", None, false, input, Value::Null, Some(&err));
+                (None, err)
+            }
+            Ok(((project, project_source), (_, provider, model))) => {
+                let argv = task_argv(t3_bin, &provider, &model, &title, &project);
+                input["argv"] = t3::argv_json(&argv);
+                input["project"] = json!(project);
+                input["project_source"] = json!(project_source);
+                match t3::run_cmd(&argv, Some(payload.as_bytes())) {
+                    Ok(o) => {
+                        let stdout = String::from_utf8_lossy(&o.stdout).trim().to_owned();
+                        let parsed: Value = serde_json::from_str(&stdout).unwrap_or(Value::Null);
+                        let thread_id = parsed["threadId"].as_str().filter(|_| o.success()).map(str::to_owned);
+                        let err = match (&thread_id, o.success()) {
+                            (_, false) => Some(o.failure()),
+                            (None, true) => Some(format!("no threadId in output: {stdout}")),
+                            (Some(_), true) => None,
+                        };
+                        let mut out = o.telemetry();
+                        out["exit"] = json!(o.exit_code);
+                        out["json"] = parsed;
+                        out["stdout"] = json!(stdout);
+                        out["stderr"] = json!(o.stderr.trim());
+                        out["thread"] = json!(thread_id);
+                        inner.tel.event("task.start", Some(o.wall_ms), err.is_none(), input, out, err.as_deref());
+                        (thread_id, err.unwrap_or(stdout))
+                    }
+                    Err(e) => {
+                        let err = format!("spawn: {e}");
+                        inner.tel.event("task.start", None, false, input, Value::Null, Some(&err));
+                        (None, err)
+                    }
+                }
+            }
+        };
+        if let Some(id) = &thread_id {
+            inner.speech.listen_from(id, send_ms, "task");
+            let _ = poll.send(());
+        }
+        let ok = thread_id.is_some();
+        let _ = inner.events.send(CoreEvent::TaskStarted { thread_id, ok, detail });
+    }
     /// Lets the app write `ui.*` events into the same events.jsonl.
     pub fn log_ui(&self, kind: &str, input: serde_json::Value) {
         let kind = if kind.starts_with("ui.") { kind.to_owned() } else { format!("ui.{kind}") };
@@ -629,6 +752,36 @@ fn status_changed(speech: &speech::Speech, thread: &str, to: &str) {
     if matches!(to, "interrupted" | "cancelled") {
         speech.notice(thread, "stopped", "Durduruldu.");
     }
+}
+
+/// `(thread id, provider, model)` of the most recently created thread that has both.
+fn latest_model(threads: &[ThreadView]) -> Option<(String, String, String)> {
+    threads
+        .iter()
+        .filter(|t| !t.provider.is_empty() && !t.model.is_empty())
+        .max_by_key(|t| telemetry::parse_rfc3339_ms(&t.created_at).unwrap_or(i64::MIN))
+        .map(|t| (t.id.clone(), t.provider.clone(), t.model.clone()))
+}
+
+/// Thread title for a task: the text's first non-empty line, at most 80 characters.
+fn task_title(text: &str) -> String {
+    const MAX: usize = 80;
+    let line = text.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or_default();
+    if line.chars().count() <= MAX {
+        return line.to_owned();
+    }
+    let cut: String = line.chars().take(MAX - 1).collect();
+    format!("{}…", cut.trim_end())
+}
+
+/// `t3 thread start --json --provider <p> --model <m> --title <title> <project> -`.
+fn task_argv(t3_bin: &Path, provider: &str, model: &str, title: &str, project: &str) -> Vec<OsString> {
+    let mut argv: Vec<OsString> = vec![t3_bin.into()];
+    argv.extend(
+        ["thread", "start", "--json", "--provider", provider, "--model", model, "--title", title, project, "-"]
+            .map(OsString::from),
+    );
+    argv
 }
 
 /// `https://app.t3.codes/threads/<env>/<thread>` → `t3code://threads/<env>/<thread>` (the T3
@@ -645,4 +798,53 @@ fn os_version() -> String {
         .ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
         .map_or_else(|| std::env::consts::OS.to_owned(), |v| format!("macOS {}", v.trim()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn view(id: &str, created: &str, provider: &str, model: &str) -> ThreadView {
+        ThreadView {
+            id: id.into(),
+            project: String::new(),
+            project_id: String::new(),
+            project_icon: None,
+            project_pinned: false,
+            title: String::new(),
+            status: "idle".into(),
+            settled: false,
+            snoozed: false,
+            pinned: false,
+            created_at: created.into(),
+            updated_at: created.into(),
+            running_since: None,
+            link: String::new(),
+            provider: provider.into(),
+            model: model.into(),
+        }
+    }
+
+    #[test]
+    fn task_arguments() {
+        let threads = [
+            view("old", "2026-11-11T08:00:00.000Z", "codex", "gpt-5"),
+            view("newest-no-model", "2026-11-11T12:00:00.000Z", "omp", ""),
+            view("new", "2026-11-11T10:00:00.000Z", "omp", "anthropic/claude-opus"),
+        ];
+        assert_eq!(latest_model(&threads), Some(("new".into(), "omp".into(), "anthropic/claude-opus".into())));
+        assert_eq!(latest_model(&threads[1..2]), None);
+
+        assert_eq!(task_title("\n  Ekran görüntülerini klasörle  \nikinci satır"), "Ekran görüntülerini klasörle");
+        let long = task_title(&"ş".repeat(100));
+        assert_eq!(long.chars().count(), 80);
+        assert!(long.ends_with('…'));
+
+        let argv = task_argv(Path::new("/t3"), "omp", "m/x", "Başlık", "proj-1");
+        let argv: Vec<&str> = argv.iter().map(|a| a.to_str().expect("utf8")).collect();
+        assert_eq!(
+            argv,
+            ["/t3", "thread", "start", "--json", "--provider", "omp", "--model", "m/x", "--title", "Başlık", "proj-1", "-"]
+        );
+    }
 }

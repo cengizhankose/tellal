@@ -1,6 +1,7 @@
 //! The floating panel (DESIGN §5): state, the core event pump, window height and the top-level
 //! layout. Each region renders in its own child module.
 
+mod computer;
 mod dock;
 mod header;
 mod keys;
@@ -17,9 +18,9 @@ use gpui::{
     prelude::*, px,
 };
 use serde_json::{Value, json};
-use t3_panel_core::{ChannelView, Core, CoreEvent, LiveStats, Receiver, ThreadView};
+use t3_panel_core::{ChannelView, Config, Core, CoreEvent, LiveStats, Receiver, ThreadView};
 
-use crate::hotkey::Hotkey;
+use crate::hotkey::Hotkeys;
 use crate::input::{InputEvent, TextInput};
 use crate::mac::{self, FrontApp, NativeWindow};
 use crate::model::{self, Filter, Item, ListModel, Section};
@@ -46,6 +47,8 @@ const MIN_H: f32 = 160.;
 const MAX_H: f32 = 640.;
 const HEADER_H: f32 = 40.;
 const BANNER_H: f32 = 76.;
+/// Computer-use banner (card 52 + top gap 8).
+const COMPUTER_H: f32 = 60.;
 const ATTENTION_H: f32 = 48.;
 const SEARCH_H: f32 = 44.;
 const SECTION_H: f32 = 32.;
@@ -57,7 +60,9 @@ const PLAYER_H: f32 = 112.;
 const COMPACT_IDLE_H: f32 = 44.;
 const DOCK_H: f32 = 116.;
 const STATUS_H: f32 = 32.;
-const DRAWER_H: f32 = 236.;
+/// Computer-use permission row above the status line.
+const PERMISSION_H: f32 = 32.;
+const DRAWER_H: f32 = 288.;
 const RADIUS: f32 = 14.;
 
 /// A row-body click remembered to detect the second click of a double-click.
@@ -159,11 +164,18 @@ pub struct Panel {
 
     input: Entity<TextInput>,
     reply: Option<ReplyDock>,
+    /// `Config.task_project` (the "Yeni görev" dock's label).
+    task_project: Option<String>,
+    /// Thread `start_task` created, to select once it is listed.
+    pending_task: Option<String>,
+    computer: computer::Computer,
+    /// `Config.demo` is set: self-tests may press demo-only actions (permission grant).
+    demo: bool,
     /// Pending `ui.focus {action: "check"}` (records which app actually ended up frontmost).
     focus_check: Option<(Instant, &'static str)>,
 
     height: Height,
-    hotkey: Option<Hotkey>,
+    hotkeys: Hotkeys,
     /// App that was frontmost when the global shortcut showed the panel.
     hotkey_prev_app: Option<FrontApp>,
 
@@ -177,6 +189,7 @@ impl Panel {
         events: Receiver<CoreEvent>,
         process_start: Instant,
         selftest_mode: SelfTestMode,
+        config: &Config,
         window: &mut Window,
         cx: &mut Context<Panel>,
     ) -> Panel {
@@ -189,7 +202,8 @@ impl Panel {
         if let Some(native) = native {
             native.round_corners(f64::from(RADIUS));
         }
-        let hotkey = Hotkey::register(&core);
+        let hotkeys = Hotkeys::register(&core);
+        let computer = computer::Computer { view: core.computer(), ..Default::default() };
         let selftest = SelfTest::new(&selftest_mode, now);
         let height = f32::from(window.bounds().size.height);
         let mut panel = Panel {
@@ -227,6 +241,10 @@ impl Panel {
             seq: 0,
             input,
             reply: None,
+            task_project: config.task_project.clone(),
+            pending_task: None,
+            computer,
+            demo: config.demo.is_some(),
             focus_check: None,
             height: Height {
                 from: height,
@@ -236,7 +254,7 @@ impl Panel {
                 applied: height,
                 compact: false,
             },
-            hotkey,
+            hotkeys,
             hotkey_prev_app: None,
             selftest_mode,
             selftest,
@@ -320,7 +338,7 @@ impl Panel {
                 CoreEvent::SpeakingStarted { thread_id } => {
                     self.stats = self.core.live_stats();
                     channels_updated = true;
-                    self.selftest_speaking_started(&thread_id);
+                    self.selftest_speaking_started(&thread_id, cx);
                 }
                 CoreEvent::SpeakingFinished { thread_id } => {
                     self.stats = self.core.live_stats();
@@ -337,13 +355,17 @@ impl Panel {
                     self.show_error(message.into(), retry.map(Retry::Open));
                 }
                 CoreEvent::ThemeChanged => self.apply_theme(cx),
-                CoreEvent::ComputerUpdated | CoreEvent::TaskStarted { .. } => {}
+                CoreEvent::ComputerUpdated => {
+                    self.refresh_computer();
+                }
+                CoreEvent::TaskStarted { thread_id, ok, detail } => self.on_task_started(thread_id, ok, detail, cx),
             }
         }
         if threads_updated {
             self.refresh_threads();
             self.loaded = true;
             self.selftest_threads_ready(window, cx);
+            self.select_started_task(cx);
         }
         let now = Instant::now();
         if now.duration_since(self.stats_at) >= STATS_INTERVAL {
@@ -374,7 +396,12 @@ impl Panel {
                 changed = true;
             }
         }
-        if self.hotkey.as_ref().is_some_and(Hotkey::pressed) {
+        let pressed = self.hotkeys.drain();
+        if pressed.stop {
+            self.stop_computer("hotkey", cx);
+            changed = true;
+        }
+        if pressed.toggle {
             self.toggle_visible(window, cx);
             changed = true;
         }
@@ -454,7 +481,7 @@ impl Panel {
             if visible { "hide" } else { "show" },
             None,
             json!({
-                "spec": self.hotkey.as_ref().map(|h| h.spec.clone()),
+                "spec": self.hotkeys.toggle.as_ref().map(|h| h.spec.clone()),
                 "frontmost": mac::frontmost_app().map(|a| a.to_json()),
             }),
         );
@@ -584,6 +611,10 @@ impl Panel {
 
     fn content_height(&self) -> f32 {
         let mut h = HEADER_H + 2.;
+        // Safety first: the computer-use banner shows in compact mode too.
+        if self.computer.active() {
+            h += COMPUTER_H;
+        }
         if self.compact {
             h += if self.player_channel().is_some() { PLAYER_H } else { COMPACT_IDLE_H };
             return h;
@@ -603,6 +634,9 @@ impl Panel {
         }
         if self.reply.is_some() {
             h += DOCK_H;
+        }
+        if self.computer.needs_permission() {
+            h += PERMISSION_H;
         }
         h += STATUS_H;
         if self.drawer_open {
@@ -696,7 +730,7 @@ impl Render for Panel {
                 }),
             );
         root = keys::on_actions(root, cx);
-        root = root.child(self.render_header(&t, &ty, cx));
+        root = root.child(self.render_header(&t, &ty, cx)).children(self.render_computer_banner(&t, &ty, cx));
         if self.compact {
             root = root.child(match self.player_channel() {
                 Some((id, c)) => self.render_player(id, c, &t, &ty, cx).into_any_element(),
@@ -710,6 +744,7 @@ impl Render for Panel {
                 .child(self.render_list(&t, &ty, cx))
                 .children(self.player_channel().map(|(id, c)| self.render_player(id, c, &t, &ty, cx)))
                 .children(self.reply.as_ref().map(|dock| self.render_reply_dock(dock, &t, &ty, cx)))
+                .children(self.render_permission_row(&t, &ty, cx))
                 .child(self.render_status_line(&t, &ty, cx))
                 .when(self.drawer_open, |d| d.child(self.render_drawer(&t, &ty, cx)));
         }

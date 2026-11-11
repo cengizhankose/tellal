@@ -692,8 +692,9 @@ impl Speech {
     }
 
     /// Listening without a catch-up line; only messages created at/after `since_ms` are spoken
-    /// (a reply's acknowledgement). Leaves an already-listening channel unchanged.
-    pub(crate) fn listen_from(&self, thread: &str, since_ms: i64) {
+    /// (a reply's acknowledgement, a new task's first message). `source` (`reply` | `task`) is
+    /// logged. Leaves an already-listening channel unchanged.
+    pub(crate) fn listen_from(&self, thread: &str, since_ms: i64, source: &'static str) {
         let sh = &*self.shared;
         let mut st = sh.lock();
         let chan = st.chan(thread);
@@ -710,7 +711,7 @@ impl Speech {
             "channel.listen",
             None,
             true,
-            json!({"thread": thread, "on": true, "catch_up": false, "source": "reply", "since": rfc3339_from_ms(since_ms)}),
+            json!({"thread": thread, "on": true, "catch_up": false, "source": source, "since": rfc3339_from_ms(since_ms)}),
             json!({"already": already}),
             None,
         );

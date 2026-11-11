@@ -54,6 +54,7 @@ The DESIGN.md glyphs used by the panel UI, by role. All are plain Lucide names u
 | Metrics | `gauge`, `chart-no-axes-column` (T3's Usage glyph) |
 | Reply dock | `mic`, `send` |
 | States | `triangle-alert`, `folder`, `folder-code`, `message-square-dashed` |
+| Computer use and new task | `mouse-pointer-2` (banner, `ekran` pill), `octagon-x` (`Durdur`), `shield-alert` (permission row), `plus` (new task) |
 
 ## `providers/` — provider marks as T3 draws them
 

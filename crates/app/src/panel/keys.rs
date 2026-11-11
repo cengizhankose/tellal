@@ -23,7 +23,10 @@ actions!(
         MuteAll,
         Search,
         Compact,
-        Dismiss
+        Dismiss,
+        NewTask,
+        StopComputer,
+        GrantComputer
     ]
 );
 
@@ -35,6 +38,10 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-k", Search, Some(KEY_CONTEXT)),
         KeyBinding::new("cmd-shift-c", Compact, Some(KEY_CONTEXT)),
         KeyBinding::new("escape", Dismiss, Some(KEY_CONTEXT)),
+        // ⌘. = macOS "stop"; works while typing too (the global ⌃⌥⎋ works from any app).
+        KeyBinding::new("cmd-.", StopComputer, Some(KEY_CONTEXT)),
+        KeyBinding::new("n", NewTask, Some(BARE)),
+        KeyBinding::new("i", GrantComputer, Some(BARE)),
         KeyBinding::new("space", ToggleListen, Some(BARE)),
         KeyBinding::new("enter", Reply, Some(BARE)),
         KeyBinding::new("r", Reply, Some(BARE)),
@@ -90,6 +97,9 @@ pub(super) fn on_actions(root: Stateful<Div>, cx: &mut Context<Panel>) -> Statef
         }))
         .on_action(cx.listener(|p, _: &Compact, _, cx| p.set_compact(!p.compact, "key", cx)))
         .on_action(cx.listener(|p, _: &Dismiss, window, cx| p.dismiss(window, cx)))
+        .on_action(cx.listener(|p, _: &NewTask, window, cx| p.open_new_task("key", window, cx)))
+        .on_action(cx.listener(|p, _: &StopComputer, _, cx| p.stop_computer("key", cx)))
+        .on_action(cx.listener(|p, _: &GrantComputer, _, cx| p.grant_computer_permissions("key", cx)))
 }
 
 impl Panel {

@@ -20,6 +20,7 @@ T3 Panel (`~/dev/t3-panel`) T3 thread'lerini kanal kanal dinletir: Cengo bir thr
 - Her yeni aşamanın başında ayrı bir mesajla tek cümlelik durum yaz: Türkçe, en fazla 12 kelime, "Şimdi ... yapıyorum" kalıbı.
 - Panel her mesajın sadece ilk cümlesini okur. İlk cümlede kod, dosya yolu, hash, URL, komut olmasın; teknik ayrıntı gerekiyorsa sonraki cümlelere koy.
 - Aynı aşamayı ikinci kez duyurma. Sorun çıkarsa onu da tek cümleyle söyle: "Testler kırıldı, nedenini arıyorum."
+- Bilgisayarı kullanırken (cua-driver gibi computer use araçları): bir uygulamada iş yapmadan önce tek cümle yaz: "TextEdit'i açıp notu yazıyorum." Her tıklamayı ayrı duyurma; uygulama ya da amaç değişince yeni cümle yaz. Panel bu sırada ekranda "Durdur" düğmesi gösterir; geri alınamaz bir adımdan (gönderme, silme, satın alma) önce sor ve bekle.
 
 ## 3. Son mesaj
 

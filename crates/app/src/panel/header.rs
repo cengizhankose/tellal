@@ -50,6 +50,25 @@ impl Panel {
                 .bg(t.success)
                 .tooltip(tip("canlı · T3'e bağlı, ses hazır")),
         };
+        // While an agent may act on the screen: icon + `ekran` in danger (not colour alone).
+        let screen = self.computer.active().then(|| {
+            div()
+                .id("screen")
+                .flex_none()
+                .flex()
+                .items_center()
+                .gap(px(3.))
+                .h(px(16.))
+                .px(px(4.))
+                .rounded(px(4.))
+                .bg(alpha(t.danger, 0.14))
+                .text_size(px(ty.badge))
+                .font_weight(FontWeight::MEDIUM)
+                .text_color(t.danger)
+                .child(icon(Icon::MousePointer2, 11., t.danger))
+                .child("ekran")
+                .tooltip(tip("bir ajan ekranını kullanıyor · Durdur ya da ⌘."))
+        });
         let core = self.core.clone();
         let identity = div()
             .id("drag")
@@ -72,6 +91,7 @@ impl Panel {
                     .child(div().text_color(t.text_muted).child("Panel")),
             )
             .child(state)
+            .children(screen)
             .on_mouse_down(MouseButton::Left, move |event, window, _| {
                 let dragging = mac::drag_window(window);
                 core.log_ui(
@@ -79,6 +99,9 @@ impl Panel {
                     json!({"x": f32::from(event.position.x), "y": f32::from(event.position.y), "native_drag": dragging}),
                 );
             });
+        let new_task = icon_button("new_task", Icon::Plus, t, self.reply.as_ref().is_some_and(|d| d.is_new_task()))
+            .tooltip(tip("Yeni görev (N)"))
+            .on_click(cx.listener(|panel, _, window, cx| panel.open_new_task("click", window, cx)));
         let search = icon_button("search", Icon::Search, t, self.search.open).tooltip(tip("ara (⌘K)")).on_click(
             cx.listener(|panel, _, window, cx| {
                 if panel.search.open {
@@ -110,7 +133,7 @@ impl Panel {
             .border_b_1()
             .border_color(t.border)
             .child(identity)
-            .when(!self.compact, |d| d.child(search).child(drawer))
+            .when(!self.compact, |d| d.child(new_task).child(search).child(drawer))
             .child(compact)
             .child(quit)
     }

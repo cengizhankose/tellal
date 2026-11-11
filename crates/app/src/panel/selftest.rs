@@ -1,12 +1,14 @@
 //! `T3P_SELFTEST` drivers: `1` (listen to one thread, then mute and quit), `reply:<id>` (the
 //! Cevapla flow), `shots` (walks the UI states for screenshots without synthetic clicks; each
-//! state logs `ui.selftest_state` with the window number for `screencapture -l`) and `demo` (a
-//! choreographed walkthrough of the demo fixture for the launch video; every beat logs
-//! `ui.selftest_action` and, once settled, `ui.selftest_state`).
+//! state logs `ui.selftest_state` with the window number for `screencapture -l`; the
+//! computer-use states wait for the demo fixture's sessions) and `demo` (a choreographed
+//! walkthrough of the demo fixture for the launch video, including computer use and a new task;
+//! every beat logs `ui.selftest_action` and, once settled, `ui.selftest_state`). Permission grants
+//! are pressed only in demo mode (`Config.demo`), never against the real cua-driver.
 
 use std::time::{Duration, Instant};
 
-use gpui::{Context, Window};
+use gpui::{App, Context, Window};
 use serde_json::{Value, json};
 use t3_panel_core::ThreadView;
 
@@ -28,8 +30,24 @@ const DEMO_PAUSE_INTO_ACK: Duration = Duration::from_millis(1600);
 /// Quiet time after the acknowledgement before the metrics drawer opens.
 const DEMO_AFTER_ACK: Duration = Duration::from_millis(800);
 
-/// `shots` walk, in order.
-const SHOTS: [&str; 7] = ["full", "selected", "dock", "drawer", "compact", "empty_search", "error"];
+/// `shots` walk, in order. `permissions` and `computer` need the matching computer-use state
+/// (the demo fixture provides it) and are skipped after `SHOT_WAIT` without it.
+const SHOTS: [&str; 10] = [
+    "full",
+    "permissions",
+    "selected",
+    "dock",
+    "drawer",
+    "computer",
+    "compact",
+    "empty_search",
+    "error",
+    "new_task",
+];
+/// How long a `shots` state waits for its computer-use precondition.
+const SHOT_WAIT: Duration = Duration::from_secs(30);
+/// Demo dictation (~2.5 s) plus the History fill: the `new_task` shot stays up this much longer.
+const SHOT_DICTATION: Duration = Duration::from_millis(3500);
 
 /// `demo` walkthrough, in order. Each beat runs once its gate opens (see `Panel::demo_gate`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -58,11 +76,24 @@ enum Beat {
     /// The acknowledgement has finished: the metrics drawer.
     Drawer,
     DrawerClose,
+    /// Press `İzin ver` on the computer-use permission row (demo: granted ~1.5 s later).
+    Permissions,
+    /// An agent session started: the computer-use banner is up.
+    Computer,
+    /// `Durdur`, once.
+    ComputerStop,
+    /// `+`: the dock in new-task mode, dictation starts.
+    NewTask,
+    /// The dictated task has been on screen for `DEMO_READ_TEXT`: Gönder → `start_task`.
+    TaskSend,
+    /// `TaskStarted` arrived and the new thread is selected (and narrated).
+    TaskSelected,
     Done,
 }
 
-const BEATS: [Beat; 15] = [
+const BEATS: [Beat; 21] = [
     Beat::List,
+    Beat::Permissions,
     Beat::Select,
     Beat::Listen,
     Beat::Attention,
@@ -76,6 +107,11 @@ const BEATS: [Beat; 15] = [
     Beat::Expand,
     Beat::Drawer,
     Beat::DrawerClose,
+    Beat::Computer,
+    Beat::ComputerStop,
+    Beat::NewTask,
+    Beat::TaskSend,
+    Beat::TaskSelected,
     Beat::Done,
 ];
 
@@ -96,6 +132,12 @@ impl Beat {
             Beat::DrawerClose => "drawer_close",
             Beat::Compact => "compact",
             Beat::Expand => "expand",
+            Beat::Permissions => "permissions",
+            Beat::Computer => "computer",
+            Beat::ComputerStop => "computer_stop",
+            Beat::NewTask => "new_task",
+            Beat::TaskSend => "task_send",
+            Beat::TaskSelected => "task_selected",
             Beat::Done => "done",
         }
     }
@@ -116,7 +158,12 @@ impl Beat {
             Beat::Expand => Duration::from_millis(1200),
             Beat::Drawer => Duration::from_millis(3000),
             Beat::DrawerClose => Duration::from_millis(1500),
-            Beat::Reply | Beat::Send | Beat::Done => Duration::ZERO,
+            Beat::Permissions => Duration::from_millis(2500),
+            Beat::Computer => Duration::from_millis(3500),
+            Beat::ComputerStop => Duration::from_millis(2500),
+            // The new thread's first narrated line.
+            Beat::TaskSelected => Duration::from_millis(4000),
+            Beat::Reply | Beat::Send | Beat::NewTask | Beat::TaskSend | Beat::Done => Duration::ZERO,
         }
     }
 }
@@ -196,7 +243,7 @@ impl SelfTestMode {
     /// The walkthrough runs while the user keeps working elsewhere: it never activates the
     /// panel (nor re-activates another app), so it cannot take the keyboard.
     pub(super) fn leaves_focus(&self) -> bool {
-        matches!(self, SelfTestMode::Demo)
+        matches!(self, SelfTestMode::Demo | SelfTestMode::Shots { .. })
     }
 }
 
@@ -218,10 +265,12 @@ pub(super) enum SelfTest {
     ReplySubmitted {
         deadline: Instant,
     },
-    /// Showing `SHOTS[step]` until `next_at`.
+    /// Showing `SHOTS[step]` until `next_at`; `waiting` = since when the state at `step` waits
+    /// for its precondition.
     Shots {
         step: usize,
         next_at: Instant,
+        waiting: Option<Instant>,
     },
     Demo(DemoRun),
     Quitting {
@@ -290,7 +339,7 @@ impl Panel {
             }
             SelfTestMode::Shots { .. } => {
                 self.core.log_ui("ui.selftest", json!({"mode": "shots", "threads": threads.len(), "states": SHOTS}));
-                self.selftest = SelfTest::Shots { step: 0, next_at: Instant::now() };
+                self.selftest = SelfTest::Shots { step: 0, next_at: Instant::now(), waiting: None };
             }
             SelfTestMode::Demo => {
                 let beats: Vec<&str> = BEATS.iter().map(|b| b.name()).collect();
@@ -309,9 +358,9 @@ impl Panel {
         }
     }
 
-    pub(super) fn selftest_speaking_started(&mut self, thread_id: &str) {
+    pub(super) fn selftest_speaking_started(&mut self, thread_id: &str, cx: &App) {
         if matches!(&self.selftest, SelfTest::Listening { thread_id: t, .. } if t == thread_id) {
-            self.log_selftest_state("now_playing", 0);
+            self.log_selftest_state("now_playing", 0, cx);
         }
     }
 
@@ -323,7 +372,7 @@ impl Panel {
         }
     }
 
-    fn log_selftest_state(&self, state: &str, step: usize) {
+    fn log_selftest_state(&self, state: &str, step: usize, cx: &App) {
         self.core.log_ui(
             "ui.selftest_state",
             json!({
@@ -331,6 +380,10 @@ impl Panel {
                 "rows": self.model.row_ids.len(), "selected": self.selected, "compact": self.compact,
                 "drawer": self.drawer_open, "search": self.search.query, "dock": self.reply.is_some(),
                 "error": self.error.is_some(), "target_height": self.content_height(),
+                "new_task": self.reply.as_ref().is_some_and(|d| d.is_new_task()),
+                "dock_text_chars": self.input.read(cx).text().chars().count(),
+                "computer_sessions": self.computer.view.sessions.len(),
+                "permission_row": self.computer.needs_permission(),
                 "uptime_ms": ms(self.process_start.elapsed()),
             }),
         );
@@ -338,11 +391,33 @@ impl Panel {
 
     /// `ui.selftest_state` once the state just entered has settled.
     fn log_state_settled(&self, state: &'static str, step: usize, cx: &mut Context<Panel>) {
+        self.log_state_after(state, step, STATE_SETTLE, cx);
+    }
+
+    fn log_state_after(&self, state: &'static str, step: usize, delay: Duration, cx: &mut Context<Panel>) {
         cx.spawn(async move |this, cx| {
-            cx.background_executor().timer(STATE_SETTLE).await;
-            let _ = this.update(cx, |panel, _| panel.log_selftest_state(state, step));
+            cx.background_executor().timer(delay).await;
+            let _ = this.update(cx, |panel, cx| panel.log_selftest_state(state, step, cx));
         })
         .detach();
+    }
+
+    /// Whether the computer-use state a `shots` state shows is there (demo fixture).
+    fn shot_ready(&self, name: &str) -> bool {
+        match name {
+            // Each computer-use state on its own: the permission row before any session, the
+            // banner once granted (an agent cannot act without permissions) and the toast gone.
+            "permissions" => self.computer.needs_permission() && !self.computer.active(),
+            "computer" => self.computer.active() && !self.computer.needs_permission() && self.toast.is_none(),
+            _ => true,
+        }
+    }
+
+    /// Once, when a `shots` state starts waiting: demo mode grants the permissions for `computer`.
+    fn prepare_shot(&mut self, name: &str, cx: &mut Context<Panel>) {
+        if name == "computer" && self.demo && self.computer.needs_permission() {
+            self.grant_computer_permissions("selftest", cx);
+        }
     }
 
     /// Whether `beat` may run now (beyond its predecessor's hold).
@@ -350,7 +425,7 @@ impl Panel {
         let reply_channel = run.reply_to.as_deref().and_then(|id| self.channel(id));
         match beat {
             Beat::Attention => !self.waiting().is_empty(),
-            Beat::Send => {
+            Beat::Send | Beat::TaskSend => {
                 if run.filled_at.is_none() && !self.input.read(cx).text().trim().is_empty() {
                     run.filled_at = Some(now);
                     self.log_state_settled("dictated", run.beat, cx);
@@ -358,6 +433,9 @@ impl Panel {
                 run.filled_at.is_some_and(|at| now >= at + DEMO_READ_TEXT)
             }
             Beat::Ack => reply_channel.is_some_and(|c| c.speaking),
+            Beat::Computer => self.computer.active(),
+            // The dock closed on `TaskStarted` and the new thread was listed and selected.
+            Beat::TaskSelected => self.reply.is_none() && self.pending_task.is_none(),
             Beat::Drawer => {
                 if reply_channel.is_some_and(|c| c.speaking || c.paused || c.queued > 0) {
                     run.quiet_at = None;
@@ -432,6 +510,28 @@ impl Panel {
                 self.set_compact(false, "selftest", cx);
                 None
             }
+            Beat::Permissions => {
+                // Only the demo's fake daemon is asked; never the real permission flow.
+                if self.demo {
+                    self.grant_computer_permissions("selftest", cx);
+                }
+                None
+            }
+            Beat::Computer => None,
+            Beat::ComputerStop => {
+                self.stop_computer("selftest", cx);
+                None
+            }
+            Beat::NewTask => {
+                run.filled_at = None;
+                self.open_new_task("selftest", window, cx);
+                None
+            }
+            Beat::TaskSend => {
+                self.submit_reply("selftest", cx);
+                None
+            }
+            Beat::TaskSelected => self.selected.clone(),
             Beat::Done => {
                 self.mute_all("selftest");
                 None
@@ -465,7 +565,16 @@ impl Panel {
         self.error = None;
         let first = self.model.row_ids.first().cloned();
         match SHOTS[step] {
-            "full" => self.select(None, "selftest"),
+            "full" | "permissions" | "computer" => self.select(None, "selftest"),
+            "new_task" => {
+                self.open_new_task("selftest", window, cx);
+                // Demo mode dictates (fixture text, no Wispr); otherwise type the sample.
+                if !self.demo {
+                    self.input.update(cx, |input, cx| {
+                        input.set_text("Masaüstündeki ekran görüntülerini tarihe göre klasörle.", EditSource::Typed, cx)
+                    });
+                }
+            }
             // Hover is simulated by selection: a selected row shows the same actions.
             "selected" => self.select(first, "selftest"),
             "dock" => {
@@ -503,8 +612,8 @@ impl Panel {
                 }
                 false
             }
-            SelfTest::Shots { step, next_at } if now >= *next_at => {
-                let step = *step;
+            SelfTest::Shots { step, next_at, waiting } if now >= *next_at => {
+                let (step, next_at, waiting) = (*step, *next_at, *waiting);
                 if step == SHOTS.len() {
                     self.enter_shot(0, window, cx);
                     self.selftest = SelfTest::Quitting { at: now + SELFTEST_QUIT_DELAY };
@@ -513,9 +622,28 @@ impl Panel {
                 let SelfTestMode::Shots { step: every } = self.selftest_mode else {
                     return false;
                 };
+                let name = SHOTS[step];
+                if !self.shot_ready(name) {
+                    let since = waiting.unwrap_or_else(|| {
+                        self.prepare_shot(name, cx);
+                        now
+                    });
+                    if now.duration_since(since) < SHOT_WAIT {
+                        self.selftest = SelfTest::Shots { step, next_at, waiting: Some(since) };
+                        return false;
+                    }
+                    self.core.log_ui(
+                        "ui.selftest_state",
+                        json!({"state": name, "step": step, "skipped": "precondition not met", "waited_ms": ms(now.duration_since(since))}),
+                    );
+                    self.selftest = SelfTest::Shots { step: step + 1, next_at: now, waiting: None };
+                    return false;
+                }
                 self.enter_shot(step, window, cx);
-                self.selftest = SelfTest::Shots { step: step + 1, next_at: now + every };
-                self.log_state_settled(SHOTS[step], step, cx);
+                let dictates = name == "new_task" && self.demo;
+                let hold = if dictates { every + SHOT_DICTATION } else { every };
+                self.selftest = SelfTest::Shots { step: step + 1, next_at: now + hold, waiting: None };
+                self.log_state_after(name, step, if dictates { SHOT_DICTATION } else { STATE_SETTLE }, cx);
                 false
             }
             SelfTest::Replying { stop_at, .. } if now >= *stop_at => {

@@ -14,6 +14,10 @@ A small always-on-top macOS panel that lists your [T3 Code](https://github.com/p
 |---|---|---|---|
 | ![Now playing bar](docs/media/now-playing.png) | ![Reply dock with dictation](docs/media/reply.png) | ![Metrics drawer](docs/media/drawer.png) | ![Compact mode](docs/media/compact.png) |
 
+| Computer use | Computer-use permissions | New task by voice |
+|---|---|---|
+| ![Banner while an agent uses the screen, with Durdur](docs/media/computer.png) | ![Permission row above the status line](docs/media/computer-permissions.png) | ![Reply dock in new-task mode](docs/media/new-task.png) |
+
 ## Why
 
 I run several coding agents at once. Switching windows to check on each one breaks focus; a voice that says "tests are running", then "11 of 12 pass, shall I fix the last one?" does not. So:
@@ -31,11 +35,13 @@ I run several coding agents at once. Switching windows to check on each one brea
 - **🔊 summaries.** The final message's `🔊` line is what you hear; the full written report stays in T3.
 - **Attention card.** "N threads are waiting for you" at the top; click to jump to the next one.
 - **Reply dock with Wispr Flow.** `Cevapla` (Reply) opens a dock, starts [Wispr Flow](https://wisprflow.ai) hands-free dictation and sends the text to the thread with `t3 thread send` (a busy thread gets it as its next turn). Typing works too.
+- **Computer use, with an emergency stop.** When agents drive the screen through the local [cua-driver](https://github.com/trycua/cua) (any MCP client: omp in T3, Claude Code, Codex), a banner at the top says "an agent is using your screen" with the app, its last action, the elapsed time and the session count, plus a red `Durdur` (Stop) that revokes every session at once. ⌃⌥⎋ does the same from any app (⌘. inside the panel). A header pill `ekran` stays while any session is live, also in compact mode. Missing permissions show a slim `İzin ver` (Grant) row; the metrics drawer shows install, daemon, mode, permission and session state.
+- **New task by voice.** `+` (or N) opens the dock in new-task mode: dictate with Wispr Flow (or type), `Gönder` starts a new T3 thread with `t3 thread start`, and the panel selects it and is already listening to it.
 - **Open in T3.** Double-click a row (or `↗`, ⌘O) to open the thread in the T3 desktop app through its `t3code://` deep link.
 - **T3 theme sync.** Colours and font follow the theme selected in T3 (built-in, custom and environment themes, light/dark/system, T3's contrast setting), live, with a 200 ms cross-fade. Contrast floors (text ≥ 7:1, secondary ≥ 4.5:1) are enforced.
 - **Stable, T3-parity list.** T3's sections (Pinned, Working, Active, Snoozed, Settled), T3's project icons and provider marks, T3's working timer. Activity never reorders rows.
-- **Keyboard first.** ↑/↓, Space (listen), Enter/R (reply), ⌘O, P, →, L, M, ⌘K search, ⌘⇧C compact, Esc. Global ⌃⌥Space shows or hides the panel from any app.
-- **Metrics drawer.** RSS, CPU (with 60 s sparklines), T3 poll cost, TTS time, RTF, click→audio, message→audio, dictation latency, queue length.
+- **Keyboard first.** ↑/↓, Space (listen), Enter/R (reply), N (new task), ⌘O, P, →, L, M, ⌘K search, ⌘⇧C compact, ⌘. (stop computer use), I (grant computer-use permissions), Esc. Global ⌃⌥Space shows or hides the panel and global ⌃⌥⎋ stops every computer-use session, from any app.
+- **Metrics drawer.** RSS, CPU (with 60 s sparklines), T3 poll cost, TTS time, RTF, click→audio, message→audio, dictation latency, queue length, and the computer-use state (cua-driver version or "not installed", daemon, mode, permissions, live sessions, stop shortcut).
 - **Full telemetry.** Every input and output is a line in `events.jsonl`; resource samples go to `metrics.jsonl`; every utterance is saved as WAV; `t3p-report` turns a run into p50/p95 tables and an HTML report.
 - **Demo mode.** `T3P_DEMO=demo/fixture.json` runs the whole panel on scripted fake threads: no T3 threads, no Wispr. Only the T3 theme is read, and the fixture can turn that off.
 
@@ -91,9 +97,9 @@ The panel appears top-right above every app. Click 🔈 on a thread to listen; �
 T3P_DEMO=demo/fixture.json target/release/t3-panel
 ```
 
-The fixture has 7 threads in 3 projects (Claude, Codex, omp and Cursor; pinned, running, waiting, finished, snoozed, settled). Between about 6 s and 42 s after start they play a script: progress messages, status changes, a `🔊` summary and a request for approval. Turn a channel on to hear it. `Cevapla` fills in the fixture's dictation after ~2.5 s, and sending is only logged. The scripted agent answers ~1.5 s later and the thread completes. Opening in T3 is only logged too. Demo mode never runs the `t3` CLI, never reads T3's state DB or Wispr Flow and never opens a URL (`t3p-report` on a demo run shows 0 `t3` and 0 `sqlite3` calls). It still reads your T3 theme, read-only, unless the fixture sets `"theme": "default"`.
+The fixture has 8 threads in 4 projects (Claude, Codex, omp and Cursor; pinned, running, waiting, finished, snoozed, settled). Between about 6 s and 42 s after start they play a script: progress messages, status changes, a `🔊` summary and a request for approval. Turn a channel on to hear it. `Cevapla` fills in the fixture's dictation after ~2.5 s, and sending is only logged. The scripted agent answers ~1.5 s later and the thread completes. Opening in T3 is only logged too. Demo mode never runs the `t3` CLI, never reads T3's state DB or Wispr Flow and never opens a URL (`t3p-report` on a demo run shows 0 `t3` and 0 `sqlite3` calls). It still reads your T3 theme, read-only, unless the fixture sets `"theme": "default"`.
 
-Write your own scenario by editing [`demo/fixture.json`](demo/fixture.json): `at_s` is seconds after start, and `en` is an optional English caption. Set `"theme": "default"` to use the built-in dark palette instead of your T3 theme. To check it headless: `T3P_DEMO=demo/fixture.json T3P_OUTPUT_VOLUME=0 target/release/t3p-bench --e2e`.
+Write your own scenario by editing [`demo/fixture.json`](demo/fixture.json): `at_s` is seconds after start, and `en` is an optional English caption. Set `"theme": "default"` to use the built-in dark palette instead of your T3 theme. The optional `computer` block fakes cua-driver (installed, permissions, mode) and scripts computer-use sessions (`{at_s, session, client, app, action, end}`; the shipped one has an agent writing notes in TextEdit and sessions in Safari and Finder); granting permissions succeeds after ~1.5 s and stopping ends every session at once. The optional `new_task` block is what a voice task creates (`dictation`, `title`, `project`, `provider`, `ack`, `steps[{after_s, text, en, status}]`). To check it headless: `T3P_DEMO=demo/fixture.json T3P_OUTPUT_VOLUME=0 target/release/t3p-bench --e2e` (or `--computer` for computer use and a new task).
 
 **Agent side.** Install the [`sesli`](skill/sesli/) skill in Claude Code, Codex or omp so agents write a start line, short step messages and a `🔊` summary. Replies sent from the panel start with `$sesli ` to keep it on.
 
@@ -113,19 +119,22 @@ All settings are environment variables.
 | `T3P_TTS_THREADS` | `2` | ONNX Runtime threads for the voice |
 | `T3P_LEXICON` | `~/Library/Application Support/t3-panel/lexicon.tsv` | Your pronunciation lexicon: `written<TAB>spoken` per line; a key ending in `*` also matches inflected forms. Overrides built-in entries. |
 | `T3P_REPLY_PREFIX` | `$sesli ` | Prepended to every reply sent from the panel (empty disables) |
+| `T3P_CUA_DRIVER` | `/Applications/CuaDriver.app/Contents/MacOS/cua-driver` | cua-driver binary for computer use. Missing = computer use unavailable. The panel watches the daemon socket (`~/Library/Caches/cua-driver/cua-driver.sock`: sessions every 1 s while it runs, 5 s otherwise; permissions every 60 s) and stops sessions with `cua-driver revoke --all` |
+| `T3P_TASK_PROJECT` | T3's "No project" (`~/.t3/scratch`) | T3 project id or path for tasks started from the panel (`t3 thread start`, provider/model of the newest listed thread) |
 | `T3P_HOTKEY` | `ctrl+alt+space` | Global show/hide shortcut (`global-hotkey` syntax, e.g. `cmd+shift+KeyP`); `off` disables |
+| `T3P_STOP_HOTKEY` | `ctrl+alt+escape` | Global computer-use emergency stop (⌃⌥⎋; `cua-driver revoke --all` from any app); same syntax; `off` disables. Registration and presses are logged as `ui.stop_hotkey` |
 | `T3P_LOG_ROOT` | `~/Library/Logs/t3-panel` | Telemetry root |
 | `T3P_SAVE_AUDIO` | `1` | Save every utterance as WAV (`0` disables) |
 | `T3P_WISPR_DB` | `~/Library/Application Support/Wispr Flow/flow.sqlite` | Wispr Flow history (read-only) |
 | `T3P_T3_APP` | newest `T3 Code (Nightly).app` / `T3 Code.app` in `/Applications` or `~/Applications` | T3 app bundle whose built-in theme palettes are read |
 | `T3P_T3_APP_DATA` | `~/Library/Application Support/t3code-v2` | T3's Electron userData dir (selected theme; read-only) |
-| `T3P_SELFTEST` | — | Scripted UI runs that log and exit: `1` (listen to the first finished thread, then quit), `reply:<thread_id>` (reply flow; `T3P_SELFTEST_STOP_AFTER_MS`, `T3P_SELFTEST_NOSEND=1`), `shots` (step through UI states; `T3P_SELFTEST_STEP_MS`), `demo` (timed walkthrough on demo data, used to record the demo media) |
+| `T3P_SELFTEST` | — | Scripted UI runs that log and exit: `1` (listen to the first finished thread, then quit), `reply:<thread_id>` (reply flow; `T3P_SELFTEST_STOP_AFTER_MS`, `T3P_SELFTEST_NOSEND=1`), `shots` (step through UI states: full, permissions, selected, dock, drawer, computer, compact, empty_search, error, new_task; the computer-use states wait for the demo fixture's sessions; `T3P_SELFTEST_STEP_MS`), `demo` (timed walkthrough on demo data, used to record the demo media; includes granting permissions, the computer-use banner with one `Durdur`, and a new task) |
 
 ## Telemetry
 
 Each run writes to `~/Library/Logs/t3-panel/<YYYYMMDD-HHMMSS-pid>/` (`latest` points to the newest). Nothing leaves the machine.
 
-- `events.jsonl`: one line per input or output, `{ts, run, seq, kind, dur_ms, ok, in, out, err}`. T3 calls (`t3.*`, with argv, duration, child CPU and RSS), live tail (`live.*`), channel actions (`channel.*`), speech (`speak.enqueue`, `tts.synth` with written / respelled / spoken text and RTF, `audio.play` with click→audio and message→audio), replies and dictation (`reply.*`, `wispr.history`), theme resolution (`theme.resolve`, contrast ratios) and every UI interaction (`ui.*`, with before/after state).
+- `events.jsonl`: one line per input or output, `{ts, run, seq, kind, dur_ms, ok, in, out, err}`. T3 calls (`t3.*`, with argv, duration, child CPU and RSS), live tail (`live.*`), channel actions (`channel.*`), speech (`speak.enqueue`, `tts.synth` with written / respelled / spoken text and RTF, `audio.play` with click→audio and message→audio), replies and dictation (`reply.*`, `wispr.history`), new tasks (`task.start`: argv, text, exit, stdout JSON), computer use (`computer.poll` with method, duration and child CPU; `computer.session_start` / `computer.action` / `computer.session_end`; `computer.stop` with sessions revoked; `computer.permissions_grant`), theme resolution (`theme.resolve`, contrast ratios) and every UI interaction (`ui.*`, with before/after state).
 - `metrics.jsonl`: RSS, CPU, thread count, queue length and child CPU, once per second.
 - `audio/<seq>.wav`: every spoken utterance.
 
@@ -136,6 +145,7 @@ target/release/t3p-bench --corpus sentences.txt   # same, with your sentences (o
 target/release/t3p-bench --t3      # cost of listing every project, 3 rounds
 target/release/t3p-bench --theme   # resolve the T3 theme once: ThemeView JSON, contrast table
 target/release/t3p-bench --e2e     # headless end-to-end: list, listen, progress, pause/resume
+target/release/t3p-bench --computer [--stop-on-session]   # headless: print Core::computer() on every change, CPU% over 60 s (demo: also grant, new task, stop all)
 ```
 
 ## Numbers
