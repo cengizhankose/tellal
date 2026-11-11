@@ -81,6 +81,13 @@ pub struct Config {
     /// Playback volume of every utterance, 0.0–1.0 (clamped; default 1.0). Synthesis, timing and
     /// saved WAVs are unaffected. Env `T3P_OUTPUT_VOLUME`.
     pub output_volume: f32,
+    /// cua-driver binary (computer use). Default
+    /// `/Applications/CuaDriver.app/Contents/MacOS/cua-driver`. Env `T3P_CUA_DRIVER`. Missing
+    /// binary = computer use is simply unavailable (`ComputerView.installed == false`).
+    pub cua_driver: PathBuf,
+    /// T3 project (id or path) for tasks started from the panel ([`Core::start_task`]). `None` =
+    /// T3's "No project" (workspace `~/.t3/scratch`). Env `T3P_TASK_PROJECT`.
+    pub task_project: Option<String>,
 }
 
 impl Config {
@@ -120,6 +127,9 @@ impl Config {
                 .and_then(|v| v.trim().parse::<f32>().ok())
                 .filter(|v| v.is_finite())
                 .map_or(1.0, |v| v.clamp(0.0, 1.0)),
+            cua_driver: var("T3P_CUA_DRIVER")
+                .map_or_else(|| PathBuf::from("/Applications/CuaDriver.app/Contents/MacOS/cua-driver"), PathBuf::from),
+            task_project: var("T3P_TASK_PROJECT"),
         }
     }
 
@@ -302,6 +312,41 @@ pub struct LiveStats {
     pub t3_connected: bool,
 }
 
+/// Dictation target id for a new task (not a reply): pass it to [`Core::dictation_start`];
+/// `CoreEvent::DictationTranscript` / `DictationFailed` carry it back as `thread_id`.
+pub const NEW_TASK: &str = "new-task";
+
+/// Computer use through the local cua-driver daemon. Agents (any MCP client: omp in T3, Claude
+/// Code, Codex) drive the screen through it; the panel only watches and can stop them.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ComputerView {
+    /// `Config.cua_driver` exists.
+    pub installed: bool,
+    pub version: Option<String>,
+    pub daemon_running: bool,
+    /// Accessibility + Screen Recording granted to CuaDriver; `None` = unknown (no daemon).
+    pub permissions_ok: Option<bool>,
+    /// `standard` | `bounded` | `unrestricted`, as the daemon reports it.
+    pub permission_mode: Option<String>,
+    /// Live agent sessions: an agent is connected and may act on the screen.
+    pub sessions: Vec<ComputerSession>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ComputerSession {
+    pub id: String,
+    /// Agent/client label as cua-driver reports it, if any.
+    pub client: Option<String>,
+    /// RFC3339.
+    pub started_at: Option<String>,
+    /// App the agent last acted on, if reported.
+    pub app: Option<String>,
+    /// One-line label of the last action (e.g. `click "Kaydet"`), if reported.
+    pub last_action: Option<String>,
+    /// RFC3339 of the last action, if reported.
+    pub last_action_at: Option<String>,
+}
+
 #[derive(Clone, Debug)]
 pub enum CoreEvent {
     ThreadsUpdated,
@@ -317,6 +362,11 @@ pub enum CoreEvent {
     Error(String),
     /// [`Core::theme`] changed (the user picked another theme or appearance in T3).
     ThemeChanged,
+    /// [`Core::computer`] changed (install/daemon/permission state, a session started, acted or
+    /// ended).
+    ComputerUpdated,
+    /// [`Core::start_task`] finished: `thread_id` is the new thread (already listening) when `ok`.
+    TaskStarted { thread_id: Option<String>, ok: bool, detail: String },
 }
 
 /// Cheap to clone; `Send + Sync`. All work runs on core-owned background threads.
@@ -552,6 +602,20 @@ impl Core {
     pub fn live_stats(&self) -> LiveStats {
         self.inner.tel.live_stats()
     }
+    /// Computer-use state (never blocks on I/O).
+    pub fn computer(&self) -> ComputerView {
+        ComputerView::default()
+    }
+    /// Emergency stop: revoke every live cua-driver session (`cua-driver revoke --all`) so no
+    /// agent can act on the screen until it reconnects. Non-blocking; → `ComputerUpdated`.
+    pub fn computer_stop_all(&self) {}
+    /// Opens CuaDriver's macOS permission flow (`cua-driver permissions grant`: Accessibility,
+    /// Screen Recording). Non-blocking; the user approves the system dialogs; → `ComputerUpdated`.
+    pub fn computer_grant_permissions(&self) {}
+    /// Starts a new T3 thread with `text` (prefixed with `Config.reply_prefix`) in
+    /// `Config.task_project`, using the provider/model of the most recently created thread, and
+    /// listens to it from its first message. Non-blocking; → `TaskStarted`.
+    pub fn start_task(&self, _text: &str) {}
     /// Lets the app write `ui.*` events into the same events.jsonl.
     pub fn log_ui(&self, kind: &str, input: serde_json::Value) {
         let kind = if kind.starts_with("ui.") { kind.to_owned() } else { format!("ui.{kind}") };

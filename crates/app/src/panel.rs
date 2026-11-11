@@ -337,6 +337,7 @@ impl Panel {
                     self.show_error(message.into(), retry.map(Retry::Open));
                 }
                 CoreEvent::ThemeChanged => self.apply_theme(cx),
+                CoreEvent::ComputerUpdated | CoreEvent::TaskStarted { .. } => {}
             }
         }
         if threads_updated {
