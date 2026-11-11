@@ -104,15 +104,9 @@ pub(crate) fn spawn(
                                 let seen = requests.entry(row.thread.clone()).or_default();
                                 if seen.insert(row.id.clone()) {
                                     let initial = fresh.contains(row.thread.as_str());
-                                    let spoken = !initial && speech.notice(&row.thread, "wait", WAIT_TEXT);
-                                    tel.event(
-                                        "wait.detect",
-                                        None,
-                                        true,
-                                        json!({"thread": row.thread, "request": row.id, "type": row.text, "updated_at": row.ts}),
-                                        json!({"initial": initial, "spoken": spoken}),
-                                        None,
-                                    );
+                                    let input = json!({"thread": row.thread, "request": row.id, "type": row.text,
+                                                       "updated_at": row.ts});
+                                    detect_wait(&tel, &speech, &row.thread, input, initial);
                                 }
                                 continue;
                             }
@@ -126,17 +120,9 @@ pub(crate) fn spawn(
                             }
                             cur.seen.insert(row.id.clone());
                             new_msgs += 1;
-                            let line = live_line(&row.text);
                             let created_ms = parse_rfc3339_ms(&row.ts).unwrap_or(start_ms);
-                            let action = speech.live_message(&row.thread, created_ms, &line.text);
-                            tel.event(
-                                "live.message",
-                                None,
-                                true,
-                                json!({"thread": row.thread, "message_id": row.id, "created_at": row.ts}),
-                                json!({"chars": row.text.chars().count(), "rule": line.rule, "action": action, "text": line.text}),
-                                None,
-                            );
+                            let input = json!({"thread": row.thread, "message_id": row.id, "created_at": row.ts});
+                            deliver_message(&tel, &speech, input, &row.thread, created_ms, &row.text);
                         }
                         for id in &ids {
                             requests.entry(id.clone()).or_default();
@@ -166,4 +152,27 @@ pub(crate) fn spawn(
         }
     })?;
     Ok(())
+}
+
+/// A new complete assistant message (T3 live tail or demo script): its spoken line goes through
+/// the channel's live rules; logged as `live.message` with `input`.
+pub(crate) fn deliver_message(tel: &Telemetry, speech: &Speech, input: Value, thread: &str, created_ms: i64, text: &str) {
+    let line = live_line(text);
+    let action = speech.live_message(thread, created_ms, &line.text);
+    tel.event(
+        "live.message",
+        None,
+        true,
+        input,
+        json!({"chars": text.chars().count(), "rule": line.rule, "action": action, "text": line.text}),
+        None,
+    );
+}
+
+/// A new waiting request: unless `initial` (already waiting when first listed), a listening
+/// channel hears [`WAIT_TEXT`]. Logged as `wait.detect` with `input`. The caller still updates
+/// `waiting_for_user` through `Speech::set_waiting`.
+pub(crate) fn detect_wait(tel: &Telemetry, speech: &Speech, thread: &str, input: Value, initial: bool) {
+    let spoken = !initial && speech.notice(thread, "wait", WAIT_TEXT);
+    tel.event("wait.detect", None, true, input, json!({"initial": initial, "spoken": spoken}), None);
 }

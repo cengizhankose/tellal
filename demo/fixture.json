@@ -1,0 +1,118 @@
+{
+  "theme": "t3",
+  "projects": [
+    {"id": "p-web", "title": "acme-web", "icon": {"kind": "lucide", "name": "globe-2", "color": "sky"}, "pinned": true},
+    {"id": "p-billing", "title": "billing-api", "icon": {"kind": "lucide", "name": "server", "color": "violet"}, "pinned": false},
+    {"id": "p-mobile", "title": "field-app", "icon": {"kind": "lucide", "name": "smartphone", "color": "emerald"}, "pinned": false}
+  ],
+  "threads": [
+    {
+      "id": "t-checkout", "project": "p-web", "title": "Fix flaky checkout tests", "label": "Ödeme testleri",
+      "status": "running", "provider": "claude", "model": "claude-sonnet-4-5",
+      "pinned": false, "settled": false, "snoozed": false,
+      "created_ago_s": 840, "updated_ago_s": 40, "running_for_s": 780,
+      "messages": [
+        {"role": "user", "text": "Checkout e2e testi CI'da rastgele düşüyor. Sebebini bul ve düzelt.", "en": "The checkout e2e test fails randomly on CI. Find the cause and fix it.", "ago_s": 840},
+        {"role": "assistant", "text": "Hatayı yerelde yakalamaya çalışıyorum; testi 20 kez arka arkaya çalıştıracağım.", "en": "Trying to reproduce it locally; I'll run the test 20 times in a row.", "ago_s": 40}
+      ],
+      "script": [
+        {"at_s": 6, "text": "20 denemenin 7'sinde zaman aşımı var, hata gerçekten aralıklı.", "en": "7 of 20 runs time out, so the failure really is intermittent."},
+        {"at_s": 10, "text": "Sebebi buldum: test, sepet yüklenmeden ödeme butonuna tıklıyor.", "en": "Found it: the test clicks the pay button before the cart has loaded."},
+        {"at_s": 14, "text": "Testi sepet isteğini bekleyecek şekilde düzelttim, şimdi tüm paketi çalıştırıyorum.", "en": "Fixed the test to wait for the cart request; running the full suite now."},
+        {"at_s": 18, "status": "completed",
+         "text": "Fixed `checkout.spec.ts`: the test now waits for the `/api/cart` response before clicking Pay.\n\n- 48/48 passing, 3 consecutive runs\n- No production code changed\n\n🔊 Ödeme testleri düzeldi, 48 testin hepsi 3 turda da geçti.",
+         "en": "Checkout tests are fixed: all 48 passed in 3 runs in a row."}
+      ],
+      "reply": {
+        "dictation": "Süper, değişikliği gönder ve bir PR aç.", "dictation_en": "Great, push the change and open a PR.",
+        "ack": "🔊 Tamam, düzeltmeyi gönderiyorum. PR açılınca bağlantısını buraya bırakacağım.",
+        "ack_en": "Okay, pushing the fix. I'll drop the PR link here once it's open."
+      }
+    },
+    {
+      "id": "t-backfill", "project": "p-billing", "title": "Backfill currency on legacy invoices", "label": "Fatura göçü",
+      "status": "running", "provider": "codex", "model": "gpt-5-codex",
+      "pinned": false, "settled": false, "snoozed": false,
+      "created_ago_s": 2100, "updated_ago_s": 300, "running_for_s": 1320,
+      "messages": [
+        {"role": "user", "text": "Eski faturalarda boş kalan para birimi alanını doldur. Önce deneme çalıştırması yap.", "en": "Fill the empty currency field on old invoices. Do a dry run first.", "ago_s": 2100},
+        {"role": "assistant", "text": "Göç betiğini yazdım; yaklaşık 18 bin faturayı 500'erli gruplar hâlinde güncelleyecek.", "en": "I wrote the migration script; it updates about 18 thousand invoices in batches of 500.", "ago_s": 300}
+      ],
+      "script": [
+        {"at_s": 19,
+         "text": "Dry run finished: 18,412 invoices would change, 0 conflicts, est. 4 min.\n\n🔊 Deneme çalıştırması temiz, 18 bin faturada hiç çakışma yok. Göçü gerçek veritabanında çalıştırmak için onayını bekliyorum.",
+         "en": "The dry run is clean: no conflicts across 18 thousand invoices. I'm waiting for your approval to run it on the real database."},
+        {"at_s": 20, "waiting": true, "en": "Billing migration: waiting for your answer."}
+      ],
+      "reply": {
+        "dictation": "Onaylıyorum. Önce yedek al, sonra göçü çalıştır.", "dictation_en": "Approved. Take a backup first, then run the migration.",
+        "ack": "🔊 Tamam, önce veritabanının yedeğini alıyorum. Yedek bitince göçü çalıştırıp sonucu sana haber vereceğim.",
+        "ack_en": "Okay, backing up the database first. Once the backup is done I'll run the migration and report back."
+      }
+    },
+    {
+      "id": "t-crash", "project": "p-mobile", "title": "Investigate Android crash on resume", "label": "Android çökmesi",
+      "status": "running", "provider": "omp", "model": "claude-sonnet-4-5",
+      "pinned": false, "settled": false, "snoozed": false,
+      "created_ago_s": 3300, "updated_ago_s": 90, "running_for_s": 2700,
+      "messages": [
+        {"role": "user", "text": "Uygulama arka plandan dönünce bazı Android cihazlarda çöküyor, incele.", "en": "The app crashes on some Android devices when it comes back from the background. Investigate.", "ago_s": 3300},
+        {"role": "assistant", "text": "Çökme kayıtlarını topladım; hata yalnızca uygulama arka plandan dönerken oluşuyor.", "en": "I collected the crash logs; it only happens when the app returns from the background.", "ago_s": 90}
+      ],
+      "script": [
+        {"at_s": 27, "text": "Sebep, arka planda kapatılan kamera önizlemesine yeniden erişilmesi.", "en": "The cause: the camera preview is accessed again after it was closed in the background."},
+        {"at_s": 33, "text": "Önizlemeyi uygulama dönünce yeniden kuracak şekilde düzelttim, 3 cihazda deniyorum.", "en": "Fixed it to rebuild the preview on resume; trying it on 3 devices."},
+        {"at_s": 38, "text": "3 cihazda da uygulamayı 50'şer kez arka plana alıp geri getirdim.", "en": "Sent the app to the background and back 50 times on each of the 3 devices."},
+        {"at_s": 42, "status": "completed",
+         "text": "Fixed `CameraScreen.kt`: the preview is rebuilt in `onResume` instead of reusing the released surface.\n\n- 150 resume cycles on 3 devices, 0 crashes\n\n🔊 Android çökmesi düzeldi, 3 cihazda 150 denemede hiç çökme olmadı.",
+         "en": "The Android crash is fixed: 150 tries on 3 devices, not a single crash."}
+      ]
+    },
+    {
+      "id": "t-onboarding", "project": "p-mobile", "title": "Redesign onboarding screens", "label": "Karşılama ekranları",
+      "status": "completed", "provider": "omp", "model": "gpt-5",
+      "pinned": false, "settled": false, "snoozed": false,
+      "created_ago_s": 7200, "updated_ago_s": 360,
+      "messages": [
+        {"role": "user", "text": "Karşılama ekranlarını sadeleştir, karanlık modu da kontrol et.", "en": "Simplify the onboarding screens and check dark mode too.", "ago_s": 7200},
+        {"role": "assistant",
+         "text": "Onboarding is now 3 screens instead of 5; permissions moved to the moment they are needed.\n\n- Dark mode contrast fixed on 4 components\n- Screenshots in `docs/onboarding/`\n\n🔊 Karşılama akışı 5 ekrandan 3 ekrana indi, karanlık moddaki kontrast sorunları da düzeldi.",
+         "en": "Onboarding went from 5 screens to 3, and the dark mode contrast issues are fixed too.", "ago_s": 360}
+      ]
+    },
+    {
+      "id": "t-release", "project": "p-mobile", "title": "Prepare release notes", "label": "Sürüm notları",
+      "status": "completed", "provider": "codex", "model": "gpt-5-codex",
+      "pinned": true, "settled": false, "snoozed": false,
+      "created_ago_s": 93600, "updated_ago_s": 3000,
+      "messages": [
+        {"role": "user", "text": "Son sürümden bu yana birleşen değişikliklerden sürüm notu çıkar.", "en": "Write release notes from everything merged since the last release.", "ago_s": 93600},
+        {"role": "assistant",
+         "text": "Release notes drafted in `CHANGELOG.md`, grouped by area.\n\n🔊 Yeni sürümün notları hazır: 9 yeni özellik ve 23 hata düzeltmesi var.",
+         "en": "The release notes are ready: 9 new features and 23 bug fixes.", "ago_s": 3000}
+      ]
+    },
+    {
+      "id": "t-react19", "project": "p-web", "title": "Upgrade to React 19", "label": "React 19 geçişi",
+      "status": "idle", "provider": "cursor", "model": "composer-1",
+      "pinned": false, "settled": false, "snoozed": true,
+      "created_ago_s": 10800, "updated_ago_s": 7200,
+      "messages": [
+        {"role": "user", "text": "Projeyi React 19'a geçir.", "en": "Upgrade the project to React 19.", "ago_s": 10800},
+        {"role": "assistant", "text": "3 paket henüz React 19'u desteklemiyor; yeni sürümleri çıkana kadar geçişi bekletiyorum.", "en": "3 packages don't support React 19 yet; I'm holding the upgrade until they ship new versions.", "ago_s": 7200}
+      ]
+    },
+    {
+      "id": "t-idempotency", "project": "p-billing", "title": "Add idempotency keys to payment API", "label": "Ödeme anahtarları",
+      "status": "completed", "provider": "claude", "model": "claude-opus-4-1",
+      "pinned": false, "settled": true, "snoozed": false,
+      "created_ago_s": 18000, "updated_ago_s": 10800,
+      "messages": [
+        {"role": "user", "text": "Ödeme isteklerinin iki kez işlenmesini engelle.", "en": "Stop payment requests from being processed twice.", "ago_s": 18000},
+        {"role": "assistant",
+         "text": "`POST /payments` now accepts an `Idempotency-Key` header; repeats return the stored response for 24 h.\n\n🔊 Ödeme isteklerine tekrar koruması eklendi, 64 testin hepsi geçti.",
+         "en": "Payment requests are now protected against repeats, and all 64 tests pass.", "ago_s": 10800}
+      ]
+    }
+  ]
+}

@@ -1,12 +1,12 @@
-//! t3-panel core: T3 thread source, live message tail, per-thread speech channels, local TTS,
-//! Wispr Flow dictation bridge and telemetry.
+//! t3-panel core: T3 thread source (or the demo fixture), live message tail, per-thread speech
+//! channels, local TTS, Wispr Flow dictation bridge and telemetry.
 //!
 //! PUBLIC API CONTRACT (the GPUI app depends on exactly these items; keep signatures stable).
 //! The modules below are public for the `t3p-bench` / `t3p-report` tools.
 
 use std::collections::HashMap;
 use std::ffi::OsStr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
@@ -14,6 +14,7 @@ pub use crossbeam_channel::Receiver;
 use crossbeam_channel::Sender;
 use serde_json::{Value, json};
 
+mod demo;
 mod ema;
 pub mod extract;
 mod lexicon;
@@ -73,6 +74,13 @@ pub struct Config {
     /// The T3 desktop app's Electron userData dir (its `Local Storage` holds the selected theme;
     /// read-only). Default `~/Library/Application Support/t3code-v2`. Env `T3P_T3_APP_DATA`.
     pub t3_app_data: PathBuf,
+    /// Demo fixture JSON (see `demo/fixture.json`). `Some` = threads, messages, a timed script,
+    /// dictation and replies come from the fixture; no `t3` CLI, T3 state DB or Wispr Flow
+    /// access. Env `T3P_DEMO`.
+    pub demo: Option<PathBuf>,
+    /// Playback volume of every utterance, 0.0–1.0 (clamped; default 1.0). Synthesis, timing and
+    /// saved WAVs are unaffected. Env `T3P_OUTPUT_VOLUME`.
+    pub output_volume: f32,
 }
 
 impl Config {
@@ -107,6 +115,11 @@ impl Config {
             t3_app: var("T3P_T3_APP").map(PathBuf::from),
             t3_app_data: var("T3P_T3_APP_DATA")
                 .map_or_else(|| home.join("Library/Application Support/t3code-v2"), PathBuf::from),
+            demo: var("T3P_DEMO").map(PathBuf::from),
+            output_volume: var("T3P_OUTPUT_VOLUME")
+                .and_then(|v| v.trim().parse::<f32>().ok())
+                .filter(|v| v.is_finite())
+                .map_or(1.0, |v| v.clamp(0.0, 1.0)),
         }
     }
 
@@ -121,6 +134,7 @@ impl Config {
             "live_poll_interval_ms": self.live_poll_interval.as_millis() as u64,
             "reply_prefix": self.reply_prefix, "wispr_db": self.wispr_db,
             "t3_app": self.t3_app, "t3_app_data": self.t3_app_data,
+            "demo": self.demo, "output_volume": self.output_volume,
         })
     }
 }
@@ -316,14 +330,22 @@ struct Inner {
     threads: Arc<RwLock<Vec<ThreadView>>>,
     theme: Arc<RwLock<ThemeView>>,
     speech: speech::Speech,
-    wispr: wispr::Wispr,
+    source: Source,
     events: Sender<CoreEvent>,
-    t3_bin: PathBuf,
     reply_prefix: String,
 }
 
+/// Where threads, messages, dictation and replies come from.
+enum Source {
+    /// T3 (`t3` CLI + read-only state DB) and Wispr Flow.
+    T3 { wispr: wispr::Wispr, t3_bin: PathBuf },
+    /// `Config.demo` fixture; no subprocess at all.
+    Demo(demo::Demo),
+}
+
 impl Core {
-    /// Creates the run dir, starts the poller, live tail, TTS worker and metrics sampler.
+    /// Creates the run dir, starts the poller, live tail, TTS worker and metrics sampler (in demo
+    /// mode the fixture driver replaces the poller, live tail and Wispr bridge).
     pub fn start(config: Config) -> anyhow::Result<(Core, Receiver<CoreEvent>)> {
         let start_ms = telemetry::now_unix_ms();
         let tel = Telemetry::create(&config.log_root)?;
@@ -341,18 +363,37 @@ impl Core {
         tel.start_sampler()?;
         let (tx, rx) = crossbeam_channel::unbounded();
         let threads = Arc::new(RwLock::new(Vec::new()));
-        let speech = speech::Speech::start(tel.clone(), &config, tx.clone(), threads.clone())?;
-        live::spawn(tel.clone(), config.live_poll_interval, start_ms, threads.clone(), speech.clone())?;
-        let wispr = wispr::Wispr::new(tel.clone(), config.wispr_db.clone(), tx.clone());
-        let theme = theme::start(tel.clone(), &config, tx.clone())?;
-        let (t3_bin, reply_prefix) = (config.t3_bin.clone(), config.reply_prefix.clone());
-        let on_stop = speech.clone();
-        t3::spawn_poller(tel.clone(), config, threads.clone(), tx.clone(), move |thread, to| {
-            if matches!(to, "interrupted" | "cancelled") {
-                on_stop.notice(thread, "stopped", "Durduruldu.");
+        let reply_prefix = config.reply_prefix.clone();
+        let demo = match &config.demo {
+            Some(path) => Some(demo::Demo::load(tel.clone(), &config, path, threads.clone(), tx.clone())?),
+            None => None,
+        };
+        let (messages, labels): (speech::MessageSource, _) = match &demo {
+            Some((d, _)) => (d.message_source(), d.labels()),
+            None => (Arc::new(t3::latest_messages), HashMap::new()),
+        };
+        let speech = speech::Speech::start(tel.clone(), &config, tx.clone(), threads.clone(), messages, labels)?;
+        let theme = match &demo {
+            Some((d, _)) if d.default_theme() => Arc::new(RwLock::new(ThemeView::default())),
+            _ => theme::start(tel.clone(), &config, tx.clone())?,
+        };
+        let source = match demo {
+            Some((d, jobs)) => {
+                d.run(jobs, speech.clone())?;
+                Source::Demo(d)
             }
-        })?;
-        let inner = Inner { tel, threads, theme, speech, wispr, events: tx, t3_bin, reply_prefix };
+            None => {
+                live::spawn(tel.clone(), config.live_poll_interval, start_ms, threads.clone(), speech.clone())?;
+                let wispr = wispr::Wispr::new(tel.clone(), config.wispr_db.clone(), tx.clone());
+                let t3_bin = config.t3_bin.clone();
+                let on_status = speech.clone();
+                t3::spawn_poller(tel.clone(), config, threads.clone(), tx.clone(), move |thread, to| {
+                    status_changed(&on_status, thread, to);
+                })?;
+                Source::T3 { wispr, t3_bin }
+            }
+        };
+        let inner = Inner { tel, threads, theme, speech, source, events: tx, reply_prefix };
         Ok((Core { inner: Arc::new(inner) }, rx))
     }
     /// Latest snapshot of threads (never blocks on I/O). Order mirrors T3's sidebar and is
@@ -394,31 +435,54 @@ impl Core {
     }
     /// Starts Wispr Flow hands-free dictation (`wispr-flow://start-hands-free`) for a reply to
     /// `thread_id` and watches Wispr's History DB for the transcript (→ `DictationTranscript`).
+    /// Demo mode: the thread's fixture `reply.dictation` arrives after ~2.5 s (no Wispr).
     pub fn dictation_start(&self, thread_id: &str) {
-        self.inner.wispr.start(thread_id);
+        match &self.inner.source {
+            Source::T3 { wispr, .. } => wispr.start(thread_id),
+            Source::Demo(d) => d.dictation_start(thread_id),
+        }
     }
     /// Ends hands-free dictation (`wispr-flow://stop-hands-free`); the transcript follows.
     pub fn dictation_stop(&self) {
-        self.inner.wispr.stop();
+        match &self.inner.source {
+            Source::T3 { wispr, .. } => wispr.stop(),
+            Source::Demo(d) => d.dictation_stop(),
+        }
     }
     /// Ends hands-free dictation and ignores its transcript.
     pub fn dictation_cancel(&self) {
-        self.inner.wispr.cancel();
+        match &self.inner.source {
+            Source::T3 { wispr, .. } => wispr.cancel(),
+            Source::Demo(d) => d.dictation_cancel(),
+        }
     }
     /// Non-blocking `t3 thread send <id> - --json` (text prefixed with `Config.reply_prefix`).
     /// Right before sending, the channel starts listening without a catch-up line, from the send
     /// time on, so the agent's acknowledgement is the first thing heard. → `ReplySent`.
+    /// Demo mode: nothing is sent; the fixture `reply.ack` arrives ~1.5 s later as a new
+    /// assistant message.
     pub fn send_reply(&self, thread_id: &str, text: &str) {
+        let payload = format!("{}{text}", self.inner.reply_prefix);
+        let t3_bin = match &self.inner.source {
+            Source::T3 { t3_bin, .. } => t3_bin.clone(),
+            Source::Demo(d) => {
+                self.inner.speech.listen_from(thread_id, telemetry::now_unix_ms());
+                let (ok, queued, detail) = d.send_reply(thread_id, &payload);
+                let _ = self.inner.events.send(CoreEvent::ReplySent { thread_id: thread_id.to_owned(), ok, queued, detail });
+                return;
+            }
+        };
         let core = self.clone();
         let thread_id = thread_id.to_owned();
-        let payload = format!("{}{text}", self.inner.reply_prefix);
-        let spawned = std::thread::Builder::new().name("t3p-reply".into()).spawn(move || core.reply(&thread_id, &payload));
+        let spawned = std::thread::Builder::new()
+            .name("t3p-reply".into())
+            .spawn(move || core.reply(&t3_bin, &thread_id, &payload));
         if let Err(e) = spawned {
             let _ = self.inner.events.send(CoreEvent::Error(format!("reply thread: {e}")));
         }
     }
 
-    fn reply(&self, thread: &str, payload: &str) {
+    fn reply(&self, t3_bin: &Path, thread: &str, payload: &str) {
         let inner = &*self.inner;
         let status = {
             let threads = inner.threads.read().unwrap_or_else(|p| p.into_inner());
@@ -427,7 +491,7 @@ impl Core {
         let queued = status == "running";
         inner.speech.listen_from(thread, telemetry::now_unix_ms());
         let argv: [&OsStr; 6] =
-            [inner.t3_bin.as_os_str(), "thread".as_ref(), "send".as_ref(), thread.as_ref(), "-".as_ref(), "--json".as_ref()];
+            [t3_bin.as_os_str(), "thread".as_ref(), "send".as_ref(), thread.as_ref(), "-".as_ref(), "--json".as_ref()];
         let input = json!({"thread": thread, "argv": t3::argv_json(&argv), "text_with_prefix": payload,
                            "queued": queued, "status": status});
         let (ok, detail) = match t3::run_cmd(&argv, Some(payload.as_bytes())) {
@@ -454,8 +518,14 @@ impl Core {
         let _ = inner.events.send(CoreEvent::ReplySent { thread_id: thread.to_owned(), ok, queued, detail });
     }
 
-    /// Opens the thread inside the T3 desktop app (`t3code://threads/<env>/<thread>`).
+    /// Opens the thread inside the T3 desktop app (`t3code://threads/<env>/<thread>`). Demo
+    /// mode only logs `thread.open`.
     pub fn open_thread(&self, thread_id: &str) {
+        if let Source::Demo(_) = &self.inner.source {
+            let input = json!({"thread": thread_id, "demo": true});
+            self.inner.tel.event("thread.open", None, true, input, json!({"skipped": "demo mode"}), None);
+            return;
+        }
         let link = {
             let threads = self.inner.threads.read().unwrap_or_else(|p| p.into_inner());
             threads.iter().find(|t| t.id == thread_id).map(|t| t.link.clone()).unwrap_or_default()
@@ -486,6 +556,14 @@ impl Core {
     pub fn log_ui(&self, kind: &str, input: serde_json::Value) {
         let kind = if kind.starts_with("ui.") { kind.to_owned() } else { format!("ui.{kind}") };
         self.inner.tel.event(&kind, None, true, input, Value::Null, None);
+    }
+}
+
+/// Side effect of a logged `state.change` (T3 poller and demo source): a listening channel hears
+/// that its thread was stopped.
+fn status_changed(speech: &speech::Speech, thread: &str, to: &str) {
+    if matches!(to, "interrupted" | "cancelled") {
+        speech.notice(thread, "stopped", "Durduruldu.");
     }
 }
 

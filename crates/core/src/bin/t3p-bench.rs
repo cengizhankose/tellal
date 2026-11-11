@@ -10,7 +10,8 @@
 //! * `--e2e`: headless `Core::start` → first `ThreadsUpdated` (rows dumped, then compared with
 //!   the next poll's order) → `set_listening(id, true)` on the first completed thread → its
 //!   catch-up line, sampling `ChannelView` progress every 250 ms, pausing ~1.2 s in for 1.5 s →
-//!   `SpeakingFinished` → `mute_all`.
+//!   `SpeakingFinished` → `mute_all`. With `T3P_DEMO` the listed threads must be exactly the
+//!   fixture's.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -86,7 +87,11 @@ fn bench_tts(tel: &Arc<Telemetry>, cfg: &Config, corpus: &[String], play: bool) 
         std::fs::create_dir_all(&audio_dir)?;
     }
     let device = if play { Some(open_output()?) } else { None };
-    let player = device.as_ref().map(|d| rodio::Player::connect_new(d.mixer()));
+    let player = device.as_ref().map(|d| {
+        let player = rodio::Player::connect_new(d.mixer());
+        player.set_volume(cfg.output_volume);
+        player
+    });
     println!("{:>3} {:>5} {:>9} {:>9} {:>7}  text", "#", "chars", "synth_ms", "audio_ms", "rtf");
     let (mut synth_sum, mut audio_sum) = (0.0, 0.0);
     for (i, text) in corpus.iter().enumerate() {
@@ -148,6 +153,7 @@ fn bench_t3(tel: &Telemetry, cfg: &Config) -> anyhow::Result<()> {
 
 fn e2e(cfg: Config) -> anyhow::Result<()> {
     let t = Instant::now();
+    let demo = cfg.demo.clone();
     let (core, rx) = Core::start(cfg)?;
     let run_dir = core.live_stats().run_dir;
     let deadline = Instant::now() + Duration::from_secs(120);
@@ -164,6 +170,9 @@ fn e2e(cfg: Config) -> anyhow::Result<()> {
     let threads = core.threads();
     println!("first ThreadsUpdated after {:.1} ms: {} threads", ms(t.elapsed()), threads.len());
     dump_threads(&threads);
+    if let Some(path) = &demo {
+        check_demo_threads(path, &threads)?;
+    }
     let target = threads
         .iter()
         .find(|t| t.status == "completed")
@@ -236,6 +245,21 @@ fn e2e(cfg: Config) -> anyhow::Result<()> {
     );
     println!("peak_rss_mb={:.1}", telemetry::peak_rss_mb());
     println!("run_dir={}", run_dir.display());
+    Ok(())
+}
+
+/// Demo mode: the snapshot lists exactly the fixture's thread ids.
+fn check_demo_threads(path: &std::path::Path, threads: &[ThreadView]) -> anyhow::Result<()> {
+    let fixture: serde_json::Value = serde_json::from_slice(&std::fs::read(path)?)?;
+    let mut want: Vec<&str> = fixture["threads"]
+        .as_array()
+        .map(|a| a.iter().filter_map(|t| t["id"].as_str()).collect())
+        .unwrap_or_default();
+    let mut got: Vec<&str> = threads.iter().map(|t| t.id.as_str()).collect();
+    want.sort_unstable();
+    got.sort_unstable();
+    anyhow::ensure!(got == want, "demo threads {got:?} != fixture threads {want:?} ({})", path.display());
+    println!("demo fixture {}: all {} threads listed", path.display(), got.len());
     Ok(())
 }
 

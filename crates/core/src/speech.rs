@@ -22,6 +22,10 @@ use crate::lexicon::Lexicon;
 use crate::telemetry::{self, Telemetry, current_rss_mb, ms, now_unix_ms, rfc3339_from_ms, round2};
 use crate::{ChannelView, Config, CoreEvent, ThreadView, t3};
 
+/// Reads a thread's latest `n` complete messages (oldest → newest) for a catch-up line:
+/// `t3::latest_messages` or the demo fixture.
+pub(crate) type MessageSource = Arc<dyn Fn(&Telemetry, &str, u32) -> anyhow::Result<Vec<t3::Message>> + Send + Sync>;
+
 /// Messages read for an unmute catch-up line.
 const CATCHUP_MESSAGES: u32 = 12;
 /// The audio device is released after this much idle time (an open CoreAudio stream costs CPU).
@@ -432,6 +436,9 @@ struct Shared {
     tel: Arc<Telemetry>,
     events: Sender<CoreEvent>,
     threads: Arc<RwLock<Vec<ThreadView>>>,
+    messages: MessageSource,
+    /// Thread id → spoken speaker label overriding the one derived from the title.
+    labels: HashMap<String, String>,
     audio_dir: Option<PathBuf>,
     state: Mutex<State>,
     wake: Condvar,
@@ -504,6 +511,14 @@ impl Shared {
     fn thread_info(&self, thread: &str) -> (String, String) {
         let threads = self.threads.read().unwrap_or_else(|p| p.into_inner());
         threads.iter().find(|t| t.id == thread).map_or_else(Default::default, |t| (t.status.clone(), t.title.clone()))
+    }
+
+    /// Spoken speaker label: the configured label, else one derived from the title.
+    fn label(&self, thread: &str) -> Option<String> {
+        match self.labels.get(thread) {
+            Some(label) => label_for(label),
+            None => label_for(&self.thread_info(thread).1),
+        }
     }
 
     /// Appends synthesized audio to utterance `id` wherever it is (audible or held). `false` =
@@ -595,12 +610,16 @@ impl Speech {
         cfg: &Config,
         events: Sender<CoreEvent>,
         threads: Arc<RwLock<Vec<ThreadView>>>,
+        messages: MessageSource,
+        labels: HashMap<String, String>,
     ) -> std::io::Result<Speech> {
         let shared = Arc::new(Shared {
             audio_dir: cfg.save_audio.then(|| tel.run_dir().join("audio")),
             tel,
             events,
             threads,
+            messages,
+            labels,
             state: Mutex::new(State::default()),
             wake: Condvar::new(),
         });
@@ -881,14 +900,14 @@ fn label_for(title: &str) -> Option<String> {
     Some(format!("{short}."))
 }
 
-/// Unmute catch-up line: latest messages from the state DB → `extract` → enqueue.
+/// Unmute catch-up line: latest messages (state DB or demo fixture) → `extract` → enqueue.
 fn catch_up(sh: &Shared, req: CatchUp) {
     let valid = |st: &State| st.chans.get(&req.thread).is_some_and(|c| c.listening && c.epoch == req.epoch);
     if !valid(&sh.lock()) {
         return;
     }
     let (status, title) = sh.thread_info(&req.thread);
-    let messages = match t3::latest_messages(&sh.tel, &req.thread, CATCHUP_MESSAGES) {
+    let messages = match (sh.messages)(&sh.tel, &req.thread, CATCHUP_MESSAGES) {
         Ok(m) => m,
         Err(e) => {
             let _ = sh.events.send(CoreEvent::Error(format!("catch-up {}: {e:#}", req.thread)));
@@ -1060,7 +1079,7 @@ fn player_loop(sh: &Shared, cfg: &Config) {
                 && matches!(head.prefetch, Prefetch::None)
             {
                 let (id, text) = (head.id, head.text.clone());
-                let label = if st.needs_label(&thread) { label_for(&sh.thread_info(&thread).1) } else { None };
+                let label = if st.needs_label(&thread) { sh.label(&thread) } else { None };
                 drop(st);
                 if let Some(label) = label
                     && !labels.contains_key(&label)
@@ -1098,11 +1117,12 @@ fn player_loop(sh: &Shared, cfg: &Config) {
                     sh.fail(&item, "TTS model not loaded");
                     continue;
                 };
-                let label = if st.needs_label(&thread) { label_for(&sh.thread_info(&thread).1) } else { None };
+                let label = if st.needs_label(&thread) { sh.label(&thread) } else { None };
                 let id = item.id;
                 let text = item.text.clone();
                 let prefetched = std::mem::take(&mut item.prefetch);
                 let player = rodio::Player::connect_new(dev.mixer());
+                player.set_volume(cfg.output_volume);
                 let ready = matches!(prefetched, Prefetch::Ready(_));
                 let mut p = Playing::new(item, player, engine.sample_rate, label.clone(), ready);
                 p.device_open_ms = device_open_ms.take();
