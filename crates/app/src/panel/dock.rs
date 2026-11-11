@@ -92,7 +92,7 @@ impl ReplyDock {
 impl Panel {
     /// "Cevapla": open (or retarget) the dock, make the panel key, focus the input and start
     /// Wispr dictation for `thread_id`. `live = false` is the dock-only self-test state: no
-    /// dictation and no focus change.
+    /// dictation and no focus change. The `demo` walkthrough dictates without taking the focus.
     pub(super) fn open_reply(
         &mut self,
         thread_id: &str,
@@ -105,13 +105,14 @@ impl Panel {
             .thread(thread_id)
             .map_or_else(|| SharedString::from(thread_id.to_owned()), |t| SharedString::from(t.title.clone()));
         self.mark_seen(thread_id);
+        let focus = live && !self.selftest_mode.leaves_focus();
         let mut retarget_from = None;
         let prev_app = match self.reply.take() {
             Some(dock) if dock.thread_id == thread_id => {
                 // Same row again: just bring the focus back.
                 self.core.log_ui("ui.reply_open", json!({"thread": thread_id, "source": source, "refocus": true}));
                 self.reply = Some(dock);
-                if live {
+                if focus {
                     self.focus_input(window, cx);
                 }
                 return;
@@ -123,7 +124,7 @@ impl Panel {
                 retarget_from = Some(dock.thread_id);
                 dock.prev_app
             }
-            None if live => mac::frontmost_app().filter(|a| !a.is_self()),
+            None if focus => mac::frontmost_app().filter(|a| !a.is_self()),
             None => None,
         };
         self.core.log_ui(
@@ -133,7 +134,7 @@ impl Panel {
                 "retarget_from": retarget_from, "prev_app": prev_app.as_ref().map(FrontApp::to_json),
             }),
         );
-        if live && retarget_from.is_none() {
+        if focus && retarget_from.is_none() {
             self.core.log_ui(
                 "ui.focus",
                 json!({"action": "activate", "prev_app": prev_app.as_ref().map(FrontApp::to_json)}),
@@ -151,9 +152,11 @@ impl Panel {
             opened_at: now,
             seq,
         });
-        if live {
+        if focus {
             self.focus_input(window, cx);
             self.focus_check = Some((now + FOCUS_CHECK_DELAY, "opened"));
+        }
+        if live {
             self.core.dictation_start(thread_id);
         }
         cx.notify();
