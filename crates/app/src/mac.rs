@@ -12,6 +12,7 @@ type Id = *mut Object;
 
 const NS_APPLICATION_ACTIVATION_POLICY_ACCESSORY: isize = 1;
 const NS_EVENT_TYPE_LEFT_MOUSE_DOWN: usize = 1;
+const NS_EVENT_TYPE_MOUSE_MOVED: usize = 5;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -20,6 +21,13 @@ struct NSRect {
     y: f64,
     w: f64,
     h: f64,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct NSPoint {
+    x: f64,
+    y: f64,
 }
 
 /// Space reserved by the menu bar (top) and a right-side Dock on the primary display, in points.
@@ -133,6 +141,39 @@ impl NativeWindow {
     /// `CGWindowID` (what `screencapture -l` takes).
     pub fn number(self) -> isize {
         unsafe { msg_send![self.0, windowNumber] }
+    }
+
+    /// Clicks and hover go to whatever lies below: a scripted recording cannot be changed by
+    /// the user's pointer.
+    pub fn ignore_mouse(self) {
+        unsafe {
+            let _: () = msg_send![self.0, setIgnoresMouseEvents: YES];
+        }
+    }
+
+    /// Hands the content view a pointer move far outside the window, so nothing stays hovered
+    /// (gpui keeps the last position it saw, or the one it read at launch). Delivered on the next
+    /// run-loop turn: inside a gpui update of this window gpui would drop it.
+    pub fn forget_pointer(self) {
+        unsafe {
+            let view: Id = msg_send![self.0, contentView];
+            if view.is_null() {
+                return;
+            }
+            let away = NSPoint { x: -10_000., y: -10_000. };
+            let event: Id = msg_send![class!(NSEvent), mouseEventWithType: NS_EVENT_TYPE_MOUSE_MOVED
+                location: away
+                modifierFlags: 0usize
+                timestamp: 0f64
+                windowNumber: self.number()
+                context: std::ptr::null_mut::<Object>()
+                eventNumber: 0isize
+                clickCount: 0isize
+                pressure: 0f32];
+            if !event.is_null() {
+                let _: () = msg_send![view, performSelector: sel!(mouseMoved:) withObject: event afterDelay: 0f64];
+            }
+        }
     }
 
     /// Clips the content view (gpui's Metal layer and its blur view) to `radius`, so the

@@ -40,10 +40,10 @@
         {"role": "assistant", "text": "Göç betiğini yazdım; yaklaşık 18 bin faturayı 500'erli gruplar hâlinde güncelleyecek.", "en": "I wrote the migration script; it updates about 18 thousand invoices in batches of 500.", "ago_s": 300}
       ],
       "script": [
-        {"at_s": 19,
+        {"at_s": 23,
          "text": "Dry run finished: 18,412 invoices would change, 0 conflicts, est. 4 min.\n\n🔊 Deneme çalıştırması temiz, 18 bin faturada hiç çakışma yok. Göçü gerçek veritabanında çalıştırmak için onayını bekliyorum.",
          "en": "The dry run is clean: no conflicts across 18 thousand invoices. I'm waiting for your approval to run it on the real database."},
-        {"at_s": 20, "waiting": true, "en": "Billing migration: waiting for your answer."}
+        {"at_s": 24, "waiting": true, "en": "Billing migration: waiting for your answer."}
       ],
       "reply": {
         "dictation": "Onaylıyorum. Önce yedek al, sonra göçü çalıştır.", "dictation_en": "Approved. Take a backup first, then run the migration.",
@@ -73,18 +73,33 @@
       "id": "t-notes", "project": "scratch", "title": "Write meeting notes in TextEdit", "label": "Toplantı notları",
       "status": "running", "provider": "omp", "model": "claude-sonnet-4-5",
       "pinned": false, "settled": false, "snoozed": false,
-      "created_ago_s": 75, "updated_ago_s": 30, "running_for_s": 75,
+      "created_ago_s": 900, "updated_ago_s": 30, "running_for_s": 900,
       "messages": [
-        {"role": "user", "text": "TextEdit'te bugünkü toplantının notlarını yaz ve masaüstüne kaydet.", "en": "Write today's meeting notes in TextEdit and save them to the desktop.", "ago_s": 75},
+        {"role": "user", "text": "TextEdit'te bugünkü toplantının notlarını yaz ve masaüstüne kaydet.", "en": "Write today's meeting notes in TextEdit and save them to the desktop.", "ago_s": 900},
         {"role": "assistant", "text": "Ekranı kullanarak TextEdit'te yazacağım; imleci panelde görebilirsin.", "en": "I'll use the screen to type it in TextEdit; you can follow the cursor from the panel.", "ago_s": 30}
       ],
       "script": [
-        {"at_s": 9, "text": "TextEdit'i açtım, boş bir belge oluşturdum.", "en": "I opened TextEdit and created a blank document."},
-        {"at_s": 15, "text": "Notları yazıyorum: üç karar ve iki yapılacak iş var.", "en": "Typing the notes: three decisions and two to-dos."},
-        {"at_s": 24, "text": "Belgeyi masaüstüne toplantı notları adıyla kaydettim.", "en": "I saved the document to the desktop as meeting notes."},
-        {"at_s": 34, "status": "completed",
+        {"at_s": 47, "text": "TextEdit'i açtım, boş bir belge oluşturdum.", "en": "I opened TextEdit and created a blank document."},
+        {"at_s": 61, "text": "Notları yazıyorum: üç karar ve iki yapılacak iş var.", "en": "Typing the notes: three decisions and two to-dos."},
+        {"at_s": 67, "text": "Belgeyi masaüstüne toplantı notları adıyla kaydettim.", "en": "I saved the document to the desktop as meeting notes."},
+        {"at_s": 73, "status": "completed",
          "text": "Saved `~/Desktop/Toplantı Notları.rtf`: 3 decisions, 2 action items with owners.\n\n🔊 Toplantı notları TextEdit'te yazıldı ve masaüstüne kaydedildi.",
          "en": "The meeting notes were written in TextEdit and saved to the desktop."}
+      ]
+    },
+    {
+      "id": "t-batch", "project": "p-web", "title": "Run 80 refactor tasks in a batch", "label": "Toplu görevler",
+      "status": "running", "provider": "codex", "model": "gpt-5-codex",
+      "pinned": false, "settled": false, "snoozed": false,
+      "created_ago_s": 11700, "updated_ago_s": 120, "running_for_s": 11520,
+      "messages": [
+        {"role": "user", "text": "Bu 80 görevi sırayla çalıştır, bitince kısaca özetle.", "en": "Run these 80 tasks one by one and sum it up briefly when you're done.", "ago_s": 11700},
+        {"role": "assistant", "text": "80 görevin 52'si bitti, kalanlar sırada.", "en": "52 of the 80 tasks are done; the rest are queued.", "ago_s": 120}
+      ],
+      "script": [
+        {"at_s": 15, "status": "completed",
+         "text": "Batch finished: 80 tasks in 3 h 12 min.\n\n- 30 failed: `batch/errors.md`\n- 20 stuck on a timeout: `batch/stuck.md`\n- 30 finished with warnings\n\n🔊 80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?",
+         "en": "Of the 80 tasks, 20 got stuck, 30 failed and the rest finished with warnings. Shall we start with the errors?"}
       ]
     },
     {
@@ -137,17 +152,17 @@
   "computer": {
     "installed": true, "version": "0.38.0", "daemon_running": true, "permissions_ok": false, "permission_mode": "standard",
     "sessions": [
-      {"at_s": 8, "session": "notes-7f3a", "client": "omp", "app": "TextEdit", "action": "open_app \"TextEdit\""},
-      {"at_s": 12, "session": "web-91c2", "client": "claude-code", "app": "Safari", "action": "get_window_state \"Safari\""},
-      {"at_s": 14, "session": "notes-7f3a", "action": "type_text \"Toplantı notları — 11 Kasım\""},
-      {"at_s": 17, "session": "web-91c2", "action": "scroll \"Safari\" ↓"},
-      {"at_s": 22, "session": "web-91c2", "end": true},
-      {"at_s": 23, "session": "notes-7f3a", "action": "click \"Kaydet\""},
-      {"at_s": 35, "session": "notes-7f3a", "end": true},
-      {"at_s": 50, "session": "desk-c4e8", "client": "omp", "app": "Finder", "action": "list_windows \"Finder\""},
-      {"at_s": 62, "session": "desk-c4e8", "action": "click \"Masaüstü\""},
-      {"at_s": 75, "session": "desk-c4e8", "action": "drag \"Ekran Resmi 2026-11-10\" → \"2026-11-10\""},
-      {"at_s": 110, "session": "desk-c4e8", "end": true}
+      {"at_s": 46, "session": "notes-7f3a", "client": "omp", "app": "TextEdit", "action": "open_app \"TextEdit\""},
+      {"at_s": 47.5, "session": "web-91c2", "client": "claude-code", "app": "Safari", "action": "get_window_state \"Safari\""},
+      {"at_s": 48.5, "session": "notes-7f3a", "action": "type_text \"Toplantı notları — 11 Kasım\""},
+      {"at_s": 49, "session": "desk-c4e8", "client": "omp", "app": "Finder", "action": "list_windows \"Finder\""},
+      {"at_s": 55, "session": "web-91c2", "action": "scroll \"Safari\" ↓"},
+      {"at_s": 59, "session": "web-91c2", "end": true},
+      {"at_s": 62, "session": "notes-7f3a", "action": "click \"Kaydet\""},
+      {"at_s": 65, "session": "desk-c4e8", "action": "click \"Masaüstü\""},
+      {"at_s": 73, "session": "notes-7f3a", "end": true},
+      {"at_s": 78, "session": "desk-c4e8", "action": "drag \"Ekran Resmi 2026-11-10\" → \"2026-11-10\""},
+      {"at_s": 113, "session": "desk-c4e8", "end": true}
     ]
   },
   "new_task": {

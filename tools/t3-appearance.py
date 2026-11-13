@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Makes a private copy of the T3 desktop app's theme settings with the appearance set to light.
+"""Keeps a private copy of the T3 desktop app's theme settings with the appearance forced.
 
-Usage: tools/light-app-data.py <dest-dir>     then run the panel with TELLAL_T3_APP_DATA=<dest-dir>
+Usage: tools/t3-appearance.py <dest-dir> light|dark     then run the panel with TELLAL_T3_APP_DATA=<dest-dir>
 
-Copies `<T3 userData>/Local Storage/leveldb` (default ~/Library/Application Support/t3code-v2,
-or $TELLAL_T3_APP_DATA) into <dest-dir> and appends one leveldb write-ahead log whose batch sets
-localStorage `t3code:theme-appearance-mode` = `light` with a sequence number above every existing
-record, so it wins (crates/core/src/theme/leveldb.rs). The T3 files are only read.
+The first call copies `<T3 userData>/Local Storage/leveldb` (default
+~/Library/Application Support/t3code-v2, or $TELLAL_T3_APP_DATA) into <dest-dir>. Every call
+(re)writes one extra leveldb write-ahead log whose batch sets localStorage
+`t3code:theme-appearance-mode` with a sequence number above every existing record, so it wins
+(crates/core/src/theme/leveldb.rs). A running panel picks a switch up within ~2 s (its theme
+watcher). The T3 files are only read.
 """
 
 import os
@@ -18,6 +20,7 @@ from pathlib import Path
 ORIGIN = "t3code://app"
 SEQ = 1 << 55
 BLOCK = 32768
+OVERRIDE = "999999.log"
 
 
 def varint(n: int) -> bytes:
@@ -58,18 +61,20 @@ def put_batch(items: dict[str, str]) -> bytes:
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
+    if len(sys.argv) != 3 or sys.argv[2] not in ("light", "dark"):
         sys.exit(__doc__)
-    src_root = Path(os.environ.get("TELLAL_T3_APP_DATA") or Path.home() / "Library/Application Support/t3code-v2")
-    src = src_root / "Local Storage/leveldb"
     dest = Path(sys.argv[1]) / "Local Storage/leveldb"
-    if dest.exists():
-        shutil.rmtree(dest)
-    dest.mkdir(parents=True)
-    for f in src.iterdir():
-        if f.suffix in (".ldb", ".log"):
-            shutil.copyfile(f, dest / f.name)
-    (dest / "999999.log").write_bytes(put_batch({"t3code:theme-appearance-mode": "light"}))
+    if not dest.is_dir():
+        src_root = Path(os.environ.get("TELLAL_T3_APP_DATA") or Path.home() / "Library/Application Support/t3code-v2")
+        src = src_root / "Local Storage/leveldb"
+        dest.mkdir(parents=True)
+        for f in src.iterdir():
+            if f.suffix in (".ldb", ".log"):
+                shutil.copyfile(f, dest / f.name)
+    # Written whole and renamed into place: the watcher never reads a half-written log.
+    tmp = dest / f"{OVERRIDE}.tmp"
+    tmp.write_bytes(put_batch({"t3code:theme-appearance-mode": sys.argv[2]}))
+    tmp.replace(dest / OVERRIDE)
     print(dest.parent.parent)
 
 

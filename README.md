@@ -6,9 +6,24 @@ The Ottoman *tellal* was the town crier who walked the streets announcing the ne
 
 Tellal is a small always-on-top macOS panel that lists your [T3 Code](https://github.com/pingdotgg/t3code) agent threads and reads them aloud with a local voice, so you can follow several agents without watching them.
 
-![Tellal demo: the attention card, live narration of a running thread, a spoken summary, a dictated reply, compact mode](docs/media/demo.gif)
+## What it does
 
-*Demo data only ([`demo/fixture.json`](demo/fixture.json)). The GIF is a silent 21 s excerpt. The voice is Turkish; captions are English. [Full video with sound](docs/media/demo.mp4) · [4:5 cut](docs/media/demo-social.mp4)*
+Each clip is 6–20 s of the real panel running on demo data ([`demo/fixture.json`](demo/fixture.json)). The voice is Turkish; the clips have English captions. GIFs are silent; the links play with sound.
+
+| | |
+|---|---|
+| <img src="docs/media/clips/listen.gif" width="320" alt="Unmuting a running thread: a catch-up line, then live steps"> | **Listen to a thread.** Unmute it like a radio channel: one catch-up sentence, then one sentence per step while the agent works. [▶ With sound](docs/media/clips/listen.mp4) |
+| <img src="docs/media/clips/summary.gif" width="320" alt="A batch run finishes and its one-sentence summary is spoken"> | **Hear the outcome.** When a run ends you hear its one-sentence 🔊 summary ("20 of 80 tasks got stuck, 30 failed… start with the errors?"); the full report stays in T3. [▶ With sound](docs/media/clips/summary.mp4) |
+| <img src="docs/media/clips/attention.gif" width="320" alt="A thread starts waiting for approval; the attention card appears and jumps to it"> | **Know when an agent needs you.** A thread waiting for an answer or approval raises the attention card; one click jumps to it. [▶ With sound](docs/media/clips/attention.mp4) |
+| <img src="docs/media/clips/reply.gif" width="320" alt="Cevapla, dictated reply, Gönder, spoken acknowledgement"> | **Reply by voice.** `Cevapla` (Reply) starts [Wispr Flow](https://wisprflow.ai) dictation, `Gönder` (Send) passes it to the thread with `t3 thread send`, and the agent's answer is read out. [▶ With sound](docs/media/clips/reply.mp4) |
+| <img src="docs/media/clips/new-task.gif" width="320" alt="Plus button, dictated task, Gönder, the new thread is selected and narrated"> | **Start a task by voice.** `+` (or N), dictate, `Gönder`: a new T3 thread starts (`t3 thread start`) and the panel is already listening to it. [▶ With sound](docs/media/clips/new-task.mp4) |
+| <img src="docs/media/clips/computer.gif" width="320" alt="Computer-use banner with the app and last action, then Durdur clears it"> | **See and stop computer use.** While an agent drives the screen through [cua-driver](https://github.com/trycua/cua), a banner shows the app and its last action; `Durdur` (Stop), or ⌃⌥⎋ from any app, ends every session. [▶ With sound](docs/media/clips/computer.mp4) |
+| <img src="docs/media/clips/theme.gif" width="320" alt="T3 switches from dark to light and back; the panel follows"> | **Looks like T3.** Colours and font follow the theme picked in T3, light or dark, live. [▶ With sound](docs/media/clips/theme.mp4) |
+
+[Full walkthrough with sound (16:9, ~70 s)](docs/media/demo.mp4) · [45 s cut for social (4:5)](docs/media/tellal-social.mp4). macOS on Apple Silicon only, and for now you build it from source (see [Quick start](#quick-start)).
+
+<details>
+<summary>Screenshots</summary>
 
 | Dark | Light |
 |---|---|
@@ -21,6 +36,10 @@ Tellal is a small always-on-top macOS panel that lists your [T3 Code](https://gi
 | Computer use | Computer-use permissions | New task by voice |
 |---|---|---|
 | ![Banner while an agent uses the screen, with Durdur](docs/media/computer.png) | ![Permission row above the status line](docs/media/computer-permissions.png) | ![Reply dock in new-task mode](docs/media/new-task.png) |
+
+![The walkthrough at 1x, silent: attention card, reply, compact mode](docs/media/demo.gif)
+
+</details>
 
 ## Why
 
@@ -101,7 +120,7 @@ The panel appears top-right above every app. Click 🔈 on a thread to listen; �
 TELLAL_DEMO=demo/fixture.json target/release/tellal
 ```
 
-The fixture has 8 threads in 4 projects (Claude, Codex, omp and Cursor; pinned, running, waiting, finished, snoozed, settled). Between about 6 s and 42 s after start they play a script: progress messages, status changes, a `🔊` summary and a request for approval. Turn a channel on to hear it. `Cevapla` fills in the fixture's dictation after ~2.5 s, and sending is only logged. The scripted agent answers ~1.5 s later and the thread completes. Opening in T3 is only logged too. Demo mode never runs the `t3` CLI, never reads T3's state DB or Wispr Flow and never opens a URL (`tellal-report` on a demo run shows 0 `t3` and 0 `sqlite3` calls). It still reads your T3 theme, read-only, unless the fixture sets `"theme": "default"`.
+The fixture has 9 threads in 4 projects (Claude, Codex, omp and Cursor; pinned, running, waiting, finished, snoozed, settled). Between about 6 s and 75 s after start they play a script: progress messages, status changes, `🔊` summaries (one is a batch of 80 tasks) and a request for approval. Turn a channel on to hear it. `Cevapla` fills in the fixture's dictation after ~2.5 s, and sending is only logged. The scripted agent answers ~1.5 s later and the thread completes. Opening in T3 is only logged too. Demo mode never runs the `t3` CLI, never reads T3's state DB or Wispr Flow and never opens a URL (`tellal-report` on a demo run shows 0 `t3` and 0 `sqlite3` calls). It still reads your T3 theme, read-only, unless the fixture sets `"theme": "default"`.
 
 Write your own scenario by editing [`demo/fixture.json`](demo/fixture.json): `at_s` is seconds after start, and `en` is an optional English caption. Set `"theme": "default"` to use the built-in dark palette instead of your T3 theme. The optional `computer` block fakes cua-driver (installed, permissions, mode) and scripts computer-use sessions (`{at_s, session, client, app, action, end}`; the shipped one has an agent writing notes in TextEdit and sessions in Safari and Finder); granting permissions succeeds after ~1.5 s and stopping ends every session at once. The optional `new_task` block is what a voice task creates (`dictation`, `title`, `project`, `provider`, `ack`, `steps[{after_s, text, en, status}]`). To check it headless: `TELLAL_DEMO=demo/fixture.json TELLAL_OUTPUT_VOLUME=0 target/release/tellal-bench --e2e` (or `--computer` for computer use and a new task).
 
@@ -132,7 +151,7 @@ All settings are environment variables.
 | `TELLAL_WISPR_DB` | `~/Library/Application Support/Wispr Flow/flow.sqlite` | Wispr Flow history (read-only) |
 | `TELLAL_T3_APP` | newest `T3 Code (Nightly).app` / `T3 Code.app` in `/Applications` or `~/Applications` | T3 app bundle whose built-in theme palettes are read |
 | `TELLAL_T3_APP_DATA` | `~/Library/Application Support/t3code-v2` | T3's Electron userData dir (selected theme; read-only) |
-| `TELLAL_SELFTEST` | — | Scripted UI runs that log and exit: `1` (listen to the first finished thread, then quit), `reply:<thread_id>` (reply flow; `TELLAL_SELFTEST_STOP_AFTER_MS`, `TELLAL_SELFTEST_NOSEND=1`), `shots` (step through UI states: full, permissions, selected, dock, drawer, computer, compact, empty_search, error, new_task; the computer-use states wait for the demo fixture's sessions; `TELLAL_SELFTEST_STEP_MS`), `demo` (timed walkthrough on demo data, used to record the demo media; includes granting permissions, the computer-use banner with one `Durdur`, and a new task) |
+| `TELLAL_SELFTEST` | — | Scripted UI runs that log and exit: `1` (listen to the first finished thread, then quit), `reply:<thread_id>` (reply flow; `TELLAL_SELFTEST_STOP_AFTER_MS`, `TELLAL_SELFTEST_NOSEND=1`), `shots` (step through UI states: full, permissions, selected, dock, drawer, computer, compact, empty_search, error, new_task; the computer-use states wait for the demo fixture's sessions; `TELLAL_SELFTEST_STEP_MS`), `demo` (timed walkthrough on demo data, used to record the demo media; includes granting permissions, the computer-use banner with one `Durdur`, and a new task), `clip:<name>[:<thread>]` (one feature on demo data for the README clips: `listen`, `summary`, `attention`, `reply`, `new-task`, `computer`, `theme`; `<thread>` is the thread it selects or tunes in to; see [`tools/`](tools/README.md)). Scripted demo and clip runs ignore the mouse. |
 
 ## Telemetry
 
@@ -182,7 +201,7 @@ Most of the delay between an agent writing and you hearing it (4–6.5 s) is T3 
 - [`docs/JOURNEY.md`](docs/JOURNEY.md): how the project came together.
 - [`docs/PLAN.md`](docs/PLAN.md): concerns, decisions and phases (Turkish).
 - [`research/`](research/README.md): TTS research and the T3 sidebar study.
-- [`tools/`](tools/README.md): how the demo video, GIF and screenshots are recorded (window-only capture, demo data only).
+- [`tools/`](tools/README.md): how the feature clips, demo videos, GIFs and screenshots are recorded (window-only capture, demo data only).
 - [`README.tr.md`](README.tr.md): Türkçe README, with every detail of channels, data sources and theme sync.
 
 ## Credits
