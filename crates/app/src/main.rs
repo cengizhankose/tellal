@@ -1,5 +1,5 @@
 #[cfg(not(target_os = "macos"))]
-compile_error!("t3-panel is a macOS-only floating panel");
+compile_error!("tellal is a macOS-only floating panel");
 
 mod assets;
 mod hotkey;
@@ -20,7 +20,7 @@ use gpui::{
     WindowKind, WindowOptions, point, px, size,
 };
 use serde_json::json;
-use t3_panel_core::{Config, Core};
+use tellal_core::{Config, Core};
 
 use crate::motion::Motion;
 use crate::panel::{Panel, SelfTestMode};

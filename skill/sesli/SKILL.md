@@ -1,11 +1,11 @@
 ---
 name: sesli
-description: Use when the user's message starts with $sesli or asks for spoken, panel-friendly output ("sesli", "sesli anlat", "panelden dinleyeceğim"). Formats the start acknowledgement, progress lines and final reply so T3 Panel can read them aloud with local TTS.
+description: Use when the user's message starts with $sesli or asks for spoken, panel-friendly output ("sesli", "sesli anlat", "panelden dinleyeceğim"). Formats the start acknowledgement, progress lines and final reply so Tellal can read them aloud with local TTS.
 ---
 
 # sesli
 
-T3 Panel (`~/dev/t3-panel`) T3 thread'lerini kanal kanal dinletir: Cengo bir thread'in sesini açınca, o thread'e yazdığın her yeni asistan mesajının ilk cümlesi Türkçe, lokal sesle okunur. Konuşmayı panel yapar; sen sadece okunabilir biçimde yazarsın. Ses komutu çalıştırma, ek tool çağırma.
+Tellal (`~/dev/tellal`) T3 thread'lerini kanal kanal dinletir: Cengo bir thread'in sesini açınca, o thread'e yazdığın her yeni asistan mesajının ilk cümlesi Türkçe, lokal sesle okunur. Konuşmayı Tellal yapar; sen sadece okunabilir biçimde yazarsın. Ses komutu çalıştırma, ek tool çağırma.
 
 ## 1. Başlarken (zorunlu)
 
@@ -18,9 +18,9 @@ T3 Panel (`~/dev/t3-panel`) T3 thread'lerini kanal kanal dinletir: Cengo bir thr
 ## 2. Ara adımlar
 
 - Her yeni aşamanın başında ayrı bir mesajla tek cümlelik durum yaz: Türkçe, en fazla 12 kelime, "Şimdi ... yapıyorum" kalıbı.
-- Panel her mesajın sadece ilk cümlesini okur. İlk cümlede kod, dosya yolu, hash, URL, komut olmasın; teknik ayrıntı gerekiyorsa sonraki cümlelere koy.
+- Tellal her mesajın sadece ilk cümlesini okur. İlk cümlede kod, dosya yolu, hash, URL, komut olmasın; teknik ayrıntı gerekiyorsa sonraki cümlelere koy.
 - Aynı aşamayı ikinci kez duyurma. Sorun çıkarsa onu da tek cümleyle söyle: "Testler kırıldı, nedenini arıyorum."
-- Bilgisayarı kullanırken (cua-driver gibi computer use araçları): bir uygulamada iş yapmadan önce tek cümle yaz: "TextEdit'i açıp notu yazıyorum." Her tıklamayı ayrı duyurma; uygulama ya da amaç değişince yeni cümle yaz. Panel bu sırada ekranda "Durdur" düğmesi gösterir; geri alınamaz bir adımdan (gönderme, silme, satın alma) önce sor ve bekle.
+- Bilgisayarı kullanırken (cua-driver gibi computer use araçları): bir uygulamada iş yapmadan önce tek cümle yaz: "TextEdit'i açıp notu yazıyorum." Her tıklamayı ayrı duyurma; uygulama ya da amaç değişince yeni cümle yaz. Tellal bu sırada ekranda "Durdur" düğmesi gösterir; geri alınamaz bir adımdan (gönderme, silme, satın alma) önce sor ve bekle.
 
 ## 3. Son mesaj
 
@@ -33,7 +33,7 @@ Yazılı raporu her zamanki gibi yaz. En sona şu iki satırı ekle:
 
 🔊 kuralları:
 
-- Panel bu mesajda sadece 🔊 satırını okur.
+- Tellal bu mesajda sadece 🔊 satırını okur.
 - Sayıları rakamla yaz: "80 görevin 20'si takıldı".
 - Tek tek sayma, grupla: kaçı bitti, takıldı, hata verdi, uyarıyla bitti.
 - Karar gerekiyorsa tek soruyla bitir: "Hatalardan mı başlayalım, takılanlardan mı?"
@@ -43,7 +43,7 @@ Yazılı raporu her zamanki gibi yaz. En sona şu iki satırı ekle:
 👀 kuralları:
 
 - Diff, ekran görüntüsü, tablo, PR, HTML rapor gibi gözle bakılması gereken şeyleri yol ya da linkle listele.
-- Panel bu satırı okumaz; Cengo thread'e çift tıklayıp T3'te açınca görür.
+- Tellal bu satırı okumaz; Cengo thread'e çift tıklayıp T3'te açınca görür.
 
 ## Örnek akış
 

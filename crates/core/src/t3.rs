@@ -255,7 +255,7 @@ pub(crate) fn state_db() -> PathBuf {
     PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".t3/userdata/statev2.sqlite")
 }
 
-/// Projects to watch: `Config.projects` (incl. `T3P_PROJECTS`) or the live projects in T3's
+/// Projects to watch: `Config.projects` (incl. `TELLAL_PROJECTS`) or the live projects in T3's
 /// state DB, read through a `sqlite3 -readonly` subprocess (no SQLite linked into the panel).
 pub fn discover(tel: &Telemetry, cfg: &Config) -> anyhow::Result<Vec<Project>> {
     if let Some(ids) = &cfg.projects {
@@ -583,7 +583,7 @@ pub(crate) fn spawn_poller(
     wake: Receiver<()>,
     on_status: impl Fn(&str, &str) + Send + 'static,
 ) -> std::io::Result<()> {
-    std::thread::Builder::new().name("t3p-poller".into()).spawn(move || {
+    std::thread::Builder::new().name("tellal-poller".into()).spawn(move || {
         let mut projects: Vec<Project> = Vec::new();
         // Last good list per project, so unchanged or failing projects keep their rows.
         let mut by_project: HashMap<String, Vec<RawThread>> = HashMap::new();

@@ -7,8 +7,8 @@ window is captured.
 | File | What it does |
 |---|---|
 | `record-window.swift` | Records one window by `CGWindowID` with ScreenCaptureKit (`SCContentFilter(desktopIndependentWindow:)`): nothing else on screen can enter the frame. Up to 60 fps, ProRes 4444 with alpha, 2x. The panel changes height while it runs, so every frame is placed top-left in a fixed 380 × 640 pt canvas. Stops when the given pid exits. |
-| `record-demo.sh` | Runs `t3-panel` with `T3P_DEMO=demo/fixture.json T3P_OUTPUT_VOLUME=0 T3P_HOTKEY=off T3P_SELFTEST=<mode>`, waits for `ui.ready` (window number) and records the window until the walkthrough quits. Silent: the voice is synthesized with normal timing and saved as WAVs, but not played. |
-| `light-app-data.py` | Private copy of T3's theme settings (`Local Storage/leveldb`) with `t3code:theme-appearance-mode` set to `light`, for `T3P_T3_APP_DATA`. T3's own files are only read. `record-demo.sh … light` uses it and deletes the copy afterwards. |
+| `record-demo.sh` | Runs `tellal` with `TELLAL_DEMO=demo/fixture.json TELLAL_OUTPUT_VOLUME=0 TELLAL_HOTKEY=off TELLAL_SELFTEST=<mode>`, waits for `ui.ready` (window number) and records the window until the walkthrough quits. Silent: the voice is synthesized with normal timing and saved as WAVs, but not played. |
+| `light-app-data.py` | Private copy of T3's theme settings (`Local Storage/leveldb`) with `t3code:theme-appearance-mode` set to `light`, for `TELLAL_T3_APP_DATA`. T3's own files are only read. `record-demo.sh … light` uses it and deletes the copy afterwards. |
 | `build-media.py` | Builds every file in `docs/media` from a dark and a light recording (see below). |
 
 ## Re-recording
@@ -18,7 +18,7 @@ Needs macOS 14+, Xcode command line tools (`swiftc`), `ffmpeg`/`ffprobe`, Python
 for the terminal that runs the scripts (System Settings → Privacy & Security → Screen Recording).
 
 ```sh
-CARGO_TARGET_DIR=target/ui-dev cargo build -p t3-panel --release
+CARGO_TARGET_DIR=target/ui-dev cargo build -p tellal --release
 tools/record-demo.sh target/ui-dev/media/dark demo dark     # ~50 s, window appears top right
 tools/record-demo.sh target/ui-dev/media/light demo light
 tools/build-media.py target/ui-dev/media/dark target/ui-dev/media/light   # → docs/media
@@ -27,7 +27,7 @@ tools/build-media.py target/ui-dev/media/dark target/ui-dev/media/light   # → 
 A panel that is already running is left alone (the demo run turns its global shortcut off). The
 demo window sits at the same spot as a normal panel; window-only capture makes overlap irrelevant.
 
-### The walkthrough (`T3P_SELFTEST=demo`)
+### The walkthrough (`TELLAL_SELFTEST=demo`)
 
 `crates/app/src/panel/selftest.rs` drives the UI through its normal code paths, one beat at a
 time; each beat logs `ui.selftest_action` and, once settled, `ui.selftest_state`:

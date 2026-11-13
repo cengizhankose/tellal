@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Idempotently downloads the EMA Lightning ONNX voice (Turkish, Apache-2.0,
 # huggingface.co/ozcancelik/ema-lightning-onnx) into the default `Config::model_dir`
-# (or $T3P_MODEL_DIR) and prints the resulting file sizes.
+# (or $TELLAL_MODEL_DIR) and prints the resulting file sizes.
 set -euo pipefail
 
 REPO="https://huggingface.co/ozcancelik/ema-lightning-onnx/resolve/main"
 FILES=(meta.json text.onnx sound.onnx decoder.onnx LICENSE NOTICE)
-MODEL_DIR="${T3P_MODEL_DIR:-$HOME/Library/Application Support/t3-panel/models/ema-lightning-onnx}"
+MODEL_DIR="${TELLAL_MODEL_DIR:-$HOME/Library/Application Support/tellal/models/ema-lightning-onnx}"
 
 mkdir -p "$MODEL_DIR"
 for f in "${FILES[@]}"; do

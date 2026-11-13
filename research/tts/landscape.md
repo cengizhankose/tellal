@@ -1,4 +1,4 @@
-# Local Turkish TTS landscape for t3-panel (checked 2026-11-11)
+# Local Turkish TTS landscape for Tellal (checked 2026-11-11)
 
 Scope: open-weight TTS models released or updated 2024–2026 that run locally on Apple Silicon and support Turkish, either officially or through a public fine-tune. Every claim links to a page I or a research sub-agent opened. Anything not verified is marked **[INFERENCE]**. No audio was played and no listening judgement was made. Quality evidence comes from model cards and public benchmarks only; the bake-off in `research/tts/bakeoff/` covers the listening side.
 
@@ -118,7 +118,7 @@ Other experimental Turkish fine-tunes with no eval and research-only terms or te
 | **Cactus C API** | Raw `extern "C"` | No TTS. Not applicable |
 | **AVSpeechSynthesizer** (Yelda) | `objc2-avf-audio` exposes `AVSpeechSynthesizer` + `AVSpeechSynthesizerBufferCallback` ([docs.rs](https://docs.rs/objc2-avf-audio/latest/objc2_avf_audio/all.html)); the `tts` crate wraps AVFoundation | macOS Yelda fallback with zero model download |
 
-## Ranked shortlist for t3-panel
+## Ranked shortlist for Tellal
 
 1. **Supertonic 3 via the existing sherpa-onnx crate** (int8, `lang=tr`).
    - **Integration:** almost free. Same crate and same version pin, 129 MB, built-in text frontend (no espeak problem), 10 voices. The user already picked it as the Reels default.

@@ -79,16 +79,16 @@ impl Panel {
             .items_center()
             .gap_2()
             .pl_3()
-            // T3's wordmark treatment: bold "T3", muted "Panel", 14 px / 500.
+            // T3's wordmark treatment (14 px / 500, bold name) behind the Tellal mark (megaphone).
             .child(
                 div()
                     .flex()
-                    .items_baseline()
-                    .gap_1()
+                    .items_center()
+                    .gap(px(6.))
                     .text_size(px(14.))
-                    .font_weight(FontWeight::MEDIUM)
-                    .child(div().font_weight(FontWeight::BOLD).child("T3"))
-                    .child(div().text_color(t.text_muted).child("Panel")),
+                    .font_weight(FontWeight::BOLD)
+                    .child(icon(Icon::Logo, 16., t.accent))
+                    .child("Tellal"),
             )
             .child(state)
             .children(screen)
@@ -117,7 +117,7 @@ impl Panel {
         let compact = icon_button("compact", if self.compact { Icon::Maximize } else { Icon::Minimize }, t, false)
             .tooltip(tip(if self.compact { "tam görünüm (⌘⇧C)" } else { "yalnız oynatıcı (⌘⇧C)" }))
             .on_click(cx.listener(|panel, _, _, cx| panel.set_compact(!panel.compact, "click", cx)));
-        let quit = icon_button("quit", Icon::X, t, false).tooltip(tip("paneli kapat (uygulamadan çıkar)")).on_click(
+        let quit = icon_button("quit", Icon::X, t, false).tooltip(tip("Tellal'ı kapat (uygulamadan çıkar)")).on_click(
             cx.listener(|panel, _, _, cx| {
                 panel.log_action("click", "quit", None, json!({}));
                 panel.quit("user", cx);

@@ -18,7 +18,7 @@ use gpui::{
     prelude::*, px,
 };
 use serde_json::{Value, json};
-use t3_panel_core::{ChannelView, Config, Core, CoreEvent, LiveStats, Receiver, ThreadView};
+use tellal_core::{ChannelView, Config, Core, CoreEvent, LiveStats, Receiver, ThreadView};
 
 use crate::hotkey::Hotkeys;
 use crate::input::{InputEvent, TextInput};

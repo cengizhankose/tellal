@@ -5,7 +5,7 @@ Usage: tools/build-media.py <dark-run-dir> <light-run-dir> [<media-dir>]   (defa
 
 Each run dir holds panel.mov (window-only ProRes 4444 with alpha, 2x), recorder.jsonl (wall-clock
 time of the first frame) and logs/<run>/events.jsonl + audio/*.wav from a silent
-(T3P_OUTPUT_VOLUME=0) T3P_SELFTEST=demo run.
+(TELLAL_OUTPUT_VOLUME=0) TELLAL_SELFTEST=demo run.
 
 * Audio: every `audio.play` WAV is placed at its playback start (event time - play_ms), with the
   pauses of `toggle_pause` clicks on its thread cut in, mixed to one 48 kHz track.
@@ -35,9 +35,9 @@ REPO = Path(__file__).resolve().parent.parent
 FIXTURE = REPO / "demo/fixture.json"
 FPS = 30
 RATE = 48000
-TITLE = "T3 Panel — listen to your coding agents"
+TITLE = "Tellal — listen to your coding agents"
 TAGLINE = "local Turkish voice · Rust + GPUI · open source"
-REPO_URL = "github.com/cengizhankose/t3-panel"
+REPO_URL = "github.com/cengizhankose/tellal"
 
 BG_TOP = (24, 24, 28)
 BG_BOTTOM = (10, 10, 12)
@@ -379,7 +379,7 @@ def social_card(panel: Image.Image, out: Path) -> None:
     img.alpha_composite(p, (x, y))
     d = ImageDraw.Draw(img)
     tx = x + p.width + 80
-    d.text((tx, 170), "T3 Panel", font=font(84, "Bold"), fill=TEXT)
+    d.text((tx, 170), "Tellal", font=font(84, "Bold"), fill=TEXT)
     y2 = 280
     for line in wrap(d, "Listen to your coding agents.", font(44, "Semibold"), w - tx - 60):
         d.text((tx, y2), line, font=font(44, "Semibold"), fill=TEXT)
@@ -408,7 +408,7 @@ def main() -> None:
                       text_px=50, align="left")
         base = background(*land.size)
         d = ImageDraw.Draw(base)
-        d.text((900, 90), "T3 Panel", font=font(64, "Bold"), fill=TEXT)
+        d.text((900, 90), "Tellal", font=font(64, "Bold"), fill=TEXT)
         d.text((900, 175), "Listen to your coding agents", font=font(40, "Semibold"), fill=MUTED)
         d.text((900, 1010), TAGLINE, font=font(28, "Medium"), fill=MUTED)
         compose_video(dark, captions, audio, land, base, media / "demo.mp4", tmp)

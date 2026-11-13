@@ -17,7 +17,7 @@ Agent: `Community` · Collected 2026-11-10/11 · Web research only. No audio was
 
 ---
 
-## 0. TL;DR for t3-panel
+## 0. TL;DR for Tellal
 
 1. **There is a new class of Turkish-only, very small, open models, released Sep–Oct 2026.** They were trained on synthetic Turkish speech and include a Turkish text normalizer:
    - **EMA Lightning**: 8.6M parameters, Apache-2.0.
@@ -28,7 +28,7 @@ Agent: `Community` · Collected 2026-11-10/11 · Web research only. No audio was
 
    Turkish users react with real enthusiasm, which never happened for Piper, Chatterbox or Supertonic. They also report concrete bugs: clicks on "ç", a rushed "bir" in numbers, and weak foreign and brand words.
 2. **A Rust/`ort` reference implementation of three of them already exists:** [Hitabet-Turkce-TTS](https://github.com/mesutde/Hitabet-Turkce-TTS) (Tauri + `ort` + cpal + rubato, with ONNX export scripts). This is the shortest path into GPUI. **[INFERENCE]**
-3. **Text normalization matters more than the model for t3-panel's text.** Numbers, apostrophe suffixes and "PR/deploy/iOS" break almost every model unless the text is normalized first. The community uses three Turkish normalizers:
+3. **Text normalization matters more than the model for Tellal's text.** Numbers, apostrophe suffixes and "PR/deploy/iOS" break almost every model unless the text is normalized first. The community uses three Turkish normalizers:
    - [`normalizer-tr`](https://github.com/erdemtuna/normalizer-tr) (behind EMA)
    - `trnorm` (Ahenk)
    - [`turkce-normalize`](https://github.com/seslen-tr/turkce-normalize) (seslen)
@@ -210,7 +210,7 @@ Links: [GitHub](https://github.com/resemble-ai/chatterbox). README: "**As of Aug
 - sherpa-onnx 2.x removed espeak-ng and piper-phonemize in favour of a `lexicon.txt` per model ([sherpa-onnx #3731](https://github.com/k2-fsa/sherpa-onnx/issues/3731)). A contributor there notes that lexicons work for "english, turkish, and other languages with static pronounciation" but still need number normalization first. This is the breaking change that pinned the panel to `=1.13.8`.
 
 ### 2.7 seslen-tts: Turkish StyleTTS2 student, ONNX-only, 330 MB, CC BY-SA 4.0 weights
-- README claims, which matter for t3-panel:
+- README claims, which matter for Tellal:
   - "16 voices × 9 emotions … correct Turkish lexical stress and question intonation … ONNX Runtime only … RTF ≈ 0.2–0.4 on a laptop CPU"
   - "Teknik yazımlar Türkçe okunur: 'LLM' → elelem … 'v0.2.1', 'Qwen2.5' … 'fine-tuning'"
   - streams sentence by sentence (`s.seslendir`)
@@ -273,8 +273,8 @@ Notch and island apps (visual only; no built-in speech except Heard 2.0 and Agen
 
 They all work the same way: a Claude Code hook in `~/.claude/settings.json` or a Codex hook in `~/.codex/hooks.json` sends events to a Unix socket.
 
-**Recurring techniques worth copying into t3-panel** (they were adopted independently by several projects):
-1. **Warm model in one long-lived process, plus idle unload.** Seen in pocket-voice (30 min), lav45 (1800 s), Heard and claude-speak. t3-panel is already in-process, so this mostly means do not reload, and pre-compute voice and conditioning state once (Pocket's 0.4 s voice preparation; Chatterbox's precomputed conditionals per [HF #42](https://huggingface.co/ResembleAI/chatterbox/discussions/42)).
+**Recurring techniques worth copying into Tellal** (they were adopted independently by several projects):
+1. **Warm model in one long-lived process, plus idle unload.** Seen in pocket-voice (30 min), lav45 (1800 s), Heard and claude-speak. Tellal is already in-process, so this mostly means do not reload, and pre-compute voice and conditioning state once (Pocket's 0.4 s voice preparation; Chatterbox's precomputed conditionals per [HF #42](https://huggingface.co/ResembleAI/chatterbox/discussions/42)).
 2. **Sentence chunking with prefetch of the next sentence.** Claude-speaks measured ≈0.3 s for the first sentence against ≈3.7 s for a whole paragraph. claude-speak runs parallel chunk generation on a persistent audio stream.
 3. **Summaries instead of verbatim reading.** Heard, Agent-Voice, Aftertone and the Breeze setup all do this. Some inject an instruction so the agent writes a spoken-summary line or tag.
 4. **Cleanup before TTS.** Strip markdown, code, URLs and file:line; then apply a pronunciation dictionary for tech jargon (claude-voice, claude-speaks). For Turkish the equivalent is normalizer-tr, trnorm or turkce-normalize, plus a custom map such as "PR" → "pi ar" and "deploy" → "diploy". **[INFERENCE]**
@@ -303,7 +303,7 @@ The README's only voice feature is transcription: "Whistle transcribes speech in
 - Integration: there are C headers and native binaries. A C# user got it working after "passing it a path instead of the raw bytes of the model", using "cactus_rs' documentation" ([comment](https://www.reddit.com/r/LocalLLaMA/comments/1wyemcb/comment/peegdnq/)). So Rust bindings exist [unverified].
 - Community pairing suggestion: "such a model paired with cactus' own needle model … then something like kokoro 82M for TTS" ([comment](https://www.reddit.com/r/LocalLLaMA/comments/1x3bpfl/comment/pf9ut1b/)). In other words, even fans expect TTS to come from somewhere else.
 
-**Verdict for t3-panel:** not applicable to Turkish TTS. The only plausible future use is on-device STT or intent parsing, and even that needs Turkish, which Whistle lacks.
+**Verdict for Tellal:** not applicable to Turkish TTS. The only plausible future use is on-device STT or intent parsing, and even that needs Turkish, which Whistle lacks.
 
 ---
 
@@ -316,7 +316,7 @@ The community view in late 2026 is consistent. **For Turkish, the multilingual "
 - XTTS-v2 is the least natural on Turkish leaderboards and non-commercial.
 - Piper is universally described as fast, robotic and emotionless. That matches the user's complaint, even though WER and UTMOS do not penalize it much.
 
-What changed in Sep–Oct 2026 is a wave of **Turkish-only, tiny models trained on synthetic Turkish speech, each with a dedicated Turkish normalizer**: EMA Lightning, Antalia-2 Mini, Ahenk Cep, Pocket TTS Turkish and seslen-tts. Turkish users respond with unusual enthusiasm ("Türkçesi gerçekten çok iyi", "İnanılmaz") and with precise, fixable bug reports rather than "it sounds foreign". Their shared weak spots are exactly t3-panel's hard cases:
+What changed in Sep–Oct 2026 is a wave of **Turkish-only, tiny models trained on synthetic Turkish speech, each with a dedicated Turkish normalizer**: EMA Lightning, Antalia-2 Mini, Ahenk Cep, Pocket TTS Turkish and seslen-tts. Turkish users respond with unusual enthusiasm ("Türkçesi gerçekten çok iyi", "İnanılmaz") and with precise, fixable bug reports rather than "it sounds foreign". Their shared weak spots are exactly Tellal's hard cases:
 - English and brand words inside Turkish text (PR, deploy, iOS, iPhone'um)
 - isolated letters
 - some number edge cases
@@ -328,7 +328,7 @@ Evidence quality:
 - Antalia-2 Mini and seslen-tts have almost none.
 - Every WER/UTMOS table comes from parties with a stake. PatientDesk sells Alania, and each model card benchmarks itself.
 
-For latency and integration, agent-narration projects agree on a warm long-lived model, sentence chunking with prefetch, spoken summaries, and markdown/jargon cleanup. Hitabet shows that EMA, Antalia and Ahenk Cep run in-process from Rust through `ort` with ONNX exports. **[INFERENCE: that makes them the closest match to t3-panel's architecture; Bakeoff should confirm by ear and by time-to-first-audio on the M4 Pro.]**
+For latency and integration, agent-narration projects agree on a warm long-lived model, sentence chunking with prefetch, spoken summaries, and markdown/jargon cleanup. Hitabet shows that EMA, Antalia and Ahenk Cep run in-process from Rust through `ort` with ONNX exports. **[INFERENCE: that makes them the closest match to Tellal's architecture; Bakeoff should confirm by ear and by time-to-first-audio on the M4 Pro.]**
 
 ---
 

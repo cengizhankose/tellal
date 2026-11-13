@@ -1,11 +1,11 @@
 [package]
-name = "t3-panel-core"
+name = "tellal-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [lib]
-name = "t3_panel_core"
+name = "tellal_core"
 
 [dependencies]
 anyhow.workspace = true

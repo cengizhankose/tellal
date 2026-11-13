@@ -1,13 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-  <!-- t3-panel app mark: rounded square with a knocked-out "T3" monogram and a sound-wave notch.
-       Single colour (currentColor) so the app tints it with its accent; cut-outs show the surface. -->
-  <defs>
-    <mask id="cut" maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24">
-      <rect x="0" y="0" width="24" height="24" fill="#fff"/>
-      <path fill="#000" d="M4.75 5H11.75V7H9.25V14H7.25V7H4.75Z"/>
-      <path fill="#000" d="M13.25 5H17.25A2 2 0 0 1 19.25 7V12A2 2 0 0 1 17.25 14H13.25V12H17.25V10.5H14.75V8.5H17.25V7H13.25Z"/>
-      <path fill="none" stroke="#000" stroke-width="1.75" stroke-linecap="round" d="M5.5 18.25Q7.25 16.25 9 18.25T12.5 18.25T16 18.25T19.5 18.25"/>
-    </mask>
-  </defs>
-  <rect x="1" y="1" width="22" height="22" rx="5.5" mask="url(#cut)"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Tellal app mark: the town crier's megaphone. Geometry from Lucide `megaphone`
+       (lucide-static v0.564.0, ISC). Single colour (currentColor) so the app tints it. -->
+  <path d="M11 6a13 13 0 0 0 8.4-2.8A1 1 0 0 1 21 4v12a1 1 0 0 1-1.6.8A13 13 0 0 0 11 14H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"/>
+  <path d="M6 14a12 12 0 0 0 2.4 7.2 2 2 0 0 0 3.2-2.4A8 8 0 0 1 10 14"/>
+  <path d="M8 6v8"/>
 </svg>

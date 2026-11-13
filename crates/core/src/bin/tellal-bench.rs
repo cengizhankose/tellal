@@ -1,7 +1,7 @@
-//! `t3p-bench` — TTS / T3 / end-to-end benchmarks that write a run dir like the app.
+//! `tellal-bench` — TTS / T3 / end-to-end benchmarks that write a run dir like the app.
 //!
 //! * default: cold model load + synthesize a fixed Turkish corpus, per-sentence numbers; each
-//!   sentence is saved as `<run_dir>/audio/bench-NN.wav` (unless `T3P_SAVE_AUDIO=0`).
+//!   sentence is saved as `<run_dir>/audio/bench-NN.wav` (unless `TELLAL_SAVE_AUDIO=0`).
 //!   `--corpus FILE` reads the sentences from FILE instead (one per line).
 //! * `--play`: same, and play each sentence.
 //! * `--t3`: 3 rounds of listing every watched project.
@@ -10,12 +10,12 @@
 //! * `--e2e`: headless `Core::start` → first `ThreadsUpdated` (rows dumped, then compared with
 //!   the next poll's order) → `set_listening(id, true)` on the first completed thread → its
 //!   catch-up line, sampling `ChannelView` progress every 250 ms, pausing ~1.2 s in for 1.5 s →
-//!   `SpeakingFinished` → `mute_all`. With `T3P_DEMO` the listed threads must be exactly the
+//!   `SpeakingFinished` → `mute_all`. With `TELLAL_DEMO` the listed threads must be exactly the
 //!   fixture's.
 //! * `--computer [--secs N] [--warmup N]`: headless `Core::start`, prints `Core::computer()` on
 //!   every `ComputerUpdated` and `TaskStarted`, then this process's CPU% over the `N` seconds
 //!   after the warmup (default 60 / 15). Real mode with `--stop-on-session`: the first live
-//!   session triggers `computer_stop_all` 3 s later. Demo mode (`T3P_DEMO`): listens to the
+//!   session triggers `computer_stop_all` 3 s later. Demo mode (`TELLAL_DEMO`): listens to the
 //!   first fixture thread whose computer session is scripted (`t-notes`), grants permissions at
 //!   3 s, dictates `NEW_TASK` at 38 s and starts the task with the transcript, stops all
 //!   computer sessions at 58 s.
@@ -24,9 +24,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use serde_json::json;
-use t3_panel_core::telemetry::{self, Telemetry, ms};
-use t3_panel_core::tts::{TtsEngine, open_output, samples_source, write_wav};
-use t3_panel_core::{Config, Core, CoreEvent, NEW_TASK, ThreadView, t3, theme};
+use tellal_core::telemetry::{self, Telemetry, ms};
+use tellal_core::tts::{TtsEngine, open_output, samples_source, write_wav};
+use tellal_core::{Config, Core, CoreEvent, NEW_TASK, ThreadView, t3, theme};
 
 const CORPUS: [&str; 10] = [
     "Tamam.",
@@ -62,7 +62,7 @@ fn main() -> anyhow::Result<()> {
         None,
         true,
         json!({"config": cfg.to_json(), "version": env!("CARGO_PKG_VERSION"), "pid": std::process::id(),
-               "bin": "t3p-bench", "mode": mode}),
+               "bin": "tellal-bench", "mode": mode}),
         json!({"run_dir": tel.run_dir()}),
         None,
     );

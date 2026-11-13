@@ -5,7 +5,7 @@
 
 use gpui::{AnyElement, Context, FontWeight, SharedString, Window, div, prelude::*, px};
 use serde_json::json;
-use t3_panel_core::{ComputerSession, ComputerView, NEW_TASK};
+use tellal_core::{ComputerSession, ComputerView, NEW_TASK};
 
 use super::{COMPUTER_H, PERMISSION_H, Panel};
 use crate::icons::{Icon, icon};

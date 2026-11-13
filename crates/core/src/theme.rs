@@ -156,7 +156,7 @@ impl Resolver {
     }
 
     fn bundle(&mut self, asar: Option<&(PathBuf, Option<SystemTime>, u64)>) -> Result<Arc<Bundle>, String> {
-        let Some(key) = asar else { return Err("T3 Code app not found (set T3P_T3_APP)".into()) };
+        let Some(key) = asar else { return Err("T3 Code app not found (set TELLAL_T3_APP)".into()) };
         if let Some((k, b)) = &self.bundle
             && k == key
         {
@@ -704,7 +704,7 @@ pub(crate) fn start(tel: Arc<Telemetry>, cfg: &Config, tx: Sender<CoreEvent>) ->
     log(&tel, &first, "startup", &[]);
     let shared = Arc::new(RwLock::new(first.view));
     let view = shared.clone();
-    std::thread::Builder::new().name("t3p-theme".into()).spawn(move || {
+    std::thread::Builder::new().name("tellal-theme".into()).spawn(move || {
         let mut stamp = watch_stamp(&src);
         loop {
             std::thread::sleep(WATCH_EVERY);

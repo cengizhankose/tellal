@@ -5139,37 +5139,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "t3-panel"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "crossbeam-channel",
- "global-hotkey",
- "gpui",
- "objc",
- "raw-window-handle",
- "serde_json",
- "t3-panel-core",
-]
-
-[[package]]
-name = "t3-panel-core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "crossbeam-channel",
- "libc",
- "normalizer-tr",
- "ort",
- "regex",
- "rodio",
- "serde",
- "serde_json",
- "sysinfo",
- "unicode-normalization",
-]
-
-[[package]]
 name = "taffy"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5192,6 +5161,37 @@ name = "target-features"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1bbb9f3c5c463a01705937a24fdabc5047929ac764b2d5b9cf681c1f5041ed5"
+
+[[package]]
+name = "tellal"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "crossbeam-channel",
+ "global-hotkey",
+ "gpui",
+ "objc",
+ "raw-window-handle",
+ "serde_json",
+ "tellal-core",
+]
+
+[[package]]
+name = "tellal-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "crossbeam-channel",
+ "libc",
+ "normalizer-tr",
+ "ort",
+ "regex",
+ "rodio",
+ "serde",
+ "serde_json",
+ "sysinfo",
+ "unicode-normalization",
+]
 
 [[package]]
 name = "tempfile"

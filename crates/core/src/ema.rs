@@ -78,7 +78,7 @@ pub struct Ema {
 
 /// ONNX Runtime allows one environment per process.
 static ENV: LazyLock<Result<Environment, String>> =
-    LazyLock::new(|| ort::init().with_name("t3-panel").build().map_err(|e| e.to_string()));
+    LazyLock::new(|| ort::init().with_name("tellal").build().map_err(|e| e.to_string()));
 
 impl Ema {
     pub fn load(model_dir: &Path, threads: usize) -> anyhow::Result<Ema> {

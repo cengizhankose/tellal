@@ -42,8 +42,8 @@ Topluluktaki ortak tavsiye ve ölçümler aynı yeri gösteriyor: rakamlar, kesm
 
 ## Panele geçiş planı (Supertonic seçilirse)
 
-1. `speech.rs`: `OfflineTtsVitsModelConfig` yerine `OfflineTtsSupertonicModelConfig`, `lang="tr"`, ses `sid` ayarı (`T3P_VOICE`).
+1. `speech.rs`: `OfflineTtsVitsModelConfig` yerine `OfflineTtsSupertonicModelConfig`, `lang="tr"`, ses `sid` ayarı (`TELLAL_VOICE`).
 2. Baştaki sessizliği kes (eşik −45 dB) ve ilk yan cümleyi ayrı üret: hedef ilk ses < 500 ms.
 3. Canlı ara adımlar 4–6 adım, 🔊 özetleri 8 adım; telemetriye `steps` ve `lead_silence_ms` ekle.
 4. Türkçe normalleştirici + telaffuz sözlüğü.
-5. `t3p-bench` ile önce/sonra ölçümü.
+5. `tellal-bench` ile önce/sonra ölçümü.

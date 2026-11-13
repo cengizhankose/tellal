@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Makes a private copy of the T3 desktop app's theme settings with the appearance set to light.
 
-Usage: tools/light-app-data.py <dest-dir>     then run the panel with T3P_T3_APP_DATA=<dest-dir>
+Usage: tools/light-app-data.py <dest-dir>     then run the panel with TELLAL_T3_APP_DATA=<dest-dir>
 
 Copies `<T3 userData>/Local Storage/leveldb` (default ~/Library/Application Support/t3code-v2,
-or $T3P_T3_APP_DATA) into <dest-dir> and appends one leveldb write-ahead log whose batch sets
+or $TELLAL_T3_APP_DATA) into <dest-dir> and appends one leveldb write-ahead log whose batch sets
 localStorage `t3code:theme-appearance-mode` = `light` with a sequence number above every existing
 record, so it wins (crates/core/src/theme/leveldb.rs). The T3 files are only read.
 """
@@ -60,7 +60,7 @@ def put_batch(items: dict[str, str]) -> bytes:
 def main() -> None:
     if len(sys.argv) != 2:
         sys.exit(__doc__)
-    src_root = Path(os.environ.get("T3P_T3_APP_DATA") or Path.home() / "Library/Application Support/t3code-v2")
+    src_root = Path(os.environ.get("TELLAL_T3_APP_DATA") or Path.home() / "Library/Application Support/t3code-v2")
     src = src_root / "Local Storage/leveldb"
     dest = Path(sys.argv[1]) / "Local Storage/leveldb"
     if dest.exists():

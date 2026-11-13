@@ -65,7 +65,7 @@ fails = "".join(f"<li><code>{esc(f['id'])}</code>: <pre>{esc(f['error'])}</pre><
 skips = "".join(f"<li><b>{esc(s['name'])}</b> — {esc(s['reason'])}</li>" for s in R["skipped"]) or "<li>none</li>"
 method = "".join(f"<li><b>{esc(k)}</b>: {esc(v)}</li>" for k, v in R["method"].items())
 
-page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Turkish local TTS bake-off — t3-panel</title>
+page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Turkish local TTS bake-off — Tellal</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 :root{{--bg:#0f1115;--fg:#d8dde6;--dim:#7d8594;--line:#262b35;--good:#5fd38d;--ok:#e5c158;--bad:#ff6b6b;--base:#1d2a44}}
@@ -82,7 +82,7 @@ tr.baseline{{background:var(--base)}}tr.baseline td:first-child,tr.baseline th:f
 input{{background:#151922;color:var(--fg);border:1px solid var(--line);padding:4px 8px;border-radius:4px;width:260px}}
 details{{margin:6px 0}}pre{{white-space:pre-wrap;font-size:11px;color:#b4bbc7}}
 </style></head><body>
-<h1>Turkish local TTS bake-off for t3-panel</h1>
+<h1>Turkish local TTS bake-off for Tellal</h1>
 <div class="dim">Generated {esc(R['generated'])} · {esc(R['machine'])} · real runs, one fresh process per engine/voice · audio = loudness-normalized copies (-16 LUFS), raw wavs in audio/raw/</div>
 <details><summary>Method</summary><ul>{method}</ul></details>
 <details><summary>Corpus (fed raw, no pre-normalization)</summary><ol type="a">{''.join(f'<li>{esc(c["text"])}</li>' for c in corpus)}</ol></details>

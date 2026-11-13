@@ -1,4 +1,4 @@
-//! Demo source (`Config.demo`, env `T3P_DEMO`): threads, messages and a timed script from a
+//! Demo source (`Config.demo`, env `TELLAL_DEMO`): threads, messages and a timed script from a
 //! fixture JSON (`demo/fixture.json`) instead of T3, Wispr Flow and cua-driver. It feeds the same
 //! seams as the real sources: the thread snapshot through [`t3::select`], new assistant messages
 //! and waiting requests through [`live::deliver_message`] / [`live::detect_wait`], status changes
@@ -504,11 +504,11 @@ impl Demo {
         Arc::new(move |tel: &Telemetry, thread: &str, n: u32| Ok(sh.latest_messages(tel, thread, n)))
     }
 
-    /// Publishes the initial snapshot and spawns the `t3p-demo` driver thread that runs the
+    /// Publishes the initial snapshot and spawns the `tellal-demo` driver thread that runs the
     /// script, replies and dictations.
     pub(crate) fn run(&self, jobs: Jobs, speech: Speech) -> std::io::Result<()> {
         let sh = self.sh.clone();
-        std::thread::Builder::new().name("t3p-demo".into()).spawn(move || {
+        std::thread::Builder::new().name("tellal-demo".into()).spawn(move || {
             sh.publish(&speech);
             // (due, arrival order, job); a handful at most, so a linear scan picks the next.
             let mut pending: Vec<(Instant, u64, Job)> = Vec::new();

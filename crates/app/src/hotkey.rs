@@ -1,6 +1,6 @@
 //! Global shortcuts (Carbon `RegisterEventHotKey`, no Accessibility permission needed): show/hide
-//! (default ⌃⌥Space, `T3P_HOTKEY`) and the computer-use emergency stop (default ⌃⌥⎋,
-//! `T3P_STOP_HOTKEY`). `<mods+key>` in `global-hotkey` syntax or `off`. One manager owns both;
+//! (default ⌃⌥Space, `TELLAL_HOTKEY`) and the computer-use emergency stop (default ⌃⌥⎋,
+//! `TELLAL_STOP_HOTKEY`). `<mods+key>` in `global-hotkey` syntax or `off`. One manager owns both;
 //! presses arrive on its single global channel, which the panel's pump drains once per tick.
 
 use std::str::FromStr;
@@ -8,7 +8,7 @@ use std::str::FromStr;
 use global_hotkey::hotkey::HotKey;
 use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
 use serde_json::json;
-use t3_panel_core::Core;
+use tellal_core::Core;
 
 const DEFAULT_TOGGLE: &str = "ctrl+alt+space";
 /// ⌃⌥⎋: next to macOS's Force Quit (⌘⌥⎋) in meaning, but not taken by the system.
@@ -37,8 +37,8 @@ impl Hotkeys {
     /// Registers both shortcuts; logs `ui.hotkey` / `ui.stop_hotkey` `{spec, ok, error}`.
     pub fn register(core: &Core) -> Hotkeys {
         let manager = GlobalHotKeyManager::new().map_err(|e| e.to_string());
-        let toggle = bind(core, manager.as_ref(), "T3P_HOTKEY", DEFAULT_TOGGLE, "ui.hotkey");
-        let stop = bind(core, manager.as_ref(), "T3P_STOP_HOTKEY", DEFAULT_STOP, "ui.stop_hotkey");
+        let toggle = bind(core, manager.as_ref(), "TELLAL_HOTKEY", DEFAULT_TOGGLE, "ui.hotkey");
+        let stop = bind(core, manager.as_ref(), "TELLAL_STOP_HOTKEY", DEFAULT_STOP, "ui.stop_hotkey");
         Hotkeys { _manager: manager.ok(), toggle, stop }
     }
 

@@ -1,4 +1,4 @@
-//! `t3p-report [run-dir|latest]` — summarizes a run's events.jsonl + metrics.jsonl, writes
+//! `tellal-report [run-dir|latest]` — summarizes a run's events.jsonl + metrics.jsonl, writes
 //! `report.json` and a self-contained `report.html` (inline SVG) into the run dir.
 
 use std::collections::BTreeMap;
@@ -6,8 +6,8 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
-use t3_panel_core::Config;
-use t3_panel_core::telemetry::{parse_rfc3339_ms, round2};
+use tellal_core::Config;
+use tellal_core::telemetry::{parse_rfc3339_ms, round2};
 
 fn main() -> anyhow::Result<()> {
     let arg = std::env::args().nth(1).unwrap_or_else(|| "latest".into());
@@ -406,12 +406,12 @@ fn render_html(dir: &Path, report: &Value, events: &[Value], metrics: &[Value]) 
     let stats: String =
         sections.iter().map(|(k, v)| format!("<tr><th>{}</th><td>{}</td></tr>", esc(k), esc(v))).collect();
     format!(
-        r#"<!doctype html><html><head><meta charset="utf-8"><title>t3-panel report {run}</title><style>
+        r#"<!doctype html><html><head><meta charset="utf-8"><title>Tellal report {run}</title><style>
 body{{font:13px -apple-system,system-ui,sans-serif;margin:24px;color:#222;max-width:820px}}
 h1{{font-size:18px}} h2{{font-size:14px;margin-top:28px}} table{{border-collapse:collapse}} td,th{{padding:2px 8px;border-bottom:1px solid #eee;text-align:left}}
 .t{{font:600 12px sans-serif}} .l{{font:11px sans-serif;fill:#555}} .ax{{stroke:#999}} pre{{background:#f6f6f6;padding:8px;overflow:auto}}
 </style></head><body>
-<h1>t3-panel run {run}</h1>
+<h1>Tellal run {run}</h1>
 <p>{events} events · {rows} metric rows over {span}s ({rps} rows/s) · RSS min/avg/max {rmin}/{ravg}/{rmax} MB · CPU avg/max {cavg}/{cmax}%<br>
 click→audio p50/p95/max {c50}/{c95}/{cmax2} ms (n={cn}) · T3 CLI {calls} calls, {twall} ms wall, {tcpu} ms child CPU<br>
 msg→audio p50 {m50} ms · dictation {dn} ({dok} ok), from stop p50 {ds50} ms · replies {rn} ({rq} queued) · state DB {dbcalls} calls, {dbcpu} ms child CPU</p>

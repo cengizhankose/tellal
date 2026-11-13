@@ -1,6 +1,6 @@
-# How T3 Panel was built
+# How Tellal was built
 
-T3 Panel was built in two days (10–11 November 2026) inside a single T3 Code thread. I dictated every request in Turkish with Wispr Flow; one coding agent (Claude Opus through omp) planned the work and handed slices to sub-agents. This page retells that conversation: what I asked for, what we found, and why each decision went the way it did. Quotes are translated from Turkish.
+Tellal (it started as "T3 Panel") was built in two days (10–11 November 2026) inside a single T3 Code thread. I dictated every request in Turkish with Wispr Flow; one coding agent (Claude Opus through omp) planned the work and handed slices to sub-agents. This page retells that conversation: what I asked for, what we found, and why each decision went the way it did. Quotes are translated from Turkish.
 
 ## 1. "Is HeyClicky the thing I need?"
 
@@ -25,7 +25,7 @@ T3 already exposes what such a panel needs: `t3 thread list|show|send --json`, a
 
 ## 3. v0.1 — measure everything first
 
-My one rule for the build: *"Let's progress in a way we can monitor — performance, what it uses, what goes in, what comes out — so we can improve it as we go."* Every run writes `events.jsonl` (every input and output with its duration), `metrics.jsonl` (RSS/CPU every second) and the audio it spoke; `t3p-report` turns a run into tables and an HTML report.
+My one rule for the build: *"Let's progress in a way we can monitor — performance, what it uses, what goes in, what comes out — so we can improve it as we go."* Every run writes `events.jsonl` (every input and output with its duration), `metrics.jsonl` (RSS/CPU every second) and the audio it spoke; `tellal-report` turns a run into tables and an HTML report.
 
 The telemetry paid off on day one:
 

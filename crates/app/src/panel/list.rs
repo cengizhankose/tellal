@@ -6,7 +6,7 @@ use std::time::Instant;
 
 use gpui::{Animation, AnimationExt, AnyElement, Context, FontWeight, Rgba, SharedString, div, prelude::*, px, rgb};
 use serde_json::json;
-use t3_panel_core::{ChannelView, ThreadView};
+use tellal_core::{ChannelView, ThreadView};
 
 use super::{BodyClick, LIST_PAD, Panel, ROW_H, ROW2_H, SECTION_H, STATE_BLOCK_H};
 use crate::icons::{self, Icon, asset_svg, icon};

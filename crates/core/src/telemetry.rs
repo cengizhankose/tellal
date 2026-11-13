@@ -104,7 +104,7 @@ impl Telemetry {
     pub fn start_sampler(self: &Arc<Self>) -> anyhow::Result<()> {
         let mut out = BufWriter::new(File::create(self.run_dir.join("metrics.jsonl"))?);
         let tel = Arc::clone(self);
-        std::thread::Builder::new().name("t3p-metrics".into()).spawn(move || {
+        std::thread::Builder::new().name("tellal-metrics".into()).spawn(move || {
             let mut sampler = ProcSampler::new();
             let start = Instant::now();
             let mut tick: u32 = 0;

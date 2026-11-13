@@ -6,7 +6,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use t3_panel_core::{ChannelView, ThreadView};
+use tellal_core::{ChannelView, ThreadView};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Section {

@@ -1,6 +1,6 @@
 # Research
 
-The notes behind t3-panel's two big choices: which local Turkish voice to use, and how the
+The notes behind Tellal's two big choices: which local Turkish voice to use, and how the
 panel should look next to T3 Code. Dated November 2026. Claims link to their sources;
 anything not measured or read directly is marked `[INFERENCE]`.
 

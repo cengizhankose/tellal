@@ -1,4 +1,4 @@
-//! `T3P_SELFTEST` drivers: `1` (listen to one thread, then mute and quit), `reply:<id>` (the
+//! `TELLAL_SELFTEST` drivers: `1` (listen to one thread, then mute and quit), `reply:<id>` (the
 //! Cevapla flow), `shots` (walks the UI states for screenshots without synthetic clicks; each
 //! state logs `ui.selftest_state` with the window number for `screencapture -l`; the
 //! computer-use states wait for the demo fixture's sessions) and `demo` (a choreographed
@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 use gpui::{App, Context, Window};
 use serde_json::{Value, json};
-use t3_panel_core::ThreadView;
+use tellal_core::ThreadView;
 
 use super::{Panel, Retry, ms};
 use crate::input::EditSource;
@@ -185,7 +185,7 @@ pub(super) struct DemoRun {
     deadline: Instant,
 }
 
-/// `T3P_SELFTEST` value.
+/// `TELLAL_SELFTEST` value.
 #[derive(Clone, Debug)]
 pub enum SelfTestMode {
     Off,
@@ -197,24 +197,24 @@ pub enum SelfTestMode {
         stop_after: Duration,
         nosend: bool,
     },
-    /// `shots`: one UI state every `step` (`T3P_SELFTEST_STEP_MS`, default 2500).
+    /// `shots`: one UI state every `step` (`TELLAL_SELFTEST_STEP_MS`, default 2500).
     Shots {
         step: Duration,
     },
-    /// `demo`: the launch-video walkthrough (`BEATS`) on the demo fixture (`T3P_DEMO`).
+    /// `demo`: the launch-video walkthrough (`BEATS`) on the demo fixture (`TELLAL_DEMO`).
     Demo,
 }
 
 impl SelfTestMode {
     pub fn from_env() -> SelfTestMode {
-        let Ok(value) = std::env::var("T3P_SELFTEST") else {
+        let Ok(value) = std::env::var("TELLAL_SELFTEST") else {
             return SelfTestMode::Off;
         };
         let env_ms = |key: &str| std::env::var(key).ok().and_then(|v| v.trim().parse().ok()).map(Duration::from_millis);
         match value.trim() {
             "1" => return SelfTestMode::Listen,
             "shots" => {
-                return SelfTestMode::Shots { step: env_ms("T3P_SELFTEST_STEP_MS").unwrap_or(SHOTS_DEFAULT_STEP) };
+                return SelfTestMode::Shots { step: env_ms("TELLAL_SELFTEST_STEP_MS").unwrap_or(SHOTS_DEFAULT_STEP) };
             }
             "demo" => return SelfTestMode::Demo,
             _ => {}
@@ -222,8 +222,8 @@ impl SelfTestMode {
         let Some(thread_id) = value.strip_prefix("reply:").map(str::trim).filter(|t| !t.is_empty()) else {
             return SelfTestMode::Off;
         };
-        let stop_after = env_ms("T3P_SELFTEST_STOP_AFTER_MS").unwrap_or(SELFTEST_DEFAULT_STOP_AFTER);
-        let nosend = std::env::var_os("T3P_SELFTEST_NOSEND").is_some_and(|v| v == "1");
+        let stop_after = env_ms("TELLAL_SELFTEST_STOP_AFTER_MS").unwrap_or(SELFTEST_DEFAULT_STOP_AFTER);
+        let nosend = std::env::var_os("TELLAL_SELFTEST_NOSEND").is_some_and(|v| v == "1");
         SelfTestMode::Reply { thread_id: thread_id.to_owned(), stop_after, nosend }
     }
 

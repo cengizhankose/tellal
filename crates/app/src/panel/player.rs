@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use gpui::{Animation, AnimationExt, AnyElement, App, Context, FontWeight, Rgba, SharedString, div, prelude::*, px};
 use serde_json::json;
-use t3_panel_core::ChannelView;
+use tellal_core::ChannelView;
 
 use super::{PLAYER_H, Panel};
 use crate::icons::{Icon, icon};

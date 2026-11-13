@@ -1,6 +1,6 @@
-# `sesli` — the agent side of t3-panel
+# `sesli` — the agent side of Tellal
 
-t3-panel reads agent messages aloud. It can only read what the agent writes, so the agent has
+Tellal reads agent messages aloud. It can only read what the agent writes, so the agent has
 to write for the ear. `sesli` ("spoken" in Turkish) is a small skill that tells coding agents
 how. [`SKILL.md`](SKILL.md) is the skill itself, in Turkish because the voice is Turkish.
 
@@ -27,7 +27,7 @@ that follow it are much easier to listen to.
    listed, and a decision ends in a single question. The `👀` line is never read; you see it
    when you open the thread in T3.
 
-The panel prepends `$sesli ` to every reply you send from it (`T3P_REPLY_PREFIX`), so the agent
+The panel prepends `$sesli ` to every reply you send from it (`TELLAL_REPLY_PREFIX`), so the agent
 keeps using the skill for the rest of the thread.
 
 ## Install

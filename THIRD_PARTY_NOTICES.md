@@ -1,6 +1,6 @@
 # Third-party notices
 
-t3-panel itself is MIT-licensed ([`LICENSE`](LICENSE)). It ships or uses the third-party work
+Tellal itself is MIT-licensed ([`LICENSE`](LICENSE)). It ships or uses the third-party work
 below. Details on every bundled asset file: [`crates/app/assets/README.md`](crates/app/assets/README.md).
 
 ## Bundled in the binary
@@ -57,7 +57,7 @@ binary. ONNX Runtime: MIT License, Copyright (c) Microsoft Corporation,
 The Turkish voice. [`scripts/fetch-models.sh`](scripts/fetch-models.sh) downloads the ONNX export
 [`ozcancelik/ema-lightning-onnx`](https://huggingface.co/ozcancelik/ema-lightning-onnx) of
 [EMA Lightning](https://huggingface.co/canberkkkkkk/ema-lightning) into
-`~/Library/Application Support/t3-panel/models/`, together with its `LICENSE` and `NOTICE`. The
+`~/Library/Application Support/tellal/models/`, together with its `LICENSE` and `NOTICE`. The
 weights are not part of this repository or of any build. Apache License 2.0; see the model
 cards for attribution.
 
@@ -102,5 +102,5 @@ For the full licence text of every crate, generate a report with
 
 ## Not affiliated
 
-t3-panel is an independent project. It is not affiliated with, endorsed by or sponsored by
+Tellal is an independent project. It is not affiliated with, endorsed by or sponsored by
 T3 Tools Inc. / Ping Labs, Zed Industries, Wispr or any provider shown in the panel.

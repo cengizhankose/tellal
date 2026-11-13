@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use gpui::{AnyElement, Context, Entity, Focusable, FontWeight, Rgba, SharedString, Window, div, prelude::*, px};
 use serde_json::json;
-use t3_panel_core::NEW_TASK;
+use tellal_core::NEW_TASK;
 
 use super::selftest::{SelfTest, SelfTestMode};
 use super::{DOCK_H, FOCUS_CHECK_DELAY, Panel, ms};

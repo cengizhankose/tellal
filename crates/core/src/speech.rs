@@ -2,7 +2,7 @@
 //!
 //! Every thread is a channel ([`ChannelView`]). Utterances come from the catch-up worker
 //! (unmute), the live tail (new assistant messages, waiting requests) and the poller (stopped
-//! runs). The `t3p-tts` thread keeps at most one utterance audible: a resumed paused utterance
+//! runs). The `tellal-tts` thread keeps at most one utterance audible: a resumed paused utterance
 //! first, else the earliest arrival across listening, unpaused channels. It synthesizes just in
 //! time, sentence by sentence into one rodio `Player` (playback of sentence N overlaps synthesis
 //! of N+1), and prefetches the next utterance while the current one plays. Pausing a channel
@@ -626,7 +626,7 @@ impl Speech {
         let (catchup_tx, catchup_rx) = crossbeam_channel::unbounded::<CatchUp>();
         {
             let shared = shared.clone();
-            std::thread::Builder::new().name("t3p-catchup".into()).spawn(move || {
+            std::thread::Builder::new().name("tellal-catchup".into()).spawn(move || {
                 for req in catchup_rx.iter() {
                     catch_up(&shared, req);
                 }
@@ -635,7 +635,7 @@ impl Speech {
         {
             let shared = shared.clone();
             let cfg = cfg.clone();
-            std::thread::Builder::new().name("t3p-tts".into()).spawn(move || player_loop(&shared, &cfg))?;
+            std::thread::Builder::new().name("tellal-tts".into()).spawn(move || player_loop(&shared, &cfg))?;
         }
         Ok(Speech { shared, catchup_tx })
     }
@@ -885,8 +885,8 @@ impl Speech {
 
 /// Short spoken label from a thread title: the title if ≤ 30 chars, else its first 4 words.
 /// Brackets, double quotes and inner punctuation become spaces and apostrophes are trimmed at
-/// word edges, so the label reads as one phrase ("t3-panel test: sadece 'Tamam, …" →
-/// "t3-panel test sadece Tamam.") while Turkish suffixes keep theirs ("Eternals’a").
+/// word edges, so the label reads as one phrase ("tellal test: sadece 'Tamam, …" →
+/// "tellal test sadece Tamam.") while Turkish suffixes keep theirs ("Eternals’a").
 fn label_for(title: &str) -> Option<String> {
     const NOISE: &[char] = &['.', '!', '?', '…', ':', ';', ',', '"', '“', '”', '(', ')', '[', ']', '{', '}'];
     const APOSTROPHES: &[char] = &['\'', '‘', '’'];
@@ -942,7 +942,7 @@ fn open_device_async(tel: &Arc<Telemetry>, reason: &'static str) -> crossbeam_ch
     let (tx, rx) = crossbeam_channel::bounded(1);
     let (bg_tel, bg_tx) = (tel.clone(), tx.clone());
     let spawned = std::thread::Builder::new()
-        .name("t3p-audio-open".into())
+        .name("tellal-audio-open".into())
         .spawn(move || drop(bg_tx.send(open_device(&bg_tel, reason))));
     if spawned.is_err() {
         let _ = tx.send(open_device(tel, reason));
@@ -1013,7 +1013,7 @@ fn prefetch(tel: &Telemetry, engine: &TtsEngine, text: &str) -> Prefetch {
     parts.map_or(Prefetch::Failed, Prefetch::Ready)
 }
 
-/// The `t3p-tts` thread: owns the voice, the audio device and every `Player`.
+/// The `tellal-tts` thread: owns the voice, the audio device and every `Player`.
 fn player_loop(sh: &Shared, cfg: &Config) {
     let tel = &*sh.tel;
     let engine = TtsEngine::load(tel, cfg)
@@ -1311,8 +1311,8 @@ mod tests {
     fn labels() {
         assert_eq!(label_for("Kısa başlık").as_deref(), Some("Kısa başlık."));
         assert_eq!(
-            label_for("t3-panel test: sadece 'Tamam, hazirım.' yaz ve bitir.").as_deref(),
-            Some("t3-panel test sadece Tamam.")
+            label_for("tellal test: sadece 'Tamam, hazirım.' yaz ve bitir.").as_deref(),
+            Some("tellal test sadece Tamam.")
         );
         assert_eq!(label_for("Eternals’a Sürpriz Ara Sahne Ekleme").as_deref(), Some("Eternals’a Sürpriz Ara Sahne."));
         assert_eq!(label_for("  "), None);

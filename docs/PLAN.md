@@ -1,4 +1,4 @@
-# t3-panel: endişeler ve çalışma planı
+# Tellal: endişeler ve çalışma planı
 
 Kaynak: 10 Kasım 2026 isteği (çift tık, uygulamada açma, Cevapla + Wispr, başlarken onay cümlesi, radyo kanalları + video kontrolleri). Durum sütunu v0.2 (`178fb5d` ve sonrası) itibarıyla.
 

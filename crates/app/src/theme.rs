@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use gpui::{Global, Hsla, Rgba, SharedString, rgb};
 use serde_json::{Value, json};
-use t3_panel_core::ThemeView;
+use tellal_core::ThemeView;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Tokens {

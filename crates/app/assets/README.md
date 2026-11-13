@@ -10,11 +10,10 @@ T3 source references below point at github.com/pingdotgg/t3code, commit
 
 ## `logo.svg`
 
-The t3-panel app mark: a rounded square (22 × 22, radius 5.5) with a knocked-out "T3" monogram
-and a sound-wave line, drawn on a 24 × 24 grid so it stays crisp at 16 px (header), 24 px and
-64 px (about panel). The cut-outs are a `<mask>`, so the mark is one colour (the accent) and the
-surface shows through the letters. Original work for this project (same licence as the repo); it
-does not reuse T3's wordmark (`apps/web/src/components/T3Wordmark.tsx`).
+The Tellal app mark: the town crier's megaphone. The geometry is Lucide's `megaphone`
+(`lucide-static@0.564.0`, ISC, same file as `icons/megaphone.svg`), drawn as one `currentColor`
+stroke on a 24 × 24 grid so it stays crisp at 16 px (header, tinted with `accent`), 24 px and
+64 px. It does not reuse T3's wordmark (`apps/web/src/components/T3Wordmark.tsx`).
 
 ## `icons/` — Lucide
 

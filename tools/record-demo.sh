@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Runs the panel on the demo fixture under a T3P_SELFTEST walkthrough and records ONLY its window
-# (ScreenCaptureKit, tools/record-window.swift). Silent: T3P_OUTPUT_VOLUME=0; the voice is still
+# Runs the panel on the demo fixture under a TELLAL_SELFTEST walkthrough and records ONLY its window
+# (ScreenCaptureKit, tools/record-window.swift). Silent: TELLAL_OUTPUT_VOLUME=0; the voice is still
 # synthesized and saved as WAVs in the run dir, so tools/build-media.py can rebuild the audio.
 #
 # Usage: tools/record-demo.sh <out-dir> [demo|shots] [dark|light]
@@ -13,11 +13,11 @@ out="${1:?usage: tools/record-demo.sh <out-dir> [demo|shots] [dark|light]}"
 mode="${2:-demo}"
 appearance="${3:-dark}"
 target="$repo/target/ui-dev"
-panel="$target/release/t3-panel"
+panel="$target/release/tellal"
 recorder="$target/record-window"
 
 if [[ ! -x "$panel" ]]; then
-  (cd "$repo" && CARGO_TARGET_DIR="$target" cargo build -p t3-panel --release)
+  (cd "$repo" && CARGO_TARGET_DIR="$target" cargo build -p tellal --release)
 fi
 if [[ ! -x "$recorder" || "$repo/tools/record-window.swift" -nt "$recorder" ]]; then
   mkdir -p "$target"
@@ -29,7 +29,7 @@ mkdir -p "$out"
 out="$(cd "$out" && pwd)"
 # The metrics drawer shows the run dir: keep it a neutral path (no user name), moved into
 # <out-dir>/logs afterwards.
-logs="/tmp/t3-panel-demo/$(basename "$out")"
+logs="/tmp/tellal-demo/$(basename "$out")"
 rm -rf "$logs"
 mkdir -p "$logs"
 
@@ -38,13 +38,13 @@ if [[ "$appearance" == light ]]; then
   # A private copy of T3's theme settings with the appearance forced to light; the real T3
   # settings are only read.
   python3 "$repo/tools/light-app-data.py" "$out/t3-app-data"
-  env_extra+=(T3P_T3_APP_DATA="$out/t3-app-data")
+  env_extra+=(TELLAL_T3_APP_DATA="$out/t3-app-data")
 fi
 
-# T3P_HOTKEY=off: never compete with a panel that is already running for the global shortcut.
+# TELLAL_HOTKEY=off: never compete with a panel that is already running for the global shortcut.
 env ${env_extra[@]+"${env_extra[@]}"} \
-  T3P_DEMO="$repo/demo/fixture.json" T3P_OUTPUT_VOLUME=0 T3P_SELFTEST="$mode" T3P_HOTKEY=off \
-  T3P_LOG_ROOT="$logs" "$panel" >"$out/panel.stdout" 2>"$out/panel.stderr" &
+  TELLAL_DEMO="$repo/demo/fixture.json" TELLAL_OUTPUT_VOLUME=0 TELLAL_SELFTEST="$mode" TELLAL_HOTKEY=off \
+  TELLAL_LOG_ROOT="$logs" "$panel" >"$out/panel.stdout" 2>"$out/panel.stderr" &
 pid=$!
 
 # The window number appears in `ui.ready` once the first frame rendered.

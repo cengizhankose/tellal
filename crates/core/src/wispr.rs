@@ -82,14 +82,14 @@ impl Wispr {
             thread: thread_id.to_owned(),
             start_ms,
         };
-        if let Err(e) = std::thread::Builder::new().name("t3p-wispr".into()).spawn(move || watch.run()) {
+        if let Err(e) = std::thread::Builder::new().name("tellal-wispr".into()).spawn(move || watch.run()) {
             {
                 let mut cur = lock(&self.session);
                 if cur.as_ref().is_some_and(|s| s.id == id) {
                     *cur = None;
                 }
             }
-            self.fail_start(thread_id, format!("spawn t3p-wispr: {e}"));
+            self.fail_start(thread_id, format!("spawn tellal-wispr: {e}"));
         }
     }
 
@@ -128,10 +128,10 @@ impl Wispr {
         };
         let tel = Arc::clone(&self.tel);
         let input_thread = thread.clone();
-        if let Err(e) = std::thread::Builder::new().name("t3p-wispr-open".into()).spawn(move || {
+        if let Err(e) = std::thread::Builder::new().name("tellal-wispr-open".into()).spawn(move || {
             log_open(&tel, kind, &thread, STOP_URL);
         }) {
-            let err = format!("spawn t3p-wispr-open: {e}");
+            let err = format!("spawn tellal-wispr-open: {e}");
             self.tel.event(kind, None, false, open_input(&input_thread, STOP_URL), Value::Null, Some(&err));
         }
     }

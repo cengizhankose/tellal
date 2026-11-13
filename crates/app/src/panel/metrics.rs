@@ -5,7 +5,7 @@ use std::collections::VecDeque;
 
 use gpui::{Context, FontWeight, Rgba, SharedString, div, prelude::*, px};
 use serde_json::json;
-use t3_panel_core::LiveStats;
+use tellal_core::LiveStats;
 
 use super::{DRAWER_H, Panel, STATUS_H};
 use crate::icons::{Icon, icon};

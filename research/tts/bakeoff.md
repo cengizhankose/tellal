@@ -1,4 +1,4 @@
-# Turkish local TTS bake-off (t3-panel)
+# Turkish local TTS bake-off (Tellal)
 
 Real runs on this Mac (Apple M4 Pro, 48 GB, macOS 27, with the user's other apps open), 2026-11-11T01:13.
 Open **[`bakeoff/index.html`](bakeoff/index.html)** (it works from file://) to listen: one player per sentence × engine. The players use loudness-normalized copies (-16 LUFS). Raw numbers are in [`bakeoff/results.json`](bakeoff/results.json). Audio is git-ignored.

@@ -59,7 +59,7 @@ fn query(cursors: &HashMap<String, Cursor>, ids: &[String]) -> String {
     )
 }
 
-/// Spawns the `t3p-live` thread.
+/// Spawns the `tellal-live` thread.
 pub(crate) fn spawn(
     tel: Arc<Telemetry>,
     interval: Duration,
@@ -67,7 +67,7 @@ pub(crate) fn spawn(
     threads: Arc<RwLock<Vec<ThreadView>>>,
     speech: Speech,
 ) -> std::io::Result<()> {
-    std::thread::Builder::new().name("t3p-live".into()).spawn(move || {
+    std::thread::Builder::new().name("tellal-live".into()).spawn(move || {
         let start = rfc3339_from_ms(start_ms);
         let mut cursors: HashMap<String, Cursor> = HashMap::new();
         // Waiting request ids already handled, per thread.

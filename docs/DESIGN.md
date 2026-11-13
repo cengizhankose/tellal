@@ -1,4 +1,4 @@
-# t3-panel v0.3 — design spec
+# Tellal v0.3 — design spec
 
 The panel is a remote control for T3 Code that you *listen* to. It sits above every app, so it must
 be calm, small and instantly readable. This spec is the contract for the v0.3 redesign; every rule
@@ -23,7 +23,7 @@ Sources:
 
 ## 2. Identity (T3 parity)
 
-- Header mirrors T3's sidebar header: the wordmark in T3's treatment — bold **T3** + muted **Panel**, 14 px / 500 — and no app icon (T3 has none in its header). A T3-style pill (16 px tall, 11 px text) appears only when the panel is *not* live: `bağlanıyor`, `ses yükleniyor`, `hata`; when live a 6 px success dot (tooltip `canlı`). While an agent may act on the screen a second pill, pointer icon + `ekran` in `danger`, sits next to it (also in compact mode).
+- Header mirrors T3's sidebar header: the Tellal mark (`logo.svg`, Lucide's megaphone, 16 px in `accent`) followed by the wordmark **Tellal** in T3's wordmark treatment (bold, 14 px). A T3-style pill (16 px tall, 11 px text) appears only when the panel is *not* live: `bağlanıyor`, `ses yükleniyor`, `hata`; when live a 6 px success dot (tooltip `canlı`). While an agent may act on the screen a second pill, pointer icon + `ekran` in `danger`, sits next to it (also in compact mode).
 - The app mark is our own (do not reuse T3's logo as ours): a rounded square with a "T3" monogram and a sound-wave notch, `crates/app/assets/logo.svg`. It ships in the assets (about/tooltip use is optional) but is not shown in the header.
 - Provider marks on rows like T3 shows them (Claude, OpenAI/Codex, ACP registry for omp, …): 14 px at 60 % opacity, T3's brand colours where it has them; generic ACP-registry marks get T3's 2-letter instance tile (`OM`, `OF`); unknown providers a 2-letter monogram. Tooltip = provider + model.
 - Every row shows its project: the T3 project icon (`ThreadView.project_icon`, lucide name + T3 colour map), the "No project" dashed square, or T3's generated two-letter monogram tile in the name-hashed identity colour (`projectIdentity.ts`), exactly as T3 falls back.
@@ -64,7 +64,7 @@ Allowed continuous motion, only while audio the user enabled is playing: the pla
 
 ```
 ┌─────────────────────────────────────────┐
-│ T3 Panel • ⌖ekran        +  ⌕  ▤  ⤡  ✕  │ header 40px, drag area
+│ Tellal • ⌖ekran        +  ⌕  ▤  ⤡  ✕  │ header 40px, drag area
 ├─────────────────────────────────────────┤
 │ ⌖ Ajan ekranını kullanıyor  [2]   3dk │ computer-use banner (only while ≥1 cua-driver
 │   TextEdit · click "Kaydet"   [Durdur] │ session; also in compact mode)
@@ -127,12 +127,12 @@ Keep v0.2 behaviour (Wispr hands-free, paste/type, auto-send). Restyle to tokens
 ### Computer use (cua-driver)
 Agents (omp in T3, or any MCP client) drive the screen through the local cua-driver daemon; the panel only watches (`Core::computer()`, `CoreEvent::ComputerUpdated`) and can stop them.
 - **Banner** (top of the content, above the error banner and the attention card; safety first): only while `ComputerView.sessions` is non-empty. Pointer icon (`mouse-pointer-2`) in `danger`, `Ajan ekranını kullanıyor`, `N oturum` pill when > 1, elapsed time since the first session started at minute resolution (`<1dk`, `3dk`, like T3's working timer, so it re-renders once a minute), and one truncated line with the app and last action (`TextEdit · click "Kaydet"`; cua-driver itself reports no content, so real sessions show `client · son işlem 2dk`). Card: 10 % `danger` tint, 50 % `danger` border, 52 px; one `normal` slide-up on appear (Reduce Motion: 120 ms fade), then static: no pulsing, no ticking seconds (E: G1-10).
-- **Durdur**: the one filled `danger` button (canvas-coloured label; core floors `danger` ≥ 4.5:1 against `canvas` in every theme, so the label keeps 4.5:1) → `Core::computer_stop_all()` (deny-only `revoke --all`) + toast `Ekran kontrolü durduruldu`. Keyboard: ⌘. in the panel (also while typing) and the global ⌃⌥⎋ from any app (env `T3P_STOP_HOTKEY`, `off` disables). The stop is always sent, even when the panel sees no session.
+- **Durdur**: the one filled `danger` button (canvas-coloured label; core floors `danger` ≥ 4.5:1 against `canvas` in every theme, so the label keeps 4.5:1) → `Core::computer_stop_all()` (deny-only `revoke --all`) + toast `Ekran kontrolü durduruldu`. Keyboard: ⌘. in the panel (also while typing) and the global ⌃⌥⎋ from any app (env `TELLAL_STOP_HOTKEY`, `off` disables). The stop is always sent, even when the panel sees no session.
 - **Permission row** (above the status line, 32 px): only when cua-driver is installed and its permissions are missing (`izin gerekli`) or unknown (`izin durumu bilinmiyor`, no daemon). `İzin ver` (I) → `Core::computer_grant_permissions()`; the row then says `macOS pencerelerini onayla: Erişilebilirlik ve Ekran Kaydı` until the grant is reported, then disappears with the toast `Bilgisayar kullanımı hazır`. Not installed → nothing in the main UI.
 - **Drawer**: a `Bilgisayar kullanımı` section (cua-driver version or `kurulu değil`, servis, mod, izin, canlı oturum, durdur shortcut).
 
 ### New task (by voice)
-`+` in the header (tooltip `Yeni görev (N)`, key N) opens the reply dock in new-task mode: label `→ Yeni görev · <project>` (`T3P_TASK_PROJECT`, else T3's `No project`), dictation target `NEW_TASK`, and every v0.2 dock behaviour (Wispr hands-free, focus/restore, paste/typing, History fill-or-compare, auto-send after Gönder, Esc cancels). Gönder → `Core::start_task(text)` (chip `Görev başlatılıyor…`); `TaskStarted` ok → toast `Görev başladı`, the dock closes, and the new thread is selected, its section expanded, scrolled to and pulsed once as soon as it is listed (it is already listening). Errors stay in the dock with the text (G2-5).
+`+` in the header (tooltip `Yeni görev (N)`, key N) opens the reply dock in new-task mode: label `→ Yeni görev · <project>` (`TELLAL_TASK_PROJECT`, else T3's `No project`), dictation target `NEW_TASK`, and every v0.2 dock behaviour (Wispr hands-free, focus/restore, paste/typing, History fill-or-compare, auto-send after Gönder, Esc cancels). Gönder → `Core::start_task(text)` (chip `Görev başlatılıyor…`); `TaskStarted` ok → toast `Görev başladı`, the dock closes, and the new thread is selected, its section expanded, scrolled to and pulsed once as soon as it is listed (it is already listening). Errors stay in the dock with the text (G2-5).
 
 ## 6. Keyboard (E: G2-11, every action has a non-pointer path)
 
@@ -152,8 +152,8 @@ Agents (omp in T3, or any MCP client) drive the screen through the local cua-dri
 | N | new task by voice (dock in new-task mode) |
 | I | `İzin ver` on the computer-use permission row (only while it shows) |
 | ⌘. | stop every computer-use session (works while typing too) |
-| Global ⌃⌥Space (env `T3P_HOTKEY`) | show/hide the panel from any app |
-| Global ⌃⌥⎋ (env `T3P_STOP_HOTKEY`) | stop every computer-use session from any app |
+| Global ⌃⌥Space (env `TELLAL_HOTKEY`) | show/hide the panel from any app |
+| Global ⌃⌥⎋ (env `TELLAL_STOP_HOTKEY`) | stop every computer-use session from any app |
 
 ## 7. Telemetry
 
@@ -174,7 +174,7 @@ Implemented in `crates/app/src` (modules: `theme`, `motion`, `icons` + `assets` 
 
 Parent decision (2026-11-11): where this spec and T3 differ on look and feel, T3 wins; the evidence-based behaviour rules stay. The spec text in §2, §3, §5 and §6 is already updated; the list records what changed and the remaining gaps.
 
-1. **Header** (§2): T3's wordmark treatment (bold `T3` + muted `Panel`, 14 px / 500), no app mark; the state pill only when not live, a 6 px success dot when live. Source: T3 F5 (no icon in T3's header). `logo.svg` stays in the assets, unused by the UI.
+1. **Header** (§2): T3's wordmark treatment (bold name, 14 px) after the Tellal mark (megaphone, `accent`), where T3 shows no mark; the state pill only when not live, a 6 px success dot when live. Source: T3 F5 (no icon in T3's header); the mark is ours.
 2. **Grouping** (§5): T3's default flat sections (Sabitlenmiş, Çalışıyor, Aktif, Ertelendi, Bitti) instead of project folders and one "Bitti / Ertelendi" shelf. The project moves onto every row. T3 shows the Pinned/Active labels only while dragging; the panel shows every section label, because it has no drag and the labels are its only orientation.
 3. **Status glyphs** (§5 Rows): T3's set. Working = static dashed circle in `info` + T3's working timer from `ThreadView.running_since` (minute resolution `<1dk`/`16dk`/`1sa 9dk`, so the list re-renders once a minute instead of every second). Check only for an *unseen* completion: "seen" is per session (listened, opened, replied or selected), and completions older than the panel's start count as seen (core has no persistent unseen flag). Interrupted/cancelled = muted pause (our state; T3 has none).
 4. **Sizes**: rows 36 px / 56 px with the state line, titles 14 px / 500, section labels 12 px / 500 sentence case, provider marks 14 px at 60 %. Nothing below 11 px.
@@ -188,14 +188,14 @@ Parent decision (2026-11-11): where this spec and T3 differ on look and feel, T3
 12. **Reply dock success**: the dock closes at once and `✓ Gönderildi` (spring) appears as a toast; v0.2 kept the dock 1.2 s with an in-place chip. All other v0.2 behaviour is unchanged (Wispr hands-free, focus/activate/restore, paste/typing, History fill-or-compare, auto-send after Gönder, retarget, logs).
 13. **Error banner**: `Tekrar dene` appears only when the failed action is known and repeatable (opening a thread); other errors offer `Kayıtları aç` and dismiss.
 14. **Window height**: computed from fixed region heights (header 40, banner 76, attention 48, search 44, sections 32, rows 36/56, player 112, dock 116, status 32, drawer 236), clamped to 160–640; past 640 the list scrolls. Changes animate at `normal`, compact ↔ full at `slow`; Reduce Motion jumps.
-15. **Global shortcut**: hide = `orderOut`; show = `makeKeyAndOrderFront` on the non-activating panel, so it takes the keyboard without bringing the app forward. Re-hiding re-activates the app that was frontmost. `T3P_HOTKEY=off` disables it (used by test instances).
+15. **Global shortcut**: hide = `orderOut`; show = `makeKeyAndOrderFront` on the non-activating panel, so it takes the keyboard without bringing the app forward. Re-hiding re-activates the app that was frontmost. `TELLAL_HOTKEY=off` disables it (used by test instances).
 16. **Additions not in T3**: the attention card, the Now playing bar, the listen toggle, the reply dock and the metrics drawer are panel features with no T3 counterpart; they follow the tokens and T3's control styles.
 17. **Computer use and new task** (v0.4): the computer-use banner, the `ekran` pill, the permission row, the drawer section and the `+` new-task action have no T3 counterpart. The banner sits *above* the attention card and the error banner (stopping an agent that acts on the screen outranks answering one). The emergency stop's global default is ⌃⌥⎋: not taken by macOS (⌘⌥⎋ is Force Quit), registrable through Carbon without Accessibility permission, and next to Force Quit in meaning; ⌘. is the in-panel stop (macOS's "cancel/stop" convention). The banner's elapsed time is at minute resolution on purpose (no ticking seconds). `Durdur` is the only `danger`-filled control in the panel.
 
 ### Measurements (2026-11-11)
 
-- **Idle CPU** of a test instance (`T3P_HOTKEY=off`, nothing listening), 60 one-second samples from its `metrics.jsonl` (samples 10–69 after start): average **1.69 %**, median 1.04 %, max 14.4 % (one T3 poll burst). v0.2 baseline: 3–6 %. Idle renders happen once a minute (relative times) or on events; the open drawer re-renders once a second.
-- **Idle CPU with computer use** (v0.4, 2026-11-11): 60 s demo run (`T3P_DEMO=demo/fixture.json T3P_OUTPUT_VOLUME=0 T3P_HOTKEY=off`, nothing listening, the fixture's computer-use sessions showing the banner 8–35 s and from 50 s, the stop hotkey registered), samples 10–69: average **2.02 %**, median 0.68 %, max 8.98 % (scripted demo events), RSS median 161 MB.
+- **Idle CPU** of a test instance (`TELLAL_HOTKEY=off`, nothing listening), 60 one-second samples from its `metrics.jsonl` (samples 10–69 after start): average **1.69 %**, median 1.04 %, max 14.4 % (one T3 poll burst). v0.2 baseline: 3–6 %. Idle renders happen once a minute (relative times) or on events; the open drawer re-renders once a second.
+- **Idle CPU with computer use** (v0.4, 2026-11-11): 60 s demo run (`TELLAL_DEMO=demo/fixture.json TELLAL_OUTPUT_VOLUME=0 TELLAL_HOTKEY=off`, nothing listening, the fixture's computer-use sessions showing the banner 8–35 s and from 50 s, the stop hotkey registered), samples 10–69: average **2.02 %**, median 0.68 %, max 8.98 % (scripted demo events), RSS median 161 MB.
 - **Contrast** (logged as `ui.theme` / `ui.ready.theme.contrast` on every theme application). T3 Chat dark: text/canvas 18.69, text_muted/canvas 12.87, text_muted/surface 10.54, text_muted/selected 11.80, accent_text/accent 6.19. T3 Chat light: text/canvas 16.85, text_muted/canvas 5.49, text_muted/surface 6.28, text_muted/selected 4.54, accent_text/accent 4.57. All ≥ 4.5:1. `danger` on `surface` is 3.70:1 in the dark theme; danger is used only as icon/pill colour on canvas tints (core guarantees ≥ 4.5:1 on canvas), never for body text. Computer use (dark): canvas/danger (the `Durdur` label) 4.51, text/danger_tint (banner title) 16.99, text_muted/danger_tint (banner detail) 11.71.
 - **Theme switch**: a live appearance change in a temp copy of T3's settings produced `ThemeChanged` → `ui.theme` within the 2 s watcher tick; tokens cross-fade over 200 ms (120 ms under Reduce Motion).
 

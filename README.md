@@ -1,8 +1,12 @@
-# t3-panel
+# Tellal
 
-A small always-on-top macOS panel that lists your [T3 Code](https://github.com/pingdotgg/t3code) agent threads and reads them aloud with a local voice, so you can follow several agents without watching them.
+**A voice for your T3 Code agents.**
 
-![t3-panel demo: the attention card, live narration of a running thread, a spoken summary, a dictated reply, compact mode](docs/media/demo.gif)
+The Ottoman *tellal* was the town crier who walked the streets announcing the news out loud (English readers also see "tell-all").
+
+Tellal is a small always-on-top macOS panel that lists your [T3 Code](https://github.com/pingdotgg/t3code) agent threads and reads them aloud with a local voice, so you can follow several agents without watching them.
+
+![Tellal demo: the attention card, live narration of a running thread, a spoken summary, a dictated reply, compact mode](docs/media/demo.gif)
 
 *Demo data only ([`demo/fixture.json`](demo/fixture.json)). The GIF is a silent 21 s excerpt. The voice is Turkish; captions are English. [Full video with sound](docs/media/demo.mp4) · [4:5 cut](docs/media/demo-social.mp4)*
 
@@ -42,8 +46,8 @@ I run several coding agents at once. Switching windows to check on each one brea
 - **Stable, T3-parity list.** T3's sections (Pinned, Working, Active, Snoozed, Settled), T3's project icons and provider marks, T3's working timer. Activity never reorders rows.
 - **Keyboard first.** ↑/↓, Space (listen), Enter/R (reply), N (new task), ⌘O, P, →, L, M, ⌘K search, ⌘⇧C compact, ⌘. (stop computer use), I (grant computer-use permissions), Esc. Global ⌃⌥Space shows or hides the panel and global ⌃⌥⎋ stops every computer-use session, from any app.
 - **Metrics drawer.** RSS, CPU (with 60 s sparklines), T3 poll cost, TTS time, RTF, click→audio, message→audio, dictation latency, queue length, and the computer-use state (cua-driver version or "not installed", daemon, mode, permissions, live sessions, stop shortcut).
-- **Full telemetry.** Every input and output is a line in `events.jsonl`; resource samples go to `metrics.jsonl`; every utterance is saved as WAV; `t3p-report` turns a run into p50/p95 tables and an HTML report.
-- **Demo mode.** `T3P_DEMO=demo/fixture.json` runs the whole panel on scripted fake threads: no T3 threads, no Wispr. Only the T3 theme is read, and the fixture can turn that off.
+- **Full telemetry.** Every input and output is a line in `events.jsonl`; resource samples go to `metrics.jsonl`; every utterance is saved as WAV; `tellal-report` turns a run into p50/p95 tables and an HTML report.
+- **Demo mode.** `TELLAL_DEMO=demo/fixture.json` runs the whole panel on scripted fake threads: no T3 threads, no Wispr. Only the T3 theme is read, and the fixture can turn that off.
 
 The UI is in Turkish today (`Cevapla` = Reply, `seni bekliyor` = waiting for you, `sırada` = queued). Design spec and rationale: [`docs/DESIGN.md`](docs/DESIGN.md).
 
@@ -57,17 +61,17 @@ The UI is in Turkish today (`Cevapla` = Reply, `seni bekliyor` = waiting for you
    └─ theme (localStorage + app.asar, read-only)                  │
                  │                                                │
                  ▼                                                ▼
- t3-panel-core (Rust)
+ tellal-core (Rust)
    poll every 5 s · live tail every 1 s · channels + FIFO queue · theme resolver · telemetry
                  │
                  ▼
    lexicon → normalizer-tr → EMA Lightning (ONNX Runtime, CPU, 48 kHz) → rodio
                  │
                  ▼
- t3-panel app: GPUI window in a non-activating NSPanel (always on top, every Space)
+ Tellal app: GPUI window in a non-activating NSPanel (always on top, every Space)
 ```
 
-- **Two crates.** [`crates/core`](crates/core) (`t3-panel-core`) has no UI: T3 data, channels, voice, telemetry, behind a small API (`Core::threads()`, `channels()`, `set_listening`, `send_reply`, `theme()`, …). [`crates/app`](crates/app) is the GPUI panel.
+- **Two crates.** [`crates/core`](crates/core) (`tellal-core`) has no UI: T3 data, channels, voice, telemetry, behind a small API (`Core::threads()`, `channels()`, `set_listening`, `send_reply`, `theme()`, …). [`crates/app`](crates/app) is the GPUI panel.
 - **Data.** Thread lists come from T3's official CLI. A single read-only `sqlite3 -readonly` query per tick finds which projects changed, so the CLI runs only for those; another per second fetches new finished assistant messages and waiting approvals/questions for listed threads.
 - **Voice.** EMA Lightning's ONNX graphs, ported to Rust: Turkish normalization (numbers, times, abbreviations) → the model's alphabet → `text.onnx` → `sound.onnx` (4 steps) → `decoder.onnx`. A pronunciation lexicon respells common English tech words ("pull request", "deploy", "PR") for the Turkish voice. Synthesis runs just in time; the next utterance is prepared while the current one plays.
 - **Window.** GPUI's `PopUp` window kind is a non-activating `NSPanel`: it floats above every app and Space without stealing focus, and takes the keyboard only for the reply dock or the global shortcut.
@@ -82,11 +86,11 @@ Requirements:
 - Optional: [Wispr Flow](https://wisprflow.ai) for voice replies
 
 ```bash
-git clone https://github.com/cengizhankose/t3-panel
-cd t3-panel
-./scripts/fetch-models.sh            # EMA Lightning ONNX voice, ~34 MB → ~/Library/Application Support/t3-panel/models
+git clone https://github.com/cengizhankose/tellal
+cd tellal
+./scripts/fetch-models.sh            # EMA Lightning ONNX voice, ~34 MB → ~/Library/Application Support/tellal/models
 cargo build --release --workspace
-target/release/t3-panel
+target/release/tellal
 ```
 
 The panel appears top-right above every app. Click 🔈 on a thread to listen; ⌃⌥Space hides and shows it.
@@ -94,12 +98,12 @@ The panel appears top-right above every app. Click 🔈 on a thread to listen; �
 **Try it without T3** (no T3 threads or Wispr needed; the voice model is still required):
 
 ```bash
-T3P_DEMO=demo/fixture.json target/release/t3-panel
+TELLAL_DEMO=demo/fixture.json target/release/tellal
 ```
 
-The fixture has 8 threads in 4 projects (Claude, Codex, omp and Cursor; pinned, running, waiting, finished, snoozed, settled). Between about 6 s and 42 s after start they play a script: progress messages, status changes, a `🔊` summary and a request for approval. Turn a channel on to hear it. `Cevapla` fills in the fixture's dictation after ~2.5 s, and sending is only logged. The scripted agent answers ~1.5 s later and the thread completes. Opening in T3 is only logged too. Demo mode never runs the `t3` CLI, never reads T3's state DB or Wispr Flow and never opens a URL (`t3p-report` on a demo run shows 0 `t3` and 0 `sqlite3` calls). It still reads your T3 theme, read-only, unless the fixture sets `"theme": "default"`.
+The fixture has 8 threads in 4 projects (Claude, Codex, omp and Cursor; pinned, running, waiting, finished, snoozed, settled). Between about 6 s and 42 s after start they play a script: progress messages, status changes, a `🔊` summary and a request for approval. Turn a channel on to hear it. `Cevapla` fills in the fixture's dictation after ~2.5 s, and sending is only logged. The scripted agent answers ~1.5 s later and the thread completes. Opening in T3 is only logged too. Demo mode never runs the `t3` CLI, never reads T3's state DB or Wispr Flow and never opens a URL (`tellal-report` on a demo run shows 0 `t3` and 0 `sqlite3` calls). It still reads your T3 theme, read-only, unless the fixture sets `"theme": "default"`.
 
-Write your own scenario by editing [`demo/fixture.json`](demo/fixture.json): `at_s` is seconds after start, and `en` is an optional English caption. Set `"theme": "default"` to use the built-in dark palette instead of your T3 theme. The optional `computer` block fakes cua-driver (installed, permissions, mode) and scripts computer-use sessions (`{at_s, session, client, app, action, end}`; the shipped one has an agent writing notes in TextEdit and sessions in Safari and Finder); granting permissions succeeds after ~1.5 s and stopping ends every session at once. The optional `new_task` block is what a voice task creates (`dictation`, `title`, `project`, `provider`, `ack`, `steps[{after_s, text, en, status}]`). To check it headless: `T3P_DEMO=demo/fixture.json T3P_OUTPUT_VOLUME=0 target/release/t3p-bench --e2e` (or `--computer` for computer use and a new task).
+Write your own scenario by editing [`demo/fixture.json`](demo/fixture.json): `at_s` is seconds after start, and `en` is an optional English caption. Set `"theme": "default"` to use the built-in dark palette instead of your T3 theme. The optional `computer` block fakes cua-driver (installed, permissions, mode) and scripts computer-use sessions (`{at_s, session, client, app, action, end}`; the shipped one has an agent writing notes in TextEdit and sessions in Safari and Finder); granting permissions succeeds after ~1.5 s and stopping ends every session at once. The optional `new_task` block is what a voice task creates (`dictation`, `title`, `project`, `provider`, `ack`, `steps[{after_s, text, en, status}]`). To check it headless: `TELLAL_DEMO=demo/fixture.json TELLAL_OUTPUT_VOLUME=0 target/release/tellal-bench --e2e` (or `--computer` for computer use and a new task).
 
 **Agent side.** Install the [`sesli`](skill/sesli/) skill in Claude Code, Codex or omp so agents write a start line, short step messages and a `🔊` summary. Replies sent from the panel start with `$sesli ` to keep it on.
 
@@ -109,43 +113,43 @@ All settings are environment variables.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `T3P_DEMO` | — | Path to a demo fixture (e.g. `demo/fixture.json`). Threads, messages, status changes and replies come from the fixture; the T3 CLI, T3's state DB and Wispr's DB are never touched. The T3 theme is still read unless the fixture sets `"theme": "default"`. |
-| `T3P_OUTPUT_VOLUME` | `1.0` | Playback volume, `0.0`–`1.0`. Synthesis, timing and WAV saving are unchanged (`0` = silent runs and recordings). |
-| `T3P_T3_BIN` | `~/.t3/bin/t3` | T3 CLI |
-| `T3P_PROJECTS` | discovered from T3's state DB | Project ids or paths to watch, comma-separated |
-| `T3P_POLL_MS` | `5000` | Thread list poll interval |
-| `T3P_LIVE_POLL_MS` | `1000` | Live tail interval (new messages and waiting requests of listed threads) |
-| `T3P_MODEL_DIR` | `~/Library/Application Support/t3-panel/models/ema-lightning-onnx` | Voice model (`meta.json`, `text.onnx`, `sound.onnx`, `decoder.onnx`) |
-| `T3P_TTS_THREADS` | `2` | ONNX Runtime threads for the voice |
-| `T3P_LEXICON` | `~/Library/Application Support/t3-panel/lexicon.tsv` | Your pronunciation lexicon: `written<TAB>spoken` per line; a key ending in `*` also matches inflected forms. Overrides built-in entries. |
-| `T3P_REPLY_PREFIX` | `$sesli ` | Prepended to every reply sent from the panel (empty disables) |
-| `T3P_CUA_DRIVER` | `/Applications/CuaDriver.app/Contents/MacOS/cua-driver` | cua-driver binary for computer use. Missing = computer use unavailable. The panel watches the daemon socket (`~/Library/Caches/cua-driver/cua-driver.sock`: sessions every 1 s while it runs, 5 s otherwise; permissions every 60 s) and stops sessions with `cua-driver revoke --all` |
-| `T3P_TASK_PROJECT` | T3's "No project" (`~/.t3/scratch`) | T3 project id or path for tasks started from the panel (`t3 thread start`, provider/model of the newest listed thread) |
-| `T3P_HOTKEY` | `ctrl+alt+space` | Global show/hide shortcut (`global-hotkey` syntax, e.g. `cmd+shift+KeyP`); `off` disables |
-| `T3P_STOP_HOTKEY` | `ctrl+alt+escape` | Global computer-use emergency stop (⌃⌥⎋; `cua-driver revoke --all` from any app); same syntax; `off` disables. Registration and presses are logged as `ui.stop_hotkey` |
-| `T3P_LOG_ROOT` | `~/Library/Logs/t3-panel` | Telemetry root |
-| `T3P_SAVE_AUDIO` | `1` | Save every utterance as WAV (`0` disables) |
-| `T3P_WISPR_DB` | `~/Library/Application Support/Wispr Flow/flow.sqlite` | Wispr Flow history (read-only) |
-| `T3P_T3_APP` | newest `T3 Code (Nightly).app` / `T3 Code.app` in `/Applications` or `~/Applications` | T3 app bundle whose built-in theme palettes are read |
-| `T3P_T3_APP_DATA` | `~/Library/Application Support/t3code-v2` | T3's Electron userData dir (selected theme; read-only) |
-| `T3P_SELFTEST` | — | Scripted UI runs that log and exit: `1` (listen to the first finished thread, then quit), `reply:<thread_id>` (reply flow; `T3P_SELFTEST_STOP_AFTER_MS`, `T3P_SELFTEST_NOSEND=1`), `shots` (step through UI states: full, permissions, selected, dock, drawer, computer, compact, empty_search, error, new_task; the computer-use states wait for the demo fixture's sessions; `T3P_SELFTEST_STEP_MS`), `demo` (timed walkthrough on demo data, used to record the demo media; includes granting permissions, the computer-use banner with one `Durdur`, and a new task) |
+| `TELLAL_DEMO` | — | Path to a demo fixture (e.g. `demo/fixture.json`). Threads, messages, status changes and replies come from the fixture; the T3 CLI, T3's state DB and Wispr's DB are never touched. The T3 theme is still read unless the fixture sets `"theme": "default"`. |
+| `TELLAL_OUTPUT_VOLUME` | `1.0` | Playback volume, `0.0`–`1.0`. Synthesis, timing and WAV saving are unchanged (`0` = silent runs and recordings). |
+| `TELLAL_T3_BIN` | `~/.t3/bin/t3` | T3 CLI |
+| `TELLAL_PROJECTS` | discovered from T3's state DB | Project ids or paths to watch, comma-separated |
+| `TELLAL_POLL_MS` | `5000` | Thread list poll interval |
+| `TELLAL_LIVE_POLL_MS` | `1000` | Live tail interval (new messages and waiting requests of listed threads) |
+| `TELLAL_MODEL_DIR` | `~/Library/Application Support/tellal/models/ema-lightning-onnx` | Voice model (`meta.json`, `text.onnx`, `sound.onnx`, `decoder.onnx`) |
+| `TELLAL_TTS_THREADS` | `2` | ONNX Runtime threads for the voice |
+| `TELLAL_LEXICON` | `~/Library/Application Support/tellal/lexicon.tsv` | Your pronunciation lexicon: `written<TAB>spoken` per line; a key ending in `*` also matches inflected forms. Overrides built-in entries. |
+| `TELLAL_REPLY_PREFIX` | `$sesli ` | Prepended to every reply sent from the panel (empty disables) |
+| `TELLAL_CUA_DRIVER` | `/Applications/CuaDriver.app/Contents/MacOS/cua-driver` | cua-driver binary for computer use. Missing = computer use unavailable. The panel watches the daemon socket (`~/Library/Caches/cua-driver/cua-driver.sock`: sessions every 1 s while it runs, 5 s otherwise; permissions every 60 s) and stops sessions with `cua-driver revoke --all` |
+| `TELLAL_TASK_PROJECT` | T3's "No project" (`~/.t3/scratch`) | T3 project id or path for tasks started from the panel (`t3 thread start`, provider/model of the newest listed thread) |
+| `TELLAL_HOTKEY` | `ctrl+alt+space` | Global show/hide shortcut (`global-hotkey` syntax, e.g. `cmd+shift+KeyP`); `off` disables |
+| `TELLAL_STOP_HOTKEY` | `ctrl+alt+escape` | Global computer-use emergency stop (⌃⌥⎋; `cua-driver revoke --all` from any app); same syntax; `off` disables. Registration and presses are logged as `ui.stop_hotkey` |
+| `TELLAL_LOG_ROOT` | `~/Library/Logs/tellal` | Telemetry root |
+| `TELLAL_SAVE_AUDIO` | `1` | Save every utterance as WAV (`0` disables) |
+| `TELLAL_WISPR_DB` | `~/Library/Application Support/Wispr Flow/flow.sqlite` | Wispr Flow history (read-only) |
+| `TELLAL_T3_APP` | newest `T3 Code (Nightly).app` / `T3 Code.app` in `/Applications` or `~/Applications` | T3 app bundle whose built-in theme palettes are read |
+| `TELLAL_T3_APP_DATA` | `~/Library/Application Support/t3code-v2` | T3's Electron userData dir (selected theme; read-only) |
+| `TELLAL_SELFTEST` | — | Scripted UI runs that log and exit: `1` (listen to the first finished thread, then quit), `reply:<thread_id>` (reply flow; `TELLAL_SELFTEST_STOP_AFTER_MS`, `TELLAL_SELFTEST_NOSEND=1`), `shots` (step through UI states: full, permissions, selected, dock, drawer, computer, compact, empty_search, error, new_task; the computer-use states wait for the demo fixture's sessions; `TELLAL_SELFTEST_STEP_MS`), `demo` (timed walkthrough on demo data, used to record the demo media; includes granting permissions, the computer-use banner with one `Durdur`, and a new task) |
 
 ## Telemetry
 
-Each run writes to `~/Library/Logs/t3-panel/<YYYYMMDD-HHMMSS-pid>/` (`latest` points to the newest). Nothing leaves the machine.
+Each run writes to `~/Library/Logs/tellal/<YYYYMMDD-HHMMSS-pid>/` (`latest` points to the newest). Nothing leaves the machine.
 
 - `events.jsonl`: one line per input or output, `{ts, run, seq, kind, dur_ms, ok, in, out, err}`. T3 calls (`t3.*`, with argv, duration, child CPU and RSS), live tail (`live.*`), channel actions (`channel.*`), speech (`speak.enqueue`, `tts.synth` with written / respelled / spoken text and RTF, `audio.play` with click→audio and message→audio), replies and dictation (`reply.*`, `wispr.history`), new tasks (`task.start`: argv, text, exit, stdout JSON), computer use (`computer.poll` with method, duration and child CPU; `computer.session_start` / `computer.action` / `computer.session_end`; `computer.stop` with sessions revoked; `computer.permissions_grant`), theme resolution (`theme.resolve`, contrast ratios) and every UI interaction (`ui.*`, with before/after state).
 - `metrics.jsonl`: RSS, CPU, thread count, queue length and child CPU, once per second.
 - `audio/<seq>.wav`: every spoken utterance.
 
 ```bash
-target/release/t3p-report latest   # per-kind p50/p95/max, RSS/CPU, poll cost, latencies → report.json + report.html
-target/release/t3p-bench           # voice: cold load, per-sentence synth ms and RTF, peak RSS
-target/release/t3p-bench --corpus sentences.txt   # same, with your sentences (one per line)
-target/release/t3p-bench --t3      # cost of listing every project, 3 rounds
-target/release/t3p-bench --theme   # resolve the T3 theme once: ThemeView JSON, contrast table
-target/release/t3p-bench --e2e     # headless end-to-end: list, listen, progress, pause/resume
-target/release/t3p-bench --computer [--stop-on-session]   # headless: print Core::computer() on every change, CPU% over 60 s (demo: also grant, new task, stop all)
+target/release/tellal-report latest   # per-kind p50/p95/max, RSS/CPU, poll cost, latencies → report.json + report.html
+target/release/tellal-bench           # voice: cold load, per-sentence synth ms and RTF, peak RSS
+target/release/tellal-bench --corpus sentences.txt   # same, with your sentences (one per line)
+target/release/tellal-bench --t3      # cost of listing every project, 3 rounds
+target/release/tellal-bench --theme   # resolve the T3 theme once: ThemeView JSON, contrast table
+target/release/tellal-bench --e2e     # headless end-to-end: list, listen, progress, pause/resume
+target/release/tellal-bench --computer [--stop-on-session]   # headless: print Core::computer() on every change, CPU% over 60 s (demo: also grant, new task, stop all)
 ```
 
 ## Numbers

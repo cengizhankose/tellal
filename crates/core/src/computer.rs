@@ -75,7 +75,7 @@ pub(crate) struct Computer {
 }
 
 impl Computer {
-    /// Spawns the `t3p-computer` watcher, which publishes into `view`.
+    /// Spawns the `tellal-computer` watcher, which publishes into `view`.
     pub(crate) fn spawn(
         tel: Arc<Telemetry>,
         bin: PathBuf,
@@ -97,7 +97,7 @@ impl Computer {
             cli_fallback: false,
             sessions: Vec::new(),
         };
-        std::thread::Builder::new().name("t3p-computer".into()).spawn(move || watch.run(&wakes))?;
+        std::thread::Builder::new().name("tellal-computer".into()).spawn(move || watch.run(&wakes))?;
         Ok(Computer { tel, bin, view, wake, events, granting: Arc::new(AtomicBool::new(false)) })
     }
 
@@ -106,7 +106,7 @@ impl Computer {
     pub(crate) fn stop_all(&self) {
         let before: Vec<String> = read(&self.view).sessions.iter().map(|s| s.id.clone()).collect();
         let (tel, bin, wake) = (self.tel.clone(), self.bin.clone(), self.wake.clone());
-        let spawned = std::thread::Builder::new().name("t3p-computer-stop".into()).spawn(move || {
+        let spawned = std::thread::Builder::new().name("tellal-computer-stop".into()).spawn(move || {
             let argv: [&std::ffi::OsStr; 3] = [bin.as_os_str(), "revoke".as_ref(), "--all".as_ref()];
             let input = json!({"argv": argv_json(&argv), "sessions_before": before});
             match run_cmd(&argv, None) {
@@ -142,7 +142,7 @@ impl Computer {
             return;
         }
         let (tel, wake, granting) = (self.tel.clone(), self.wake.clone(), self.granting.clone());
-        let spawned = std::thread::Builder::new().name("t3p-computer-grant".into()).spawn(move || {
+        let spawned = std::thread::Builder::new().name("tellal-computer-grant".into()).spawn(move || {
             let input = json!({"argv": argv_json(&argv)});
             match run_cmd(&argv, None) {
                 Ok(o) => {

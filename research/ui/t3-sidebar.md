@@ -1,4 +1,4 @@
-# T3 Code sidebar — design study for t3-panel v0.3
+# T3 Code sidebar — design study for Tellal v0.3
 
 This study measures T3 Code's thread sidebar so the 380 px panel can feel like a detached piece of it.
 

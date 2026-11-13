@@ -1,8 +1,8 @@
-//! t3-panel core: T3 thread source (or the demo fixture), live message tail, per-thread speech
+//! Tellal core: T3 thread source (or the demo fixture), live message tail, per-thread speech
 //! channels, local TTS, Wispr Flow dictation bridge and telemetry.
 //!
 //! PUBLIC API CONTRACT (the GPUI app depends on exactly these items; keep signatures stable).
-//! The modules below are public for the `t3p-bench` / `t3p-report` tools.
+//! The modules below are public for the `tellal-bench` / `tellal-report` tools.
 
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
@@ -26,68 +26,68 @@ pub mod telemetry;
 pub mod theme;
 mod wispr;
 pub mod tts {
-    //! TTS engine and audio helpers (used by `t3p-bench`).
+    //! TTS engine and audio helpers (used by `tellal-bench`).
     pub use crate::speech::{Synth, TtsEngine, open_output, samples_source, write_wav};
 }
 
 use telemetry::Telemetry;
 
-/// Runtime configuration. `Config::from_env()` fills defaults and applies `T3P_*` overrides.
+/// Runtime configuration. `Config::from_env()` fills defaults and applies `TELLAL_*` overrides.
 #[derive(Clone, Debug)]
 pub struct Config {
-    /// T3 CLI launcher. Default `~/.t3/bin/t3`. Env `T3P_T3_BIN`.
+    /// T3 CLI launcher. Default `~/.t3/bin/t3`. Env `TELLAL_T3_BIN`.
     pub t3_bin: PathBuf,
     /// Project ids or paths to watch. `None` = discover from T3's state DB (read-only).
-    /// Env `T3P_PROJECTS` (comma separated).
+    /// Env `TELLAL_PROJECTS` (comma separated).
     pub projects: Option<Vec<String>>,
-    /// Thread list poll interval. Default 5s. Env `T3P_POLL_MS`.
+    /// Thread list poll interval. Default 5s. Env `TELLAL_POLL_MS`.
     pub poll_interval: Duration,
     /// EMA Lightning ONNX model directory (`meta.json`, `text.onnx`, `sound.onnx`,
-    /// `decoder.onnx`). Default `~/Library/Application Support/t3-panel/models/ema-lightning-onnx`.
-    /// Env `T3P_MODEL_DIR`.
+    /// `decoder.onnx`). Default `~/Library/Application Support/tellal/models/ema-lightning-onnx`.
+    /// Env `TELLAL_MODEL_DIR`.
     pub model_dir: PathBuf,
-    /// ONNX Runtime intra-op threads for the voice. Default 2. Env `T3P_TTS_THREADS`.
+    /// ONNX Runtime intra-op threads for the voice. Default 2. Env `TELLAL_TTS_THREADS`.
     pub tts_threads: usize,
     /// User pronunciation lexicon (`written<TAB>spoken` per line), added to the built-in one.
-    /// Default `~/Library/Application Support/t3-panel/lexicon.tsv`. Env `T3P_LEXICON`.
+    /// Default `~/Library/Application Support/tellal/lexicon.tsv`. Env `TELLAL_LEXICON`.
     pub lexicon_path: PathBuf,
-    /// Root for per-run telemetry dirs. Default `~/Library/Logs/t3-panel`. Env `T3P_LOG_ROOT`.
+    /// Root for per-run telemetry dirs. Default `~/Library/Logs/tellal`. Env `TELLAL_LOG_ROOT`.
     pub log_root: PathBuf,
-    /// Save every synthesized utterance as WAV in the run dir. Default true. Env `T3P_SAVE_AUDIO=0` disables.
+    /// Save every synthesized utterance as WAV in the run dir. Default true. Env `TELLAL_SAVE_AUDIO=0` disables.
     pub save_audio: bool,
     /// Settled threads updated within this window are still listed. Default 6h.
     pub recent_window: Duration,
     /// Max rows returned by `Core::threads`. Default 20.
     pub max_threads: usize,
     /// Live-tail interval (new assistant messages + waiting requests of listed threads, one
-    /// read-only query). Default 1s. Env `T3P_LIVE_POLL_MS`.
+    /// read-only query). Default 1s. Env `TELLAL_LIVE_POLL_MS`.
     pub live_poll_interval: Duration,
     /// Prepended to every reply sent from the panel so the agent uses the `sesli` skill.
-    /// Default `"$sesli "`. Env `T3P_REPLY_PREFIX` (empty string disables).
+    /// Default `"$sesli "`. Env `TELLAL_REPLY_PREFIX` (empty string disables).
     pub reply_prefix: String,
     /// Wispr Flow History DB (read-only). Default
-    /// `~/Library/Application Support/Wispr Flow/flow.sqlite`. Env `T3P_WISPR_DB`.
+    /// `~/Library/Application Support/Wispr Flow/flow.sqlite`. Env `TELLAL_WISPR_DB`.
     pub wispr_db: PathBuf,
     /// T3 Code desktop app bundle whose built-in theme palettes are read. `None` = the most
     /// recently updated of `/Applications` / `~/Applications` `T3 Code (Nightly).app` /
-    /// `T3 Code.app`. Env `T3P_T3_APP`.
+    /// `T3 Code.app`. Env `TELLAL_T3_APP`.
     pub t3_app: Option<PathBuf>,
     /// The T3 desktop app's Electron userData dir (its `Local Storage` holds the selected theme;
-    /// read-only). Default `~/Library/Application Support/t3code-v2`. Env `T3P_T3_APP_DATA`.
+    /// read-only). Default `~/Library/Application Support/t3code-v2`. Env `TELLAL_T3_APP_DATA`.
     pub t3_app_data: PathBuf,
     /// Demo fixture JSON (see `demo/fixture.json`). `Some` = threads, messages, a timed script,
     /// dictation and replies come from the fixture; no `t3` CLI, T3 state DB or Wispr Flow
-    /// access. Env `T3P_DEMO`.
+    /// access. Env `TELLAL_DEMO`.
     pub demo: Option<PathBuf>,
     /// Playback volume of every utterance, 0.0–1.0 (clamped; default 1.0). Synthesis, timing and
-    /// saved WAVs are unaffected. Env `T3P_OUTPUT_VOLUME`.
+    /// saved WAVs are unaffected. Env `TELLAL_OUTPUT_VOLUME`.
     pub output_volume: f32,
     /// cua-driver binary (computer use). Default
-    /// `/Applications/CuaDriver.app/Contents/MacOS/cua-driver`. Env `T3P_CUA_DRIVER`. Missing
+    /// `/Applications/CuaDriver.app/Contents/MacOS/cua-driver`. Env `TELLAL_CUA_DRIVER`. Missing
     /// binary = computer use is simply unavailable (`ComputerView.installed == false`).
     pub cua_driver: PathBuf,
     /// T3 project (id or path) for tasks started from the panel ([`Core::start_task`]). `None` =
-    /// T3's "No project" (workspace `~/.t3/scratch`). Env `T3P_TASK_PROJECT`.
+    /// T3's "No project" (workspace `~/.t3/scratch`). Env `TELLAL_TASK_PROJECT`.
     pub task_project: Option<String>,
 }
 
@@ -96,41 +96,41 @@ impl Config {
         let home = PathBuf::from(std::env::var("HOME").unwrap_or_default());
         let var = |k: &str| std::env::var(k).ok().filter(|v| !v.trim().is_empty());
         Config {
-            t3_bin: var("T3P_T3_BIN").map_or_else(|| home.join(".t3/bin/t3"), PathBuf::from),
-            projects: var("T3P_PROJECTS").map(|v| {
+            t3_bin: var("TELLAL_T3_BIN").map_or_else(|| home.join(".t3/bin/t3"), PathBuf::from),
+            projects: var("TELLAL_PROJECTS").map(|v| {
                 v.split(',').map(str::trim).filter(|p| !p.is_empty()).map(str::to_owned).collect()
             }),
-            poll_interval: var("T3P_POLL_MS")
+            poll_interval: var("TELLAL_POLL_MS")
                 .and_then(|v| v.trim().parse().ok())
                 .map_or(Duration::from_secs(5), Duration::from_millis),
-            model_dir: var("T3P_MODEL_DIR").map_or_else(
-                || home.join("Library/Application Support/t3-panel/models/ema-lightning-onnx"),
+            model_dir: var("TELLAL_MODEL_DIR").map_or_else(
+                || home.join("Library/Application Support/tellal/models/ema-lightning-onnx"),
                 PathBuf::from,
             ),
-            tts_threads: var("T3P_TTS_THREADS").and_then(|v| v.trim().parse().ok()).filter(|&n| n > 0).unwrap_or(2),
-            lexicon_path: var("T3P_LEXICON")
-                .map_or_else(|| home.join("Library/Application Support/t3-panel/lexicon.tsv"), PathBuf::from),
-            log_root: var("T3P_LOG_ROOT").map_or_else(|| home.join("Library/Logs/t3-panel"), PathBuf::from),
-            save_audio: var("T3P_SAVE_AUDIO").is_none_or(|v| v.trim() != "0"),
+            tts_threads: var("TELLAL_TTS_THREADS").and_then(|v| v.trim().parse().ok()).filter(|&n| n > 0).unwrap_or(2),
+            lexicon_path: var("TELLAL_LEXICON")
+                .map_or_else(|| home.join("Library/Application Support/tellal/lexicon.tsv"), PathBuf::from),
+            log_root: var("TELLAL_LOG_ROOT").map_or_else(|| home.join("Library/Logs/tellal"), PathBuf::from),
+            save_audio: var("TELLAL_SAVE_AUDIO").is_none_or(|v| v.trim() != "0"),
             recent_window: Duration::from_secs(6 * 3600),
             max_threads: 20,
-            live_poll_interval: var("T3P_LIVE_POLL_MS")
+            live_poll_interval: var("TELLAL_LIVE_POLL_MS")
                 .and_then(|v| v.trim().parse().ok())
                 .map_or(Duration::from_secs(1), Duration::from_millis),
-            reply_prefix: std::env::var("T3P_REPLY_PREFIX").unwrap_or_else(|_| "$sesli ".to_owned()),
-            wispr_db: var("T3P_WISPR_DB")
+            reply_prefix: std::env::var("TELLAL_REPLY_PREFIX").unwrap_or_else(|_| "$sesli ".to_owned()),
+            wispr_db: var("TELLAL_WISPR_DB")
                 .map_or_else(|| home.join("Library/Application Support/Wispr Flow/flow.sqlite"), PathBuf::from),
-            t3_app: var("T3P_T3_APP").map(PathBuf::from),
-            t3_app_data: var("T3P_T3_APP_DATA")
+            t3_app: var("TELLAL_T3_APP").map(PathBuf::from),
+            t3_app_data: var("TELLAL_T3_APP_DATA")
                 .map_or_else(|| home.join("Library/Application Support/t3code-v2"), PathBuf::from),
-            demo: var("T3P_DEMO").map(PathBuf::from),
-            output_volume: var("T3P_OUTPUT_VOLUME")
+            demo: var("TELLAL_DEMO").map(PathBuf::from),
+            output_volume: var("TELLAL_OUTPUT_VOLUME")
                 .and_then(|v| v.trim().parse::<f32>().ok())
                 .filter(|v| v.is_finite())
                 .map_or(1.0, |v| v.clamp(0.0, 1.0)),
-            cua_driver: var("T3P_CUA_DRIVER")
+            cua_driver: var("TELLAL_CUA_DRIVER")
                 .map_or_else(|| PathBuf::from("/Applications/CuaDriver.app/Contents/MacOS/cua-driver"), PathBuf::from),
-            task_project: var("T3P_TASK_PROJECT"),
+            task_project: var("TELLAL_TASK_PROJECT"),
         }
     }
 
@@ -232,7 +232,7 @@ impl Default for ThemeView {
     fn default() -> ThemeView {
         ThemeView {
             source: "default".into(),
-            name: "T3 Panel".into(),
+            name: "Tellal".into(),
             dark: true,
             canvas: 0x16_1618,
             surface: 0x1f_1f22,
@@ -542,7 +542,7 @@ impl Core {
         let core = self.clone();
         let thread_id = thread_id.to_owned();
         let spawned = std::thread::Builder::new()
-            .name("t3p-reply".into())
+            .name("tellal-reply".into())
             .spawn(move || core.reply(&t3_bin, &thread_id, &payload));
         if let Err(e) = spawned {
             let _ = self.inner.events.send(CoreEvent::Error(format!("reply thread: {e}")));
@@ -605,7 +605,7 @@ impl Core {
         };
         let core = self.clone();
         let thread_id = thread_id.to_owned();
-        let spawned = std::thread::Builder::new().name("t3p-open".into()).spawn(move || {
+        let spawned = std::thread::Builder::new().name("tellal-open".into()).spawn(move || {
             let argv = ["/usr/bin/open", app_url.as_str()];
             let input = json!({"thread": thread_id, "link": link, "app_url": app_url, "argv": argv});
             if let Err(e) = t3::run_logged(&core.inner.tel, "thread.open", &argv, input, |_| Ok(((), Value::Null))) {
@@ -619,7 +619,7 @@ impl Core {
     pub fn live_stats(&self) -> LiveStats {
         self.inner.tel.live_stats()
     }
-    /// Computer-use state (never blocks on I/O). Real mode: the `t3p-computer` watcher of the
+    /// Computer-use state (never blocks on I/O). Real mode: the `tellal-computer` watcher of the
     /// cua-driver daemon (see `computer.rs` for sources and cadence); demo mode: the fixture's
     /// `computer` block.
     pub fn computer(&self) -> ComputerView {
@@ -673,7 +673,7 @@ impl Core {
         let core = self.clone();
         let text = text.to_owned();
         let spawned = std::thread::Builder::new()
-            .name("t3p-task".into())
+            .name("tellal-task".into())
             .spawn(move || core.task(&t3_bin, task_project, &poll, &text, &payload, send_ms));
         if let Err(e) = spawned {
             let _ = inner.events.send(CoreEvent::Error(format!("task thread: {e}")));
