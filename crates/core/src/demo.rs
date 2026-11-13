@@ -170,8 +170,9 @@ struct FxComputer {
 }
 
 /// One computer-use script entry. The first entry of a `session` id starts it, later ones are
-/// actions (`app` / `action` replace the session's), `end: true` ends it. Entries of a session
-/// that `computer_stop_all` revoked are skipped.
+/// actions (their time is the session's last action; `app` / `action` replace the session's,
+/// though the real cua-driver reports neither), `end: true` ends it. Entries of a session that
+/// `computer_stop_all` revoked are skipped.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FxSession {
@@ -889,8 +890,8 @@ impl Shared {
                         }
                         if e.action.is_some() {
                             s.last_action.clone_from(&e.action);
-                            s.last_action_at = Some(now.clone());
                         }
+                        s.last_action_at = Some(now.clone());
                         Outcome::Acted(s.clone())
                     }
                 }
@@ -1082,7 +1083,9 @@ mod tests {
         assert!(nt.dictation_en.is_some() && nt.ack_en.is_some(), "new_task en");
         assert!(nt.steps.iter().all(|s| s.en.is_some()), "new_task step en");
         let c = fx.computer.as_ref().expect("fixture has computer");
-        assert!(c.sessions.iter().any(|s| s.end) && c.sessions.iter().any(|s| s.app.is_some()), "computer sessions");
+        assert!(c.sessions.iter().any(|s| s.end), "computer sessions end");
+        // Shaped like the real cua-driver's sessions: a client, no app or action label.
+        assert!(c.sessions.iter().all(|s| s.app.is_none() && s.action.is_none()), "computer sessions real-shaped");
         for t in &fx.threads {
             assert!(t.label.is_some(), "{}: label", t.id);
             assert!(t.messages.iter().filter(|m| m.role == "assistant").all(|m| m.en.is_some()), "{}: message en", t.id);

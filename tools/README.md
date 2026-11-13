@@ -68,7 +68,7 @@ clip selects or tunes in to (`record-demo.sh all` passes the ones above).
 | `attention` | tune in to the billing thread without selecting it → it waits for approval (attention card, spoken) → jump → quiet | card − 2 s … done |
 | `reply` | attention card → jump → Cevapla (dictation) → Gönder → `Tamam, …` spoken → quiet | jump − 0.6 s … done |
 | `new-task` | `+` (dictation) → Gönder → `Görev başladı`, the new thread selected → its spoken acknowledgement heard → mute | `+` − 1 s … the acknowledgement's end |
-| `computer` | tune in to the notes thread → a session starts (banner with app and action from the fixture) → Durdur (banner clears, toast) → quiet | banner − 2 s … Durdur + 2.8 s |
+| `computer` | tune in to the notes thread → sessions start (banner as the real cua-driver shows it: client and last-action time) → Durdur (banner clears, toast) → quiet | banner − 2 s … Durdur + 2.8 s |
 | `theme` | select + unmute → `t3_light` → the panel turns light → `t3_dark` → dark again → quiet | unmute − 0.8 s … done |
 
 `clip:theme` asks for each switch with a `t3_light` / `t3_dark` beat; `record-demo.sh` watches the
