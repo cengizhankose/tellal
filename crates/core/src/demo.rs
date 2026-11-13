@@ -679,7 +679,8 @@ impl Demo {
         let latest = latest_model(&sh.snapshot.read().unwrap_or_else(|p| p.into_inner()));
         let provider = nt.provider.clone().or_else(|| latest.as_ref().map(|l| l.1.clone())).unwrap_or_default();
         let model = nt.model.clone().or_else(|| latest.as_ref().map(|l| l.2.clone())).unwrap_or_default();
-        let argv = task_argv(&sh.cfg.t3_bin, &provider, &model, &title, &nt.project);
+        let copied = (!provider.is_empty() && !model.is_empty()).then_some((provider.as_str(), model.as_str()));
+        let argv = task_argv(&sh.cfg.t3_bin, copied, &title, &nt.project);
         input["argv"] = t3::argv_json(&argv);
         input["project"] = json!(nt.project);
         input["model_from_thread"] = json!(latest.map(|l| l.0));

@@ -138,18 +138,23 @@ impl Panel {
     /// `+` / N: the reply dock in new-task mode (dictation exactly as for a reply).
     pub(super) fn open_new_task(&mut self, source: &str, window: &mut Window, cx: &mut Context<Panel>) {
         self.log_action(source, "new_task", None, json!({"project": self.task_project_label().as_ref()}));
-        let live = !matches!(self.selftest_mode, super::SelfTestMode::Shots { .. }) || self.demo;
+        // The `hero` run types its task itself (no Wispr); `shots` shows the dock only.
+        let live = !matches!(self.selftest_mode, super::SelfTestMode::Shots { .. } | super::SelfTestMode::Hero { .. })
+            || self.demo;
         self.open_reply(NEW_TASK, source, live, window, cx);
     }
 
-    /// Display name of `Config.task_project`: the listed project with that id, else the last
-    /// path component; `None` = T3's "No project".
+    /// Display name of `Config.task_project`: the listed project with that id, else T3's title
+    /// for that id (an empty project), else the last path component; `None` = "No project".
     pub(super) fn task_project_label(&self) -> SharedString {
         let Some(project) = self.task_project.as_deref() else {
             return "No project".into();
         };
         if let Some(t) = self.threads.iter().find(|t| t.project_id == project) {
             return t.project.clone().into();
+        }
+        if let Some(name) = self.core.project_name(project) {
+            return name.into();
         }
         let name = project.trim_end_matches('/').rsplit('/').next().unwrap_or(project);
         SharedString::from(name.to_owned())

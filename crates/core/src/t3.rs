@@ -526,6 +526,29 @@ pub fn scratch_project() -> anyhow::Result<String> {
         .ok_or_else(|| anyhow::anyhow!("no T3 project with workspace root {}", root.display()))
 }
 
+/// `(thread id, provider instance, model)` of the most recently created live thread in T3's
+/// state DB, in any project (read-only); `None` when no thread has both (a fresh install).
+pub fn latest_model_any() -> anyhow::Result<Option<(String, String, String)>> {
+    #[derive(Deserialize)]
+    struct Row {
+        thread_id: String,
+        provider: String,
+        model: String,
+    }
+    let sql = "select thread_id, provider, model from (\
+                 select thread_id, created_at, \
+                 coalesce(json_extract(p, '$.modelSelection.instanceId'), provider_instance_id) as provider, \
+                 json_extract(p, '$.modelSelection.model') as model \
+                 from (select thread_id, created_at, provider_instance_id, \
+                       case when json_valid(payload_json) then payload_json else '{}' end as p \
+                       from orchestration_v2_projection_threads where deleted_at is null)) \
+               where coalesce(provider, '') != '' and coalesce(model, '') != '' \
+               order by created_at desc limit 1;";
+    let (_, res) = sqlite_json::<Row>(&state_db(), sql);
+    let (_, rows) = res?;
+    Ok(rows.into_iter().next().map(|r| (r.thread_id, r.provider, r.model)))
+}
+
 /// Filters (unsettled, pinned, or updated within `recent_window`), fills project/pin/snooze
 /// state from `meta`, sorts in T3's sidebar order and caps to `max_threads`:
 /// 1. pinned threads by `pinOrderKey` ascending (missing keys last), then newest `created_at`;
@@ -574,11 +597,13 @@ fn newest(changes: &HashMap<String, String>, canonical: &HashMap<String, String>
 /// `t3.changes` query and `t3 thread list` only the projects whose newest `updated_at` moved
 /// (all projects on the first tick, every [`FULL_RELIST`], or when the query fails).
 /// `on_status(thread, to)` runs for every logged `state.change`. A message on `wake` starts the
-/// next tick right away (e.g. after `Core::start_task`).
+/// next tick right away (e.g. after `Core::start_task`). `names` gets every known T3 project's
+/// display name by id (watched or not), refreshed whenever it changes.
 pub(crate) fn spawn_poller(
     tel: Arc<Telemetry>,
     cfg: Config,
     snapshot: Arc<RwLock<Vec<ThreadView>>>,
+    names: Arc<RwLock<HashMap<String, String>>>,
     tx: Sender<CoreEvent>,
     wake: Receiver<()>,
     on_status: impl Fn(&str, &str) + Send + 'static,
@@ -681,6 +706,14 @@ pub(crate) fn spawn_poller(
                         meta.projects.insert(id.clone(), m);
                     }
                 }
+            }
+            let names_changed = {
+                let cur = names.read().unwrap_or_else(|p| p.into_inner());
+                cur.len() != meta.projects.len() || meta.projects.iter().any(|(id, m)| cur.get(id) != Some(&m.name))
+            };
+            if names_changed {
+                *names.write().unwrap_or_else(|p| p.into_inner()) =
+                    meta.projects.iter().map(|(id, m)| (id.clone(), m.name.clone())).collect();
             }
             for t in by_project.values().flatten() {
                 let prev = statuses.insert(t.thread_id.clone(), t.status.clone());

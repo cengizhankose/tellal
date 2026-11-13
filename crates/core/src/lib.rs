@@ -386,6 +386,8 @@ struct Inner {
     events: Sender<CoreEvent>,
     reply_prefix: String,
     computer: Arc<RwLock<ComputerView>>,
+    /// T3 project id → display name, for every project the poller knows (T3 source only).
+    project_names: Arc<RwLock<HashMap<String, String>>>,
 }
 
 /// Where threads, messages, dictation and replies come from.
@@ -420,6 +422,7 @@ impl Core {
         let threads = Arc::new(RwLock::new(Vec::new()));
         let reply_prefix = config.reply_prefix.clone();
         let computer_view = Arc::new(RwLock::new(ComputerView::default()));
+        let project_names = Arc::new(RwLock::new(HashMap::new()));
         let demo = match &config.demo {
             Some(path) => Some(demo::Demo::load(
                 tel.clone(),
@@ -454,13 +457,24 @@ impl Core {
                     computer::Computer::spawn(tel.clone(), config.cua_driver.clone(), computer_view.clone(), tx.clone())?;
                 let (poll, poll_wake) = crossbeam_channel::unbounded();
                 let on_status = speech.clone();
-                t3::spawn_poller(tel.clone(), config, threads.clone(), tx.clone(), poll_wake, move |thread, to| {
+                let names = project_names.clone();
+                t3::spawn_poller(tel.clone(), config, threads.clone(), names, tx.clone(), poll_wake, move |thread, to| {
                     status_changed(&on_status, thread, to);
                 })?;
                 Source::T3 { wispr, t3_bin, computer, poll, task_project }
             }
         };
-        let inner = Inner { tel, threads, theme, speech, source, events: tx, reply_prefix, computer: computer_view };
+        let inner = Inner {
+            tel,
+            threads,
+            theme,
+            speech,
+            source,
+            events: tx,
+            reply_prefix,
+            computer: computer_view,
+            project_names,
+        };
         Ok((Core { inner: Arc::new(inner) }, rx))
     }
     /// Latest snapshot of threads (never blocks on I/O). Order mirrors T3's sidebar and is
@@ -469,6 +483,11 @@ impl Core {
     /// `created_at` first; then settled or snoozed threads, newest `created_at` first.
     pub fn threads(&self) -> Vec<ThreadView> {
         self.inner.threads.read().unwrap_or_else(|p| p.into_inner()).clone()
+    }
+    /// Display name of the T3 project `id` (any project in T3's state DB, listed or not; never
+    /// blocks on I/O). `None` until the first poll, for unknown ids, and in demo mode.
+    pub fn project_name(&self, id: &str) -> Option<String> {
+        self.inner.project_names.read().unwrap_or_else(|p| p.into_inner()).get(id).cloned()
     }
     /// The palette resolved from T3's selected theme (never blocks on I/O). `ThemeChanged`
     /// fires when it changes.
@@ -644,10 +663,12 @@ impl Core {
         }
     }
     /// Starts a new T3 thread with `text` (prefixed with `Config.reply_prefix`) in
-    /// `Config.task_project`, using the provider/model of the most recently created thread, and
-    /// listens to it from its first message. Non-blocking; → `TaskStarted`.
+    /// `Config.task_project`, using the provider/model of the most recently created thread
+    /// ([`task_model`]: listed threads first, else any thread in T3's state DB, else none: T3's
+    /// default for the project), and listens to it from its first message. Non-blocking;
+    /// → `TaskStarted`.
     ///
-    /// Runs `t3 thread start --json --provider <p> --model <m> --title <first line of text>
+    /// Runs `t3 thread start --json [--provider <p> --model <m>] --title <first line of text>
     /// <project> -` (stdin = the prefixed text; the title keeps the prefix out of T3's sidebar).
     /// `Config.task_project == None` resolves T3's "No project" (the state DB project whose
     /// workspace root is `~/.t3/scratch`). Logged as `task.start`. On success the new thread
@@ -682,26 +703,25 @@ impl Core {
 
     fn task(&self, t3_bin: &Path, task_project: Option<String>, poll: &Sender<()>, text: &str, payload: &str, send_ms: i64) {
         let inner = &*self.inner;
-        let latest = latest_model(&inner.threads.read().unwrap_or_else(|p| p.into_inner()));
+        let listed = latest_model(&inner.threads.read().unwrap_or_else(|p| p.into_inner()));
+        let (latest, model_source, model_error) = task_model(listed, t3::latest_model_any);
         let title = task_title(text);
         let mut input = json!({"text": text, "text_with_prefix": payload, "title": title,
-                               "model_from_thread": latest.as_ref().map(|l| &l.0)});
+                               "model_from_thread": latest.as_ref().map(|l| &l.0),
+                               "model_source": model_source, "model_error": model_error});
         let project = match task_project {
             Some(p) => Ok((p, "config")),
             None => t3::scratch_project().map(|p| (p, "scratch")),
         };
-        let prepared = match (project, latest) {
-            (Err(e), _) => Err(format!("task project: {e:#}")),
-            (_, None) => Err("no listed thread with a provider and model to copy".to_owned()),
-            (Ok(p), Some(m)) => Ok((p, m)),
-        };
-        let (thread_id, detail) = match prepared {
-            Err(err) => {
+        let (thread_id, detail) = match project {
+            Err(e) => {
+                let err = format!("task project: {e:#}");
                 inner.tel.event("task.start", None, false, input, Value::Null, Some(&err));
                 (None, err)
             }
-            Ok(((project, project_source), (_, provider, model))) => {
-                let argv = task_argv(t3_bin, &provider, &model, &title, &project);
+            Ok((project, project_source)) => {
+                let model = latest.as_ref().map(|(_, provider, model)| (provider.as_str(), model.as_str()));
+                let argv = task_argv(t3_bin, model, &title, &project);
                 input["argv"] = t3::argv_json(&argv);
                 input["project"] = json!(project);
                 input["project_source"] = json!(project_source);
@@ -763,6 +783,24 @@ fn latest_model(threads: &[ThreadView]) -> Option<(String, String, String)> {
         .map(|t| (t.id.clone(), t.provider.clone(), t.model.clone()))
 }
 
+/// The model for a new task and where it came from: the newest listed thread's (`listed`), else
+/// the newest thread's in T3's state DB, any project (`state_db`, read only when nothing listed
+/// has one), else none (`none`: `t3` picks the project's default). A failed DB read is returned
+/// for the log and counts as none.
+fn task_model(
+    listed: Option<(String, String, String)>,
+    state_db: impl FnOnce() -> anyhow::Result<Option<(String, String, String)>>,
+) -> (Option<(String, String, String)>, &'static str, Option<String>) {
+    if listed.is_some() {
+        return (listed, "listed", None);
+    }
+    match state_db() {
+        Ok(Some(m)) => (Some(m), "state_db", None),
+        Ok(None) => (None, "none", None),
+        Err(e) => (None, "none", Some(format!("{e:#}"))),
+    }
+}
+
 /// Thread title for a task: the text's first non-empty line, at most 80 characters.
 fn task_title(text: &str) -> String {
     const MAX: usize = 80;
@@ -774,13 +812,15 @@ fn task_title(text: &str) -> String {
     format!("{}…", cut.trim_end())
 }
 
-/// `t3 thread start --json --provider <p> --model <m> --title <title> <project> -`.
-fn task_argv(t3_bin: &Path, provider: &str, model: &str, title: &str, project: &str) -> Vec<OsString> {
+/// `t3 thread start --json [--provider <p> --model <m>] --title <title> <project> -`; without a
+/// model to copy, T3 picks the project's default model.
+fn task_argv(t3_bin: &Path, model: Option<(&str, &str)>, title: &str, project: &str) -> Vec<OsString> {
     let mut argv: Vec<OsString> = vec![t3_bin.into()];
-    argv.extend(
-        ["thread", "start", "--json", "--provider", provider, "--model", model, "--title", title, project, "-"]
-            .map(OsString::from),
-    );
+    argv.extend(["thread", "start", "--json"].map(OsString::from));
+    if let Some((provider, model)) = model {
+        argv.extend(["--provider", provider, "--model", model].map(OsString::from));
+    }
+    argv.extend(["--title", title, project, "-"].map(OsString::from));
     argv
 }
 
@@ -835,16 +875,31 @@ mod tests {
         assert_eq!(latest_model(&threads), Some(("new".into(), "omp".into(), "anthropic/claude-opus".into())));
         assert_eq!(latest_model(&threads[1..2]), None);
 
+        // Pick order: listed > T3's state DB (any project) > none.
+        let m = |id: &str| (id.to_owned(), "omp".to_owned(), "m/x".to_owned());
+        let db_unused = || -> anyhow::Result<_> { panic!("the state DB is read only when nothing listed has a model") };
+        assert_eq!(task_model(Some(m("listed")), db_unused), (Some(m("listed")), "listed", None));
+        assert_eq!(task_model(None, || Ok(Some(m("db")))), (Some(m("db")), "state_db", None));
+        assert_eq!(task_model(None, || Ok(None)), (None, "none", None));
+        let (model, source, err) = task_model(None, || Err(anyhow::anyhow!("sqlite3 failed")));
+        assert_eq!((model, source, err.as_deref()), (None, "none", Some("sqlite3 failed")));
+
         assert_eq!(task_title("\n  Ekran görüntülerini klasörle  \nikinci satır"), "Ekran görüntülerini klasörle");
         let long = task_title(&"ş".repeat(100));
         assert_eq!(long.chars().count(), 80);
         assert!(long.ends_with('…'));
 
-        let argv = task_argv(Path::new("/t3"), "omp", "m/x", "Başlık", "proj-1");
-        let argv: Vec<&str> = argv.iter().map(|a| a.to_str().expect("utf8")).collect();
+        let utf8 = |argv: Vec<OsString>| -> Vec<String> {
+            argv.into_iter().map(|a| a.into_string().expect("utf8")).collect()
+        };
         assert_eq!(
-            argv,
+            utf8(task_argv(Path::new("/t3"), Some(("omp", "m/x")), "Başlık", "proj-1")),
             ["/t3", "thread", "start", "--json", "--provider", "omp", "--model", "m/x", "--title", "Başlık", "proj-1", "-"]
+        );
+        // Nothing listed to copy (empty project, fresh install): T3's default model.
+        assert_eq!(
+            utf8(task_argv(Path::new("/t3"), None, "Başlık", "proj-1")),
+            ["/t3", "thread", "start", "--json", "--title", "Başlık", "proj-1", "-"]
         );
     }
 }
