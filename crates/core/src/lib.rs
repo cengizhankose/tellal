@@ -89,6 +89,73 @@ pub struct Config {
     /// T3 project (id or path) for tasks started from the panel ([`Core::start_task`]). `None` =
     /// T3's "No project" (workspace `~/.t3/scratch`). Env `TELLAL_TASK_PROJECT`.
     pub task_project: Option<String>,
+    /// Language of the panel's UI copy and of the lines the core speaks itself (catch-up and
+    /// status lines). Env `TELLAL_LANG` = `tr` | `en`; unset = macOS's preferred language.
+    pub lang: Lang,
+    /// Which voice speaks. Env `TELLAL_VOICE` = `auto` (default: per utterance, by the
+    /// utterance's language) | `tr` | `en`.
+    pub voice: VoicePref,
+}
+
+/// UI and speech language.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Lang {
+    Tr,
+    En,
+}
+
+impl Lang {
+    pub fn parse(s: &str) -> Option<Lang> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "tr" => Some(Lang::Tr),
+            "en" => Some(Lang::En),
+            _ => None,
+        }
+    }
+    pub fn code(self) -> &'static str {
+        match self {
+            Lang::Tr => "tr",
+            Lang::En => "en",
+        }
+    }
+    /// macOS's preferred language (`tr*` → `Tr`, anything else → `En`).
+    pub fn system() -> Lang {
+        Lang::Tr
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VoicePref {
+    /// Pick the voice per utterance from the utterance's language.
+    Auto,
+    Only(Lang),
+}
+
+impl VoicePref {
+    pub fn parse(s: &str) -> Option<VoicePref> {
+        if s.trim().eq_ignore_ascii_case("auto") { Some(VoicePref::Auto) } else { Lang::parse(s).map(VoicePref::Only) }
+    }
+}
+
+/// One installable voice model.
+#[derive(Clone, Debug, PartialEq)]
+pub struct VoiceView {
+    /// Stable id, e.g. `tr-ema-lightning`.
+    pub id: String,
+    pub lang: Lang,
+    /// Display name, e.g. `EMA Lightning`.
+    pub name: String,
+    /// Download size.
+    pub download_mb: u32,
+    pub state: VoiceState,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum VoiceState {
+    Ready,
+    Missing,
+    Downloading { done_bytes: u64, total_bytes: u64 },
+    Failed(String),
 }
 
 impl Config {
@@ -131,6 +198,8 @@ impl Config {
             cua_driver: var("TELLAL_CUA_DRIVER")
                 .map_or_else(|| PathBuf::from("/Applications/CuaDriver.app/Contents/MacOS/cua-driver"), PathBuf::from),
             task_project: var("TELLAL_TASK_PROJECT"),
+            lang: var("TELLAL_LANG").and_then(|v| Lang::parse(&v)).unwrap_or_else(Lang::system),
+            voice: var("TELLAL_VOICE").and_then(|v| VoicePref::parse(&v)).unwrap_or(VoicePref::Auto),
         }
     }
 
@@ -147,6 +216,7 @@ impl Config {
             "t3_app": self.t3_app, "t3_app_data": self.t3_app_data,
             "demo": self.demo, "output_volume": self.output_volume,
             "cua_driver": self.cua_driver, "task_project": self.task_project,
+            "lang": self.lang.code(), "voice": format!("{:?}", self.voice),
         })
     }
 }
@@ -369,6 +439,8 @@ pub enum CoreEvent {
     ComputerUpdated,
     /// [`Core::start_task`] finished: `thread_id` is the new thread (already listening) when `ok`.
     TaskStarted { thread_id: Option<String>, ok: bool, detail: String },
+    /// [`Core::voices`] changed (a download started, progressed, finished or failed).
+    VoicesUpdated,
 }
 
 /// Cheap to clone; `Send + Sync`. All work runs on core-owned background threads.
@@ -388,6 +460,7 @@ struct Inner {
     computer: Arc<RwLock<ComputerView>>,
     /// T3 project id → display name, for every project the poller knows (T3 source only).
     project_names: Arc<RwLock<HashMap<String, String>>>,
+    lang: Lang,
 }
 
 /// Where threads, messages, dictation and replies come from.
@@ -405,6 +478,7 @@ impl Core {
     /// bridge and cua-driver watcher).
     pub fn start(config: Config) -> anyhow::Result<(Core, Receiver<CoreEvent>)> {
         let start_ms = telemetry::now_unix_ms();
+        let lang = config.lang;
         let tel = Telemetry::create(&config.log_root)?;
         tel.event(
             "app.start",
@@ -474,6 +548,7 @@ impl Core {
             reply_prefix,
             computer: computer_view,
             project_names,
+            lang,
         };
         Ok((Core { inner: Arc::new(inner) }, rx))
     }
@@ -644,6 +719,16 @@ impl Core {
     pub fn computer(&self) -> ComputerView {
         self.inner.computer.read().unwrap_or_else(|p| p.into_inner()).clone()
     }
+    /// UI/speech language ([`Config::lang`]).
+    pub fn lang(&self) -> Lang {
+        self.inner.lang
+    }
+    /// Every voice Tellal knows, installed or not (never blocks on I/O).
+    pub fn voices(&self) -> Vec<VoiceView> {
+        Vec::new()
+    }
+    /// Downloads and installs voice `id` in the background; progress → `VoicesUpdated`.
+    pub fn download_voice(&self, _id: &str) {}
     /// Emergency stop: revoke every live cua-driver session (`cua-driver revoke --all`) so no
     /// agent can act on the screen until it reconnects. Non-blocking; → `ComputerUpdated`.
     /// Demo mode: every live scripted session ends at once.

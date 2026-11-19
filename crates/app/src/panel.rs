@@ -355,6 +355,7 @@ impl Panel {
                     self.show_error(message.into(), retry.map(Retry::Open));
                 }
                 CoreEvent::ThemeChanged => self.apply_theme(cx),
+                CoreEvent::VoicesUpdated => {}
                 CoreEvent::ComputerUpdated => {
                     self.refresh_computer();
                 }
