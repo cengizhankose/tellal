@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Hardened-runtime entitlements for Tellal.app: none are needed today.
+  - No JIT / unsigned executable memory: ONNX Runtime runs on the CPU provider and gpui compiles
+    its Metal shaders through Metal's own compiler service, not in-process codegen.
+  - No library-validation exception: ONNX Runtime is linked statically (`otool -L` lists only
+    system frameworks and libraries).
+  - No audio-input / camera: dictation is Wispr Flow's; Tellal only plays audio.
+  - No apple-events: Tellal sends no Apple Events itself; t3 and cua-driver run as child processes.
+  Add a key here only together with the code that needs it.
+-->
+<plist version="1.0">
+<dict/>
+</plist>
