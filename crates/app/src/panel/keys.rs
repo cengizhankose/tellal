@@ -26,7 +26,8 @@ actions!(
         Dismiss,
         NewTask,
         StopComputer,
-        GrantComputer
+        GrantComputer,
+        DownloadVoice
     ]
 );
 
@@ -42,6 +43,7 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-.", StopComputer, Some(KEY_CONTEXT)),
         KeyBinding::new("n", NewTask, Some(BARE)),
         KeyBinding::new("i", GrantComputer, Some(BARE)),
+        KeyBinding::new("d", DownloadVoice, Some(BARE)),
         KeyBinding::new("space", ToggleListen, Some(BARE)),
         KeyBinding::new("enter", Reply, Some(BARE)),
         KeyBinding::new("r", Reply, Some(BARE)),
@@ -100,6 +102,7 @@ pub(super) fn on_actions(root: Stateful<Div>, cx: &mut Context<Panel>) -> Statef
         .on_action(cx.listener(|p, _: &NewTask, window, cx| p.open_new_task("key", window, cx)))
         .on_action(cx.listener(|p, _: &StopComputer, _, cx| p.stop_computer("key", cx)))
         .on_action(cx.listener(|p, _: &GrantComputer, _, cx| p.grant_computer_permissions("key", cx)))
+        .on_action(cx.listener(|p, _: &DownloadVoice, _, cx| p.download_needed_voice("key", cx)))
 }
 
 impl Panel {

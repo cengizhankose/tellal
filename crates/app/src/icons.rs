@@ -51,6 +51,8 @@ pub enum Icon {
     OctagonX,
     /// Computer-use permissions missing.
     ShieldAlert,
+    /// Voice download.
+    Download,
     /// New task.
     Plus,
 }
@@ -94,10 +96,11 @@ impl Icon {
             Icon::OctagonX => "icons/octagon-x.svg",
             Icon::ShieldAlert => "icons/shield-alert.svg",
             Icon::Plus => "icons/plus.svg",
+            Icon::Download => "icons/download.svg",
         }
     }
 
-    pub const ALL: [Icon; 36] = [
+    pub const ALL: [Icon; 37] = [
         Icon::Logo,
         Icon::ChevronRight,
         Icon::ChevronDown,
@@ -134,6 +137,7 @@ impl Icon {
         Icon::OctagonX,
         Icon::ShieldAlert,
         Icon::Plus,
+        Icon::Download,
     ];
 }
 

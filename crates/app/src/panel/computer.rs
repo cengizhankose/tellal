@@ -12,6 +12,7 @@ use crate::icons::{Icon, icon};
 use crate::mac;
 use crate::model::{Filter, Section};
 use crate::motion;
+use crate::strings::Strings;
 use crate::theme::{Tokens, TypeScale, alpha};
 use crate::time;
 use crate::widgets::{ButtonKind, pill, tabular, text_button, tip};
@@ -36,23 +37,23 @@ impl Computer {
         self.view.installed && self.view.permissions_ok != Some(true)
     }
 
-    /// `(label, value)` cells for the metrics drawer's "Bilgisayar kullanımı" section.
-    pub(super) fn cells(&self) -> Vec<(&'static str, String)> {
+    /// `(label, value)` cells for the metrics drawer's computer-use section.
+    pub(super) fn cells(&self, s: &Strings) -> Vec<(&'static str, String)> {
         let v = &self.view;
         if !v.installed {
-            return vec![("cua-driver", "kurulu değil".to_owned())];
+            return vec![("cua-driver", s.cua_not_installed.to_owned())];
         }
         let permissions = match v.permissions_ok {
-            Some(true) => "var",
-            Some(false) => "yok",
-            None => "bilinmiyor",
+            Some(true) => s.perm_granted,
+            Some(false) => s.perm_missing,
+            None => s.perm_unknown,
         };
         vec![
-            ("cua-driver", v.version.clone().unwrap_or_else(|| "kurulu".to_owned())),
-            ("servis", if v.daemon_running { "çalışıyor" } else { "kapalı" }.to_owned()),
-            ("mod", v.permission_mode.clone().unwrap_or_else(|| "–".to_owned())),
-            ("izin", permissions.to_owned()),
-            ("canlı oturum", v.sessions.len().to_string()),
+            ("cua-driver", v.version.clone().unwrap_or_else(|| s.cua_installed.to_owned())),
+            (s.cell_service, if v.daemon_running { s.service_running } else { s.service_stopped }.to_owned()),
+            (s.cell_mode, v.permission_mode.clone().unwrap_or_else(|| "–".to_owned())),
+            (s.cell_permissions, permissions.to_owned()),
+            (s.cell_sessions, v.sessions.len().to_string()),
         ]
     }
 }
@@ -93,7 +94,7 @@ impl Panel {
             );
             if now.permissions_ok == Some(true) && self.computer.grant_requested {
                 self.computer.grant_requested = false;
-                self.show_toast("Bilgisayar kullanımı hazır");
+                self.show_toast(self.s.toast_computer_ready);
             }
         }
     }
@@ -114,7 +115,7 @@ impl Panel {
             self.log_action(source, "computer_stop", None, json!({"sessions": sessions}));
         }
         self.core.computer_stop_all();
-        self.show_toast("Ekran kontrolü durduruldu");
+        self.show_toast(self.s.toast_computer_stopped);
         cx.notify();
     }
 
@@ -148,7 +149,7 @@ impl Panel {
     /// for that id (an empty project), else the last path component; `None` = "No project".
     pub(super) fn task_project_label(&self) -> SharedString {
         let Some(project) = self.task_project.as_deref() else {
-            return "No project".into();
+            return self.s.task_no_project.into();
         };
         if let Some(t) = self.threads.iter().find(|t| t.project_id == project) {
             return t.project.clone().into();
@@ -175,16 +176,16 @@ impl Panel {
             json!({"ok": ok, "thread": thread_id, "detail": detail, "dock": open_ms.is_some(), "open_ms": open_ms}),
         );
         if ok {
-            self.show_toast("Görev başladı");
+            self.show_toast(self.s.toast_task_started);
             if open_ms.is_some() {
                 self.close_reply(cx);
             }
             self.pending_task = thread_id;
             self.select_started_task(cx);
         } else if let Some(dock) = self.reply.as_mut().filter(|d| d.thread_id == NEW_TASK) {
-            dock.task_failed(&detail);
+            dock.task_failed(&detail, self.s);
         } else {
-            self.show_error(format!("Görev başlatılamadı: {detail}").into(), None);
+            self.show_error(self.s.task_failed_error(&detail).into(), None);
         }
         cx.notify();
     }
@@ -229,16 +230,16 @@ impl Panel {
             (Some(app), None) => app.clone(),
             (None, Some(action)) => action.clone(),
             (None, None) => {
-                let client = latest.client.as_deref().unwrap_or("ajan");
+                let client = latest.client.as_deref().unwrap_or(self.s.agent);
                 match action_at(latest) {
-                    Some(at) => format!("{client} · son işlem {}", time::relative(Some(at), self.now_unix)),
-                    None => format!("{client} · bağlı"),
+                    Some(at) => self.s.last_action(client, &time::relative(Some(at), self.now_unix, self.s)),
+                    None => self.s.connected(client),
                 }
             }
         };
-        let stop_key = self.hotkeys.stop.as_ref().map_or_else(String::new, |b| format!(" · her yerden {}", b.spec));
-        let stop = text_button("computer_stop", Some(Icon::OctagonX), "Durdur", ButtonKind::Danger, t, ty.secondary)
-            .tooltip(tip(format!("ajanların ekran kontrolünü hemen kes (⌘.{stop_key})")))
+        let stop_tip = self.s.stop_tip(self.hotkeys.stop.as_ref().map(|b| b.spec.as_str()));
+        let stop = text_button("computer_stop", Some(Icon::OctagonX), self.s.stop, ButtonKind::Danger, t, ty.secondary)
+            .tooltip(tip(stop_tip))
             .on_click(cx.listener(|panel, _, _, cx| panel.stop_computer("click", cx)));
         let title = div()
             .flex()
@@ -252,12 +253,12 @@ impl Panel {
                     .truncate()
                     .text_size(px(ty.secondary))
                     .font_weight(FontWeight::SEMIBOLD)
-                    .child("Ajan ekranını kullanıyor"),
+                    .child(self.s.banner_title),
             )
-            .children((sessions.len() > 1).then(|| pill(format!("{} oturum", sessions.len()), t.danger, 0.16)))
+            .children((sessions.len() > 1).then(|| pill(self.s.sessions(sessions.len()), t.danger, 0.16)))
             .children(since.map(|since| {
                 tabular(div().flex_none().text_size(px(ty.secondary)).text_color(t.text_muted))
-                    .child(time::working(since, self.now_unix))
+                    .child(time::working(since, self.now_unix, self.s))
             }));
         let card = div()
             .id("computer")
@@ -271,10 +272,7 @@ impl Panel {
             .border_1()
             .border_color(alpha(t.danger, 0.5))
             .bg(alpha(t.danger, 0.10))
-            .tooltip(tip(format!(
-                "{} canlı oturum · ajanlar cua-driver ile ekranı kullanabilir",
-                sessions.len()
-            )))
+            .tooltip(tip(self.s.banner_tip(sessions.len())))
             .child(icon(Icon::MousePointer2, 16., t.danger))
             .child(
                 div().flex_1().min_w(px(0.)).flex().flex_col().gap_0p5().child(title).child(
@@ -305,23 +303,24 @@ impl Panel {
         if !self.computer.needs_permission() {
             return None;
         }
+        let s = self.s;
         let text = if self.computer.grant_requested {
-            "macOS pencerelerini onayla: Erişilebilirlik ve Ekran Kaydı"
+            s.perm_approve
         } else if self.computer.view.permissions_ok.is_none() {
-            "Bilgisayar kullanımı: izin durumu bilinmiyor"
+            s.perm_status_unknown
         } else {
-            "Bilgisayar kullanımı: izin gerekli"
+            s.perm_needed
         };
         let grant = text_button(
             "computer_grant",
             None,
-            if self.computer.grant_requested { "Yeniden aç" } else { "İzin ver" },
+            if self.computer.grant_requested { s.perm_reopen } else { s.perm_grant },
             ButtonKind::Ghost,
             t,
             ty.badge + 0.5,
         )
         .h(px(24.))
-        .tooltip(tip("CuaDriver'ın macOS izin pencerelerini aç (I)"))
+        .tooltip(tip(s.perm_grant_tip))
         .on_click(cx.listener(|panel, _, _, cx| panel.grant_computer_permissions("click", cx)));
         let row = div()
             .id("computer_permissions")

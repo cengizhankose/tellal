@@ -2,6 +2,7 @@
 //! strip and the toast.
 
 use gpui::{AnyElement, Context, FontWeight, MouseButton, SharedString, div, prelude::*, px};
+use tellal_core::VoiceState;
 use serde_json::json;
 
 use super::{ATTENTION_H, BANNER_H, COMPACT_IDLE_H, ErrorBanner, HEADER_H, Panel, Retry, SEARCH_H, STATUS_H, Toast};
@@ -14,12 +15,18 @@ use crate::widgets::{ButtonKind, icon_button, pill, text_button, tip};
 
 /// Header state: a T3-style pill only when the panel is not live; `None` = live.
 fn state_pill(panel: &Panel, t: &Tokens) -> Option<(&'static str, gpui::Rgba, &'static str)> {
+    let s = panel.s;
+    let voice = panel.voice_row().map(|v| &v.state);
     if panel.error.is_some() {
-        Some(("hata", t.danger, "bir işlem başarısız oldu · ayrıntı aşağıda"))
+        Some((s.pill_error, t.danger, s.pill_error_tip))
     } else if !panel.loaded || !panel.stats.t3_connected {
-        Some(("bağlanıyor", t.warning, "T3'ten thread listesi bekleniyor"))
+        Some((s.pill_connecting, t.warning, s.pill_connecting_tip))
+    } else if let Some(VoiceState::Downloading { .. }) = voice {
+        Some((s.pill_voice_downloading, t.info, s.pill_voice_downloading_tip))
+    } else if voice.is_some() {
+        Some((s.pill_no_voice, t.warning, s.pill_no_voice_tip))
     } else if !panel.stats.voice_ready {
-        Some(("ses yükleniyor", t.info, "yerel ses modeli hazırlanıyor · dinleme birazdan başlar"))
+        Some((s.pill_voice_loading, t.info, s.pill_voice_loading_tip))
     } else {
         None
     }
@@ -48,7 +55,7 @@ impl Panel {
                 .size(px(6.))
                 .rounded_full()
                 .bg(t.success)
-                .tooltip(tip("canlı · T3'e bağlı, ses hazır")),
+                .tooltip(tip(self.s.live_tip)),
         };
         // While an agent may act on the screen: icon + `ekran` in danger (not colour alone).
         let screen = self.computer.active().then(|| {
@@ -66,8 +73,8 @@ impl Panel {
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(t.danger)
                 .child(icon(Icon::MousePointer2, 11., t.danger))
-                .child("ekran")
-                .tooltip(tip("bir ajan ekranını kullanıyor · Durdur ya da ⌘."))
+                .child(self.s.screen)
+                .tooltip(tip(self.s.screen_tip))
         });
         let core = self.core.clone();
         let identity = div()
@@ -100,9 +107,9 @@ impl Panel {
                 );
             });
         let new_task = icon_button("new_task", Icon::Plus, t, self.reply.as_ref().is_some_and(|d| d.is_new_task()))
-            .tooltip(tip("Yeni görev (N)"))
+            .tooltip(tip(self.s.new_task_tip))
             .on_click(cx.listener(|panel, _, window, cx| panel.open_new_task("click", window, cx)));
-        let search = icon_button("search", Icon::Search, t, self.search.open).tooltip(tip("ara (⌘K)")).on_click(
+        let search = icon_button("search", Icon::Search, t, self.search.open).tooltip(tip(self.s.search_tip)).on_click(
             cx.listener(|panel, _, window, cx| {
                 if panel.search.open {
                     panel.close_search("click", window, cx);
@@ -112,12 +119,12 @@ impl Panel {
             }),
         );
         let drawer = icon_button("drawer", Icon::Gauge, t, self.drawer_open)
-            .tooltip(tip(if self.drawer_open { "ölçümleri kapat" } else { "ölçümler" }))
+            .tooltip(tip(if self.drawer_open { self.s.metrics_close } else { self.s.metrics }))
             .on_click(cx.listener(|panel, _, _, cx| panel.set_drawer(!panel.drawer_open, "click", cx)));
         let compact = icon_button("compact", if self.compact { Icon::Maximize } else { Icon::Minimize }, t, false)
-            .tooltip(tip(if self.compact { "tam görünüm (⌘⇧C)" } else { "yalnız oynatıcı (⌘⇧C)" }))
+            .tooltip(tip(if self.compact { self.s.full_view_tip } else { self.s.player_only_tip }))
             .on_click(cx.listener(|panel, _, _, cx| panel.set_compact(!panel.compact, "click", cx)));
-        let quit = icon_button("quit", Icon::X, t, false).tooltip(tip("Tellal'ı kapat (uygulamadan çıkar)")).on_click(
+        let quit = icon_button("quit", Icon::X, t, false).tooltip(tip(self.s.quit_tip)).on_click(
             cx.listener(|panel, _, _, cx| {
                 panel.log_action("click", "quit", None, json!({}));
                 panel.quit("user", cx);
@@ -146,7 +153,7 @@ impl Panel {
         cx: &mut Context<Panel>,
     ) -> impl IntoElement {
         let retry = e.retry.clone().map(|retry| {
-            text_button("retry", None, "Tekrar dene", ButtonKind::Secondary, t, ty.secondary).on_click(cx.listener(
+            text_button("retry", None, self.s.retry, ButtonKind::Secondary, t, ty.secondary).on_click(cx.listener(
                 move |panel, _, _, cx| {
                     panel.log_action("click", "error_retry", None, json!({"retry": format!("{retry:?}")}));
                     panel.error = None;
@@ -157,7 +164,7 @@ impl Panel {
                 },
             ))
         });
-        let logs = text_button("logs", None, "Kayıtları aç", ButtonKind::Ghost, t, ty.secondary).on_click(cx.listener(
+        let logs = text_button("logs", None, self.s.open_logs, ButtonKind::Ghost, t, ty.secondary).on_click(cx.listener(
             |panel, _, _, _| {
                 let run_dir = panel.stats.run_dir.clone();
                 panel.log_action("click", "error_logs", None, json!({"path": run_dir.display().to_string()}));
@@ -165,7 +172,7 @@ impl Panel {
             },
         ));
         let dismiss =
-            icon_button("dismiss", Icon::X, t, false).tooltip(tip("kapat")).on_click(cx.listener(|panel, _, _, cx| {
+            icon_button("dismiss", Icon::X, t, false).tooltip(tip(self.s.dismiss)).on_click(cx.listener(|panel, _, _, cx| {
                 panel.log_action("click", "error_dismiss", None, json!({}));
                 panel.error = None;
                 cx.notify();
@@ -194,7 +201,7 @@ impl Panel {
                             .min_w(px(0.))
                             .truncate()
                             .text_size(px(ty.secondary))
-                            .child(SharedString::from(format!("Bir şey ters gitti: {message}"))),
+                            .child(SharedString::from(self.s.error_message(&message))),
                     )
                     .tooltip(tip(message)),
             )
@@ -209,10 +216,9 @@ impl Panel {
 
     pub(super) fn render_search(&self, t: &Tokens, ty: &TypeScale, cx: &mut Context<Panel>) -> impl IntoElement {
         let close = icon_button("search_close", Icon::X, t, false)
-            .tooltip(tip("aramayı kapat (Esc)"))
+            .tooltip(tip(self.s.search_close_tip))
             .on_click(cx.listener(|panel, _, window, cx| panel.close_search("click", window, cx)));
-        let count =
-            (!self.search.query.is_empty()).then(|| pill(format!("{} sonuç", self.model.matched), t.text_muted, 0.12));
+        let count = (!self.search.query.is_empty()).then(|| pill(self.s.results(self.model.matched), t.text_muted, 0.12));
         div()
             .flex()
             .flex_none()
@@ -228,7 +234,7 @@ impl Panel {
             .child(close)
     }
 
-    /// `⚠ N thread seni bekliyor · Kazan, …  →` (only while ≥ 1 thread waits).
+    /// `⚠ N threads waiting for you · Kazan, …  →` (only while ≥ 1 thread waits).
     pub(super) fn render_attention(&self, t: &Tokens, ty: &TypeScale, cx: &mut Context<Panel>) -> Option<AnyElement> {
         let waiting = self.waiting();
         if waiting.is_empty() {
@@ -255,14 +261,14 @@ impl Panel {
             .cursor_pointer()
             .hover(|s| s.bg(alpha(t.warning, 0.18)))
             .active(|s| s.bg(alpha(t.warning, 0.24)))
-            .tooltip(tip("tıkla: sıradaki bekleyen thread'e git"))
+            .tooltip(tip(self.s.attention_tip))
             .child(icon(Icon::CircleAlert, 16., t.warning))
             .child(
                 div()
                     .flex_none()
                     .text_size(px(ty.secondary))
                     .font_weight(FontWeight::SEMIBOLD)
-                    .child(format!("{} thread seni bekliyor", waiting.len())),
+                    .child(self.s.waiting_count(waiting.len())),
             )
             .child(
                 div()
@@ -305,8 +311,8 @@ impl Panel {
 
     pub(super) fn render_compact_idle(&self, t: &Tokens, ty: &TypeScale, cx: &mut Context<Panel>) -> impl IntoElement {
         let listening = self.channels.values().filter(|c| c.listening).count();
-        let expand = text_button("expand", Some(Icon::Maximize), "Listeyi aç", ButtonKind::Ghost, t, ty.secondary)
-            .tooltip(tip("tam görünüm (⌘⇧C)"))
+        let expand = text_button("expand", Some(Icon::Maximize), self.s.show_list, ButtonKind::Ghost, t, ty.secondary)
+            .tooltip(tip(self.s.full_view_tip))
             .on_click(cx.listener(|panel, _, _, cx| panel.set_compact(false, "click", cx)));
         div()
             .flex()
@@ -323,7 +329,7 @@ impl Panel {
                     .truncate()
                     .text_size(px(ty.secondary))
                     .text_color(t.text_muted)
-                    .child(format!("Şu an çalan yok · {listening} dinleniyor")),
+                    .child(self.s.compact_idle(listening)),
             )
             .child(expand)
     }

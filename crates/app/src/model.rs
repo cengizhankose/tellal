@@ -21,16 +21,6 @@ impl Section {
     pub const ORDER: [Section; 5] =
         [Section::Pinned, Section::Working, Section::Active, Section::Snoozed, Section::Settled];
 
-    pub fn label(self) -> &'static str {
-        match self {
-            Section::Pinned => "Sabitlenmiş",
-            Section::Working => "Çalışıyor",
-            Section::Active => "Aktif",
-            Section::Snoozed => "Ertelendi",
-            Section::Settled => "Bitti",
-        }
-    }
-
     pub fn name(self) -> &'static str {
         match self {
             Section::Pinned => "pinned",

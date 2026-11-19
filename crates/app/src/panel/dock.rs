@@ -15,6 +15,7 @@ use crate::icons::{Icon, icon};
 use crate::input::{EditSource, InputEvent, TextInput};
 use crate::mac::{self, FrontApp};
 use crate::motion;
+use crate::strings::Strings;
 use crate::theme::{Tokens, TypeScale, alpha};
 use crate::widgets::{ButtonKind, text_button, tip};
 
@@ -74,17 +75,15 @@ pub(super) struct ReplyDock {
 
 impl ReplyDock {
     /// State chip: icon, text, colour.
-    fn chip(&self, t: &Tokens) -> (Icon, SharedString, Rgba) {
+    fn chip(&self, t: &Tokens, s: &Strings) -> (Icon, SharedString, Rgba) {
         match &self.phase {
-            ReplyPhase::Dictating => (Icon::Mic, "Wispr dinliyor · bitince Caps Lock ya da Gönder".into(), t.accent),
+            ReplyPhase::Dictating => (Icon::Mic, s.chip_dictating.into(), t.accent),
             ReplyPhase::Editing { note: Some((note, Tone::Good)) } => (Icon::Check, note.clone(), t.success),
             ReplyPhase::Editing { note: Some((note, Tone::Bad)) } => (Icon::TriangleAlert, note.clone(), t.danger),
-            ReplyPhase::Editing { note: None } => {
-                (Icon::MessageSquare, "Yaz ya da düzenle · Enter gönderir".into(), t.text_muted)
-            }
-            ReplyPhase::WaitingText => (Icon::Mic, "Wispr metni bekleniyor…".into(), t.warning),
-            ReplyPhase::Sending if self.is_new_task() => (Icon::Send, "Görev başlatılıyor…".into(), t.text_muted),
-            ReplyPhase::Sending => (Icon::Send, "Gönderiliyor…".into(), t.text_muted),
+            ReplyPhase::Editing { note: None } => (Icon::MessageSquare, s.chip_editing.into(), t.text_muted),
+            ReplyPhase::WaitingText => (Icon::Mic, s.chip_waiting_text.into(), t.warning),
+            ReplyPhase::Sending if self.is_new_task() => (Icon::Send, s.chip_starting_task.into(), t.text_muted),
+            ReplyPhase::Sending => (Icon::Send, s.chip_sending.into(), t.text_muted),
         }
     }
 
@@ -98,9 +97,9 @@ impl ReplyDock {
     }
 
     /// `start_task` failed: keep the text, say why and how to retry (G2-5).
-    pub(super) fn task_failed(&mut self, detail: &str) {
+    pub(super) fn task_failed(&mut self, detail: &str, s: &Strings) {
         self.phase = ReplyPhase::Editing {
-            note: Some((format!("Görev başlatılamadı ({detail}) · Gönder ile tekrar dene").into(), Tone::Bad)),
+            note: Some((s.task_failed_note(detail).into(), Tone::Bad)),
         };
     }
 }
@@ -268,7 +267,7 @@ impl Panel {
                 json!({"thread": dock.thread_id, "text": text, "source": dock.source_label()}),
             );
             self.selftest = SelfTest::Quitting { at: Instant::now() + SELFTEST_REPLY_QUIT_DELAY };
-            self.show_toast("Gönderildi");
+            self.show_toast(self.s.toast_sent);
             self.close_reply(cx);
         } else {
             dock.phase = ReplyPhase::Sending;
@@ -319,20 +318,19 @@ impl Panel {
             return;
         };
         if dock.phase == ReplyPhase::Dictating {
-            dock.phase =
-                ReplyPhase::Editing { note: Some(("Wispr metni geldi · Enter gönderir".into(), Tone::Good)) };
+            dock.phase = ReplyPhase::Editing { note: Some((self.s.chip_transcript_in.into(), Tone::Good)) };
         }
         dock.transcript = Some((text, Instant::now() + TRANSCRIPT_FILL_DELAY));
     }
 
     pub(super) fn on_dictation_failed(&mut self, thread_id: &str, error: String) {
         let Some(dock) = self.reply.as_mut().filter(|d| d.thread_id == thread_id) else {
-            self.show_error(format!("Wispr dikte başlamadı: {error}").into(), None);
+            self.show_error(self.s.dictation_failed_error(&error).into(), None);
             return;
         };
         if dock.phase.dictation_active() {
             dock.phase = ReplyPhase::Editing {
-                note: Some((format!("Wispr çalışmadı ({error}) · yazarak cevaplayabilirsin").into(), Tone::Bad)),
+                note: Some((self.s.dictation_failed_note(&error).into(), Tone::Bad)),
             };
         }
     }
@@ -347,7 +345,7 @@ impl Panel {
     ) {
         let Some(dock) = self.reply.as_mut().filter(|d| d.thread_id == thread_id) else {
             if !ok {
-                self.show_error(format!("Cevap gönderilemedi: {detail}").into(), None);
+                self.show_error(self.s.reply_failed_error(&detail).into(), None);
             }
             return;
         };
@@ -356,12 +354,12 @@ impl Panel {
             json!({"thread": thread_id, "ok": ok, "queued": queued, "detail": detail, "open_ms": ms(dock.opened_at.elapsed())}),
         );
         if ok {
-            self.show_toast(if queued { "Gönderildi · sıraya alındı" } else { "Gönderildi" });
+            self.show_toast(if queued { self.s.toast_sent_queued } else { self.s.toast_sent });
             self.close_reply(cx);
         } else {
             // Keep the dock (and the dictated text) so the user can retry with Gönder (G2-5).
             dock.phase = ReplyPhase::Editing {
-                note: Some((format!("Gönderilemedi ({detail}) · Gönder ile tekrar dene").into(), Tone::Bad)),
+                note: Some((self.s.reply_failed_note(&detail).into(), Tone::Bad)),
             };
         }
         if matches!(self.selftest, SelfTest::ReplySubmitted { .. }) {
@@ -412,18 +410,15 @@ impl Panel {
         ty: &TypeScale,
         cx: &mut Context<Panel>,
     ) -> AnyElement {
-        let (chip_icon, chip_text, chip_color) = dock.chip(t);
+        let s = self.s;
+        let (chip_icon, chip_text, chip_color) = dock.chip(t, s);
         let sending = dock.phase == ReplyPhase::Sending;
-        let send = text_button("send", Some(Icon::Send), "Gönder", ButtonKind::Primary, t, ty.secondary)
+        let send = text_button("send", Some(Icon::Send), s.send, ButtonKind::Primary, t, ty.secondary)
             .when(sending, |d| d.opacity(0.5))
-            .tooltip(tip(if dock.is_new_task() {
-                "görevi başlat (Enter) · dikte sürüyorsa önce bitirir"
-            } else {
-                "gönder (Enter) · dikte sürüyorsa önce bitirir"
-            }))
+            .tooltip(tip(if dock.is_new_task() { s.send_task_tip } else { s.send_tip }))
             .on_click(cx.listener(|panel, _, _, cx| panel.submit_reply("button", cx)));
-        let cancel = text_button("cancel", None, "İptal", ButtonKind::Secondary, t, ty.secondary)
-            .tooltip(tip("vazgeç (Esc)"))
+        let cancel = text_button("cancel", None, s.cancel, ButtonKind::Secondary, t, ty.secondary)
+            .tooltip(tip(s.cancel_tip))
             .on_click(cx.listener(|panel, _, _, cx| panel.cancel_reply("button", cx)));
         let dock_el = div()
             .flex()
@@ -444,7 +439,7 @@ impl Panel {
                     .text_size(px(ty.secondary))
                     .text_color(t.text_muted)
                     .when(!dock.is_new_task(), |d| d.child(icon(Icon::MessageSquare, 13., t.text_muted)))
-                    .child(if dock.is_new_task() { "→ Yeni görev ·" } else { "Cevap →" })
+                    .child(if dock.is_new_task() { s.dock_new_task } else { s.dock_reply })
                     .child(
                         div()
                             .flex_1()

@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 
 use gpui::{App, Context, Window};
 use serde_json::{Value, json};
-use tellal_core::ThreadView;
+use tellal_core::{ThreadView, VoiceState};
 
 use super::{Panel, Retry, ms};
 use crate::input::EditSource;
@@ -36,9 +36,14 @@ const DEMO_PAUSE_INTO_ACK: Duration = Duration::from_millis(1600);
 const DEMO_AFTER_ACK: Duration = Duration::from_millis(800);
 
 /// `shots` walk, in order. `permissions` and `computer` need the matching computer-use state
-/// (the demo fixture provides it) and are skipped after `SHOT_WAIT` without it.
-const SHOTS: [&str; 10] = [
+/// (the demo fixture provides it) and are skipped after `SHOT_WAIT` without it. The `voice_*`
+/// states walk the row's download (demo: the fixture's voice states; a `download_fails` voice
+/// fails once, then the retry succeeds) and are skipped at once when no voice row can appear.
+const SHOTS: [&str; 13] = [
     "full",
+    "voice_downloading",
+    "voice_failed",
+    "voice_ready",
     "permissions",
     "selected",
     "dock",
@@ -667,6 +672,8 @@ impl Panel {
                 "dock_text_chars": self.input.read(cx).text().chars().count(),
                 "computer_sessions": self.computer.view.sessions.len(),
                 "permission_row": self.computer.needs_permission(),
+                "lang": self.s.lang.code(),
+                "voice_row": self.voice_row().map(|v| json!({"id": v.id, "state": format!("{:?}", v.state)})),
                 "uptime_ms": ms(self.process_start.elapsed()),
             }),
         );
@@ -685,21 +692,42 @@ impl Panel {
         .detach();
     }
 
-    /// Whether the computer-use state a `shots` state shows is there (demo fixture).
+    /// Whether the computer-use or voice state a `shots` state shows is there (demo fixture).
     fn shot_ready(&self, name: &str) -> bool {
+        let voice = self.voice_row().map(|v| &v.state);
         match name {
             // Each computer-use state on its own: the permission row before any session, the
             // banner once granted (an agent cannot act without permissions) and the toast gone.
             "permissions" => self.computer.needs_permission() && !self.computer.active(),
             "computer" => self.computer.active() && !self.computer.needs_permission() && self.toast.is_none(),
+            "voice_downloading" => matches!(voice, Some(VoiceState::Downloading { done_bytes, .. }) if *done_bytes > 0),
+            "voice_failed" => matches!(voice, Some(VoiceState::Failed(_))),
+            "voice_ready" => voice.is_none(),
             _ => true,
         }
     }
 
-    /// Once, when a `shots` state starts waiting: demo mode grants the permissions for `computer`.
+    /// A `shots` state whose precondition can no longer come (skipped without waiting).
+    fn shot_hopeless(&self, name: &str) -> bool {
+        let voice = self.voice_row().map(|v| &v.state);
+        match name {
+            "voice_downloading" | "voice_failed" | "voice_ready" if self.voices.is_empty() || !self.demo => true,
+            "voice_downloading" => voice.is_none(),
+            // A download that ended ready never fails.
+            "voice_failed" => voice.is_none(),
+            _ => false,
+        }
+    }
+
+    /// Once, when a `shots` state starts waiting: demo mode grants the permissions for
+    /// `computer` and presses the voice row's Download / Retry.
     fn prepare_shot(&mut self, name: &str, cx: &mut Context<Panel>) {
         if name == "computer" && self.demo && self.computer.needs_permission() {
             self.grant_computer_permissions("selftest", cx);
+        }
+        let idle = matches!(self.voice_row().map(|v| &v.state), Some(VoiceState::Missing | VoiceState::Failed(_)));
+        if matches!(name, "voice_downloading" | "voice_ready") && self.demo && idle {
+            self.download_needed_voice("selftest", cx);
         }
     }
 
@@ -882,14 +910,18 @@ impl Panel {
         self.error = None;
         let first = self.model.row_ids.first().cloned();
         match SHOTS[step] {
-            "full" | "permissions" | "computer" => self.select(None, "selftest"),
+            "full" | "permissions" | "computer" | "voice_downloading" | "voice_failed" => self.select(None, "selftest"),
+            // The row is gone; the drawer lists every voice.
+            "voice_ready" => {
+                self.select(None, "selftest");
+                self.set_drawer(true, "selftest", cx);
+            }
             "new_task" => {
                 self.open_new_task("selftest", window, cx);
                 // Demo mode dictates (fixture text, no Wispr); otherwise type the sample.
                 if !self.demo {
-                    self.input.update(cx, |input, cx| {
-                        input.set_text("Masaüstündeki ekran görüntülerini tarihe göre klasörle.", EditSource::Typed, cx)
-                    });
+                    let text = self.s.sample_task;
+                    self.input.update(cx, |input, cx| input.set_text(text, EditSource::Typed, cx));
                 }
             }
             // Hover is simulated by selection: a selected row shows the same actions.
@@ -898,21 +930,18 @@ impl Panel {
                 if let Some(id) = first {
                     self.select(Some(id.clone()), "selftest");
                     self.open_reply(&id, "selftest", false, window, cx);
-                    self.input.update(cx, |input, cx| {
-                        input.set_text("Testleri çalıştır, sonra özetle.", EditSource::Typed, cx)
-                    });
+                    let text = self.s.sample_reply;
+                    self.input.update(cx, |input, cx| input.set_text(text, EditSource::Typed, cx));
                 }
             }
             "drawer" => self.set_drawer(true, "selftest", cx),
             "compact" => self.set_compact(true, "selftest", cx),
             "empty_search" => {
                 self.open_search("selftest", window, cx);
-                self.search.input.update(cx, |input, cx| input.set_text("zzzz-yok", EditSource::Typed, cx));
+                let text = self.s.sample_no_match;
+                self.search.input.update(cx, |input, cx| input.set_text(text, EditSource::Typed, cx));
             }
-            "error" => self.show_error(
-                "T3 komutu yanıt vermedi (selftest örneği)".into(),
-                self.model.row_ids.first().cloned().map(Retry::Open),
-            ),
+            "error" => self.show_error(self.s.sample_error.into(), self.model.row_ids.first().cloned().map(Retry::Open)),
             _ => {}
         }
         cx.notify();
@@ -940,12 +969,12 @@ impl Panel {
                     return false;
                 };
                 let name = SHOTS[step];
-                if !self.shot_ready(name) {
+                if self.shot_hopeless(name) || !self.shot_ready(name) {
                     let since = waiting.unwrap_or_else(|| {
                         self.prepare_shot(name, cx);
                         now
                     });
-                    if now.duration_since(since) < SHOT_WAIT {
+                    if now.duration_since(since) < SHOT_WAIT && !self.shot_hopeless(name) {
                         self.selftest = SelfTest::Shots { step, next_at, waiting: Some(since) };
                         return false;
                     }

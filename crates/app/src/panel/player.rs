@@ -55,7 +55,7 @@ impl Panel {
         };
         let text: SharedString = match &c.now_text {
             Some(text) => text.clone().into(),
-            None if c.queued > 0 => "sırada bekleyen mesaj var".into(),
+            None if c.queued > 0 => self.s.queued_waiting.into(),
             None => "…".into(),
         };
         let audible = c.speaking && !c.paused;
@@ -67,7 +67,7 @@ impl Panel {
 
         let id = thread_id.to_owned();
         let pause = icon_button("pause", if c.paused { Icon::Play } else { Icon::Pause }, t, c.paused)
-            .tooltip(tip(if c.paused { "devam et (P)" } else { "duraklat (P)" }))
+            .tooltip(tip(if c.paused { self.s.resume_tip } else { self.s.pause_tip }))
             .on_click(cx.listener({
                 let id = id.clone();
                 move |panel, _, _, cx| {
@@ -76,7 +76,7 @@ impl Panel {
                 }
             }));
         let skip =
-            icon_button("skip", Icon::SkipForward, t, false).tooltip(tip("okey, geç (→)")).on_click(cx.listener({
+            icon_button("skip", Icon::SkipForward, t, false).tooltip(tip(self.s.skip_tip)).on_click(cx.listener({
                 let id = id.clone();
                 move |panel, _, _, cx| {
                     panel.player_action("click", "skip", &id);
@@ -85,14 +85,14 @@ impl Panel {
             }));
         let live = (c.queued > 0).then(|| {
             let id = id.clone();
-            icon_button("live", Icon::ChevronsRight, t, false).tooltip(tip("canlıya geç (L)")).on_click(cx.listener(
+            icon_button("live", Icon::ChevronsRight, t, false).tooltip(tip(self.s.live_jump_tip)).on_click(cx.listener(
                 move |panel, _, _, cx| {
                     panel.player_action("click", "jump_to_live", &id);
                     cx.notify();
                 },
             ))
         });
-        let mute = icon_button("mute_all", Icon::VolumeX, t, false).tooltip(tip("hepsini sustur (M)")).on_click(
+        let mute = icon_button("mute_all", Icon::VolumeX, t, false).tooltip(tip(self.s.mute_all_tip)).on_click(
             cx.listener(|panel, _, _, cx| {
                 panel.mute_all("click");
                 cx.notify();
@@ -128,7 +128,7 @@ impl Panel {
                             .font_weight(FontWeight::MEDIUM)
                             .child(label),
                     )
-                    .when(c.queued > 0, |d| d.child(pill(format!("{} sırada", c.queued), t.accent, 0.16))),
+                    .when(c.queued > 0, |d| d.child(pill(self.s.queued(c.queued), t.accent, 0.16))),
             )
             .child(
                 div()

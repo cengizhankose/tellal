@@ -9,6 +9,7 @@ mod list;
 mod metrics;
 mod player;
 mod selftest;
+mod voice;
 
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
@@ -18,13 +19,14 @@ use gpui::{
     prelude::*, px,
 };
 use serde_json::{Value, json};
-use tellal_core::{ChannelView, Config, Core, CoreEvent, LiveStats, Receiver, ThreadView};
+use tellal_core::{ChannelView, Config, Core, CoreEvent, Lang, LiveStats, Receiver, ThreadView, VoicePref, VoiceView};
 
 use crate::hotkey::Hotkeys;
 use crate::input::{InputEvent, TextInput};
 use crate::mac::{self, FrontApp, NativeWindow};
 use crate::model::{self, Filter, Item, ListModel, Section};
 use crate::motion::{self, Motion};
+use crate::strings::{self, Strings};
 use crate::theme::Theme;
 use crate::time;
 
@@ -63,6 +65,11 @@ const STATUS_H: f32 = 32.;
 /// Computer-use permission row above the status line.
 const PERMISSION_H: f32 = 32.;
 const DRAWER_H: f32 = 288.;
+/// Voice row above the status line (no voice ready to speak the UI language).
+const VOICE_ROW_H: f32 = 32.;
+/// The drawer's voices section: gap + title + one line per voice.
+const VOICES_HEAD_H: f32 = 26.;
+const VOICE_LINE_H: f32 = 26.;
 const RADIUS: f32 = 14.;
 
 /// A row-body click remembered to detect the second click of a double-click.
@@ -171,6 +178,12 @@ pub struct Panel {
     computer: computer::Computer,
     /// `Config.demo` is set: self-tests may press demo-only actions (permission grant).
     demo: bool,
+    /// UI copy in `Core::lang()`.
+    s: &'static Strings,
+    /// `Core::voices()`, refreshed on `VoicesUpdated`.
+    voices: Vec<VoiceView>,
+    /// Language of the voice the panel needs (`TELLAL_VOICE` = tr|en, else the UI language).
+    voice_lang: Lang,
     /// Pending `ui.focus {action: "check"}` (records which app actually ended up frontmost).
     focus_check: Option<(Instant, &'static str)>,
 
@@ -194,9 +207,10 @@ impl Panel {
         cx: &mut Context<Panel>,
     ) -> Panel {
         let now = Instant::now();
-        let input = cx.new(|cx| TextInput::new("yaz, yapıştır ya da Wispr ile dikte et…", cx));
+        let s = strings::strings(core.lang());
+        let input = cx.new(|cx| TextInput::new(s.input_placeholder, cx));
         cx.subscribe_in(&input, window, Panel::on_input_event).detach();
-        let search_input = cx.new(|cx| TextInput::new("Ara: başlık ya da proje", cx));
+        let search_input = cx.new(|cx| TextInput::new(s.search_placeholder, cx));
         cx.subscribe_in(&search_input, window, Panel::on_search_event).detach();
         let native = NativeWindow::of(window);
         if let Some(native) = native {
@@ -208,6 +222,12 @@ impl Panel {
         let height = f32::from(window.bounds().size.height);
         let mut panel = Panel {
             stats: core.live_stats(),
+            voices: core.voices(),
+            voice_lang: match config.voice {
+                VoicePref::Only(lang) => lang,
+                VoicePref::Auto => core.lang(),
+            },
+            s,
             channels: core.channels(),
             core,
             process_start,
@@ -355,7 +375,7 @@ impl Panel {
                     self.show_error(message.into(), retry.map(Retry::Open));
                 }
                 CoreEvent::ThemeChanged => self.apply_theme(cx),
-                CoreEvent::VoicesUpdated => {}
+                CoreEvent::VoicesUpdated => self.refresh_voices(),
                 CoreEvent::ComputerUpdated => {
                     self.refresh_computer();
                 }
@@ -639,9 +659,12 @@ impl Panel {
         if self.computer.needs_permission() {
             h += PERMISSION_H;
         }
+        if self.voice_row().is_some() {
+            h += VOICE_ROW_H;
+        }
         h += STATUS_H;
         if self.drawer_open {
-            h += DRAWER_H;
+            h += self.drawer_height();
         }
         h.clamp(MIN_H, MAX_H)
     }
@@ -746,6 +769,7 @@ impl Render for Panel {
                 .children(self.player_channel().map(|(id, c)| self.render_player(id, c, &t, &ty, cx)))
                 .children(self.reply.as_ref().map(|dock| self.render_reply_dock(dock, &t, &ty, cx)))
                 .children(self.render_permission_row(&t, &ty, cx))
+                .children(self.render_voice_row(&t, &ty, cx))
                 .child(self.render_status_line(&t, &ty, cx))
                 .when(self.drawer_open, |d| d.child(self.render_drawer(&t, &ty, cx)));
         }

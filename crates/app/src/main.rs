@@ -9,6 +9,7 @@ mod mac;
 mod model;
 mod motion;
 mod panel;
+mod strings;
 mod theme;
 mod time;
 mod widgets;

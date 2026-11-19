@@ -28,7 +28,7 @@ struct Status {
 impl Panel {
     fn status(&self, thread: &ThreadView, updated: Option<i64>, waiting: bool, t: &Tokens) -> Option<Status> {
         if waiting {
-            return Some(Status { icon: Icon::CircleAlert, color: t.warning, label: "seni bekliyor", text: None });
+            return Some(Status { icon: Icon::CircleAlert, color: t.warning, label: self.s.status_waiting, text: None });
         }
         match thread.status.as_str() {
             "running" => {
@@ -36,20 +36,18 @@ impl Panel {
                 Some(Status {
                     icon: Icon::CircleDashed,
                     color: t.info,
-                    label: "çalışıyor",
-                    text: since.map(|s| time::working(s, self.now_unix)),
+                    label: self.s.status_working,
+                    text: since.map(|s| time::working(s, self.now_unix, self.s)),
                 })
             }
             // T3 shows Done only for a completion the user has not seen yet.
             "completed" | "idle"
                 if !self.seen.contains(&thread.id) && updated.is_some_and(|u| u >= self.start_unix) =>
             {
-                Some(Status {
-                    icon: Icon::CircleCheck, color: t.success, label: "bitti · henüz bakmadın", text: None
-                })
+                Some(Status { icon: Icon::CircleCheck, color: t.success, label: self.s.status_done, text: None })
             }
             "interrupted" | "cancelled" => {
-                Some(Status { icon: Icon::CirclePause, color: t.text_muted, label: "durduruldu", text: None })
+                Some(Status { icon: Icon::CirclePause, color: t.text_muted, label: self.s.status_interrupted, text: None })
             }
             _ => None,
         }
@@ -147,10 +145,11 @@ impl Panel {
             }));
         }
         if self.model.items.is_empty() {
+            let s = self.s;
             let (i, title, body) = if self.threads.is_empty() {
-                (Icon::MessageSquare, "Şu an açık thread yok", "T3'te yeni bir thread başlatınca burada görünür.")
+                (Icon::MessageSquare, s.empty_title, s.empty_body)
             } else {
-                (Icon::Search, "Eşleşen thread yok", "Başka bir kelime dene ya da Esc ile aramayı temizle.")
+                (Icon::Search, s.no_match_title, s.no_match_body)
             };
             return list.child(
                 div()
@@ -212,8 +211,8 @@ impl Panel {
             .text_color(t.text_muted)
             .hover(|s| s.bg(t.surface_hover))
             .active(|s| s.bg(t.border))
-            .tooltip(tip(if collapsed { "bölümü aç" } else { "bölümü daralt" }))
-            .child(section.label())
+            .tooltip(tip(if collapsed { self.s.section_expand } else { self.s.section_collapse }))
+            .child(self.s.section(section))
             .child(tabular(div().font_weight(FontWeight::NORMAL).child(count.to_string())))
             .when(signal, |d| {
                 d.child(
@@ -222,7 +221,7 @@ impl Panel {
                         .size(px(6.))
                         .rounded_full()
                         .bg(t.warning)
-                        .tooltip(tip("içinde seni bekleyen ya da dinlenen thread var")),
+                        .tooltip(tip(self.s.section_signal_tip)),
                 )
             })
             .child(div().flex_1())
@@ -268,7 +267,7 @@ impl Panel {
 
         let body_id = thread.id.clone();
         let project: SharedString =
-            if thread.project.is_empty() { "Proje yok".into() } else { thread.project.clone().into() };
+            if thread.project.is_empty() { self.s.no_project.into() } else { thread.project.clone().into() };
         let body = div()
             .id("body")
             .flex()
@@ -286,7 +285,7 @@ impl Panel {
                     .font_weight(FontWeight::MEDIUM)
                     .child(SharedString::from(thread.title.clone())),
             )
-            .tooltip(tip("tık: seç · çift tık: T3'te aç"))
+            .tooltip(tip(self.s.row_body_tip))
             .on_click(cx.listener(move |panel, _, _, cx| panel.on_body_click(&body_id, cx)));
 
         let st = self.status(thread, updated, waiting, t);
@@ -307,7 +306,7 @@ impl Panel {
 
         let unheard = ch.filter(|c| !c.listening && c.unheard > 0).map(|c| {
             // Keyed by the count, so the pill springs in again whenever it increments.
-            motion::spring_in(pill(format!("{} yeni", c.unheard), t.accent, 0.16), ("unheard", c.unheard), cx)
+            motion::spring_in(pill(self.s.unheard(c.unheard), t.accent, 0.16), ("unheard", c.unheard), cx)
         });
 
         let listen_id = thread.id.clone();
@@ -330,11 +329,7 @@ impl Panel {
             .when(listening, |d| d.bg(t.accent).hover(|s| s.bg(mix(t.accent, t.canvas, 0.15))))
             .when(!listening, |d| d.border_1().border_color(t.border).hover(|s| s.bg(t.surface_hover)))
             .active(|s| s.opacity(0.8))
-            .tooltip(tip(if listening {
-                "dinliyorsun · tıkla: sustur (Space)"
-            } else {
-                "sessiz · tıkla: dinle (Space)"
-            }))
+            .tooltip(tip(if listening { self.s.listen_on_tip } else { self.s.listen_off_tip }))
             .child(listen_face)
             .on_click(cx.listener(move |panel, _, _, cx| {
                 panel.toggle_listen(&listen_id, "click");
@@ -351,15 +346,15 @@ impl Panel {
                 .items_center()
                 .gap_1()
                 .child(
-                    text_button("reply", Some(Icon::MessageSquare), "Cevapla", kind, t, ty.secondary)
-                        .tooltip(tip("cevap yaz ya da Wispr ile söyle (Enter / R)"))
+                    text_button("reply", Some(Icon::MessageSquare), self.s.reply, kind, t, ty.secondary)
+                        .tooltip(tip(self.s.reply_tip))
                         .on_click(cx.listener(move |panel, _, window, cx| {
                             panel.last_body_click = None;
                             panel.log_action("click", "reply", Some(&reply_id), json!({}));
                             panel.open_reply(&reply_id, "click", true, window, cx);
                         })),
                 )
-                .child(icon_button("open", Icon::ArrowUpRight, t, false).tooltip(tip("T3'te aç (⌘O)")).on_click(
+                .child(icon_button("open", Icon::ArrowUpRight, t, false).tooltip(tip(self.s.open_tip)).on_click(
                     cx.listener(move |panel, _, _, cx| {
                         panel.last_body_click = None;
                         panel.log_action("click", "open", Some(&open_id), json!({}));
@@ -369,7 +364,8 @@ impl Panel {
                 ));
             motion::fade_in(actions, ("actions", self.hover_seq), motion::FAST, cx)
         } else {
-            let (text, color) = timer.unwrap_or_else(|| (time::relative(updated, self.now_unix), t.text_muted));
+            let (text, color) =
+                timer.unwrap_or_else(|| (time::relative(updated, self.now_unix, self.s), t.text_muted));
             tabular(
                 div().flex_none().min_w(px(32.)).text_right().text_size(px(ty.secondary)).text_color(color).child(text),
             )
@@ -393,7 +389,7 @@ impl Panel {
                 Some(c) if c.listening && c.now_text.is_some() => {
                     (c.now_text.clone().unwrap_or_default().into(), t.text_muted)
                 }
-                _ => ("seni bekliyor: onay ya da cevap gerekiyor".into(), t.warning),
+                _ => (self.s.waiting_line.into(), t.warning),
             };
             div()
                 .flex_none()
