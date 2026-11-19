@@ -1,7 +1,26 @@
-//! Pure speakable-text extraction: (thread status, title, messages) → (Turkish text, rule name),
-//! and one live assistant message → its spoken line.
+//! Pure speakable-text extraction: (thread status, title, messages) → (text, rule name), one live
+//! assistant message → its spoken line, and the lines the core speaks itself (in `Config.lang`).
 
+use crate::Lang;
 use crate::t3::Message;
+
+/// A line the core speaks on its own (not an agent message).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Notice {
+    /// The run was interrupted or cancelled.
+    Stopped,
+    /// The agent waits for the user (an approval request); spoken after the thread's label.
+    Wait,
+}
+
+pub(crate) fn notice_text(notice: Notice, lang: Lang) -> &'static str {
+    match (notice, lang) {
+        (Notice::Stopped, Lang::Tr) => "Durduruldu.",
+        (Notice::Stopped, Lang::En) => "Stopped.",
+        (Notice::Wait, Lang::Tr) => "senden cevap bekliyor.",
+        (Notice::Wait, Lang::En) => "is waiting for your answer.",
+    }
+}
 
 /// Max chars of the completed/idle summary.
 const SUMMARY_MAX_CHARS: usize = 220;
@@ -37,8 +56,8 @@ pub fn live_line(text: &str) -> Extracted {
     }
 }
 
-/// Picks what to say about a thread. Messages are oldest → newest.
-pub fn extract(status: &str, title: &str, messages: &[Message]) -> Extracted {
+/// Picks what to say about a thread (the core's own words in `lang`). Messages are oldest → newest.
+pub fn extract(status: &str, title: &str, messages: &[Message], lang: Lang) -> Extracted {
     let latest_run = messages.last().and_then(|m| m.run_id.as_deref());
     let last_assistant_of_run = messages
         .iter()
@@ -55,13 +74,15 @@ pub fn extract(status: &str, title: &str, messages: &[Message]) -> Extracted {
             if let Some(t) = &last_assistant
                 && let Some(first) = split_sentences(t).into_iter().next()
             {
-                return Extracted { text: format!("Hâlâ çalışıyor. {first}"), rule: "running" };
+                let still = if lang == Lang::Tr { "Hâlâ çalışıyor." } else { "Still running." };
+                return Extracted { text: format!("{still} {first}"), rule: "running" };
             }
         }
         "interrupted" | "cancelled" => {
+            let stopped = notice_text(Notice::Stopped, lang);
             let text = match last_assistant.as_deref().map(summary) {
-                Some(s) => format!("Durduruldu. {s}"),
-                None => "Durduruldu.".to_owned(),
+                Some(s) => format!("{stopped} {s}"),
+                None => stopped.to_owned(),
             };
             return Extracted { text, rule: "stopped" };
         }
@@ -71,7 +92,11 @@ pub fn extract(status: &str, title: &str, messages: &[Message]) -> Extracted {
             }
         }
     }
-    Extracted { text: format!("{} için mesaj yok.", normalize(title)), rule: "empty" }
+    let text = match lang {
+        Lang::Tr => format!("{} için mesaj yok.", normalize(title)),
+        Lang::En => format!("No messages in {}.", normalize(title)),
+    };
+    Extracted { text, rule: "empty" }
 }
 
 /// First 1–2 sentences, at most [`SUMMARY_MAX_CHARS`] chars.
@@ -283,4 +308,25 @@ fn is_emoji(c: char) -> bool {
         | 0x20E3            // keycap
         | 0xE0020..=0xE007F // tags
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn msg(role: &str, text: &str) -> Message {
+        Message { role: role.to_owned(), run_id: None, text: text.to_owned() }
+    }
+
+    #[test]
+    fn core_lines_follow_the_ui_language() {
+        let m = [msg("user", "go"), msg("assistant", "Göç betiğini yazdım. Sonra test.")];
+        assert_eq!(extract("running", "t", &m, Lang::Tr).text, "Hâlâ çalışıyor. Göç betiğini yazdım.");
+        assert_eq!(extract("running", "t", &m, Lang::En).text, "Still running. Göç betiğini yazdım.");
+        assert_eq!(extract("interrupted", "t", &[], Lang::En).text, "Stopped.");
+        assert_eq!(extract("interrupted", "t", &[], Lang::Tr).text, "Durduruldu.");
+        assert_eq!(extract("idle", "Release notes", &[], Lang::En).text, "No messages in Release notes.");
+        assert_eq!(extract("idle", "Sürüm notu", &[], Lang::Tr).text, "Sürüm notu için mesaj yok.");
+        assert_eq!(notice_text(Notice::Wait, Lang::En), "is waiting for your answer.");
+    }
 }

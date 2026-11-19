@@ -1,20 +1,21 @@
-//! Spoken respellings for the English/tech words agents write inside Turkish. The voice reads
-//! foreign words with Turkish spelling rules ("build" → "bu il"), so they are respelled before
-//! normalizer-tr runs. Only what the model reads changes; displayed text keeps the original.
+//! Spoken respellings applied before a voice reads text. Turkish ([`BUILTIN`]): the EMA voice
+//! reads foreign words with Turkish spelling rules ("build" → "bu il"), so English/tech words are
+//! respelled before normalizer-tr runs. English: `english::BUILTIN`, applied after
+//! `english::normalize`. Only what the model reads changes; displayed text keeps the original.
 //!
 //! Keys match case-insensitively on whole words; a key ending in `*` also matches inflected forms
 //! ("push*" turns "pushladım" into "puşladım"). A Turkish suffix after an apostrophe stays
-//! ("PR'ı" → "pi ar'ı"). The user file (`Config.lexicon_path`, `written<TAB>spoken` per line, `#`
-//! comments) adds entries and overrides built-in ones.
+//! ("PR'ı" → "pi ar'ı"). A user file (`Config.lexicon_path` / `Config.lexicon_en_path`,
+//! `written<TAB>spoken` per line, `#` comments) adds entries and overrides built-in ones.
 
 use std::collections::HashMap;
 use std::path::Path;
 
 use regex::Regex;
 
-/// Built-in entries: words agents use often that the voice misreads. Words normalizer-tr already
-/// reads right (API, GitHub, Claude, Codex, Rust, numbers, %, times) are not listed.
-const BUILTIN: &[(&str, &str)] = &[
+/// Built-in Turkish entries: words agents use often that the voice misreads. Words normalizer-tr
+/// already reads right (API, GitHub, Claude, Codex, Rust, numbers, %, times) are not listed.
+pub const BUILTIN: &[(&str, &str)] = &[
     ("pull request", "pul rikuest"),
     ("PR", "pi ar"),
     ("PRs", "pi arlar"),
@@ -76,9 +77,9 @@ pub struct Lexicon {
 }
 
 impl Lexicon {
-    /// Built-in entries plus the user's file (missing file = built-ins only).
-    pub fn load(user_file: &Path) -> anyhow::Result<Lexicon> {
-        let mut map: Vec<(String, String)> = BUILTIN.iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect();
+    /// `builtin` entries plus the user's file (missing file = built-ins only).
+    pub fn load(user_file: &Path, builtin: &[(&str, &str)]) -> anyhow::Result<Lexicon> {
+        let mut map: Vec<(String, String)> = builtin.iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect();
         let mut user_entries = 0;
         if let Ok(text) = std::fs::read_to_string(user_file) {
             for line in text.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')) {

@@ -17,9 +17,9 @@ import json, subprocess, sys, tempfile, wave  # noqa: E402
 from pathlib import Path  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
-ROOT = Path(os.environ.get("BAKEOFF_OUT") or HERE.parent)  # BAKEOFF_OUT: timing-only repeat pass (run.py --pass2)
+ROOT = Path(os.environ.get("BAKEOFF_OUT") or HERE.parent)  # BAKEOFF_OUT: timing-only repeat pass (run.py --pass2), English pass
 sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != HERE]  # don't shadow `piper`/`supertonic`
-CORPUS = json.loads((HERE / "corpus.json").read_text())
+CORPUS = json.loads((HERE / os.environ.get("BAKEOFF_CORPUS", "corpus.json")).read_text())  # corpus.en.json: English pass
 ms = lambda a, b: round((b - a) * 1000, 1)  # noqa: E731
 
 
@@ -296,22 +296,46 @@ def ema_synth(m, cfg, text):
 
 
 def sherpa_load(cfg):
+    """cfg["model"]: supertonic (default) | kokoro | kitten | pocket; cfg["dir"]: an unpacked sherpa-onnx tts-models
+    release (github.com/k2-fsa/sherpa-onnx/releases/tag/tts-models)."""
     import sherpa_onnx as so
     d = os.path.expanduser(cfg["dir"]) + "/"
-    st = so.OfflineTtsSupertonicModelConfig(
-        duration_predictor=d + "duration_predictor.int8.onnx", text_encoder=d + "text_encoder.int8.onnx",
-        vector_estimator=d + "vector_estimator.int8.onnx", vocoder=d + "vocoder.int8.onnx", tts_json=d + "tts.json",
-        unicode_indexer=d + "unicode_indexer.bin", voice_style=d + "voice.bin")
+    kind = cfg.get("model", "supertonic")
+    if kind == "supertonic":
+        m = {"supertonic": so.OfflineTtsSupertonicModelConfig(
+            duration_predictor=d + "duration_predictor.int8.onnx", text_encoder=d + "text_encoder.int8.onnx",
+            vector_estimator=d + "vector_estimator.int8.onnx", vocoder=d + "vocoder.int8.onnx", tts_json=d + "tts.json",
+            unicode_indexer=d + "unicode_indexer.bin", voice_style=d + "voice.bin")}
+    elif kind in ("kokoro", "kitten"):  # espeak-ng G2P (GPL data dir); needs sherpa-onnx < 2 (2.x dropped espeak)
+        cls = so.OfflineTtsKokoroModelConfig if kind == "kokoro" else so.OfflineTtsKittenModelConfig
+        m = {kind: cls(model=d + cfg.get("file", "model.int8.onnx"), voices=d + "voices.bin", tokens=d + "tokens.txt",
+                       data_dir=d + "espeak-ng-data")}
+    else:
+        m = {"pocket": so.OfflineTtsPocketModelConfig(
+            lm_flow=d + "lm_flow.int8.onnx", lm_main=d + "lm_main.int8.onnx", encoder=d + "encoder.onnx",
+            decoder=d + "decoder.int8.onnx", text_conditioner=d + "text_conditioner.onnx",
+            vocab_json=d + "vocab.json", token_scores_json=d + "token_scores.json")}
     tts = so.OfflineTts(so.OfflineTtsConfig(model=so.OfflineTtsModelConfig(
-        supertonic=st, num_threads=cfg.get("threads", 2), provider="cpu")))
-    return tts, f"CPU (sherpa-onnx {so.__version__}, {cfg.get('threads', 2)} threads, int8)", tts.sample_rate
+        **m, num_threads=cfg.get("threads", 2), provider="cpu")))
+    sr = tts.sample_rate
+    if kind == "pocket":  # zero-shot voice: a reference clip shipped with the release
+        import numpy as np
+        with wave.open(d + "test_wavs/" + cfg["reference"]) as w:
+            ref = np.frombuffer(w.readframes(w.getnframes()), dtype="<i2").astype("float32") / 32768
+            tts = (tts, ref, w.getframerate())
+    return tts, f"CPU (sherpa-onnx {so.__version__}, {cfg.get('threads', 2)} threads, int8, {kind})", sr
 
 
 def sherpa_synth(tts, cfg, text):
     import numpy as np, sherpa_onnx as so
     g = so.GenerationConfig()
-    g.sid, g.num_steps, g.speed = cfg["sid"], cfg["steps"], cfg.get("speed", 1.05)
-    g.extra["lang"] = "tr"
+    g.sid, g.speed = cfg.get("sid", 0), cfg.get("speed", 1.05)
+    if "steps" in cfg:
+        g.num_steps = cfg["steps"]
+    if cfg.get("model", "supertonic") == "supertonic":
+        g.extra["lang"] = cfg.get("lang", "tr")
+    if isinstance(tts, tuple):
+        tts, g.reference_audio, g.reference_sample_rate = tts
     a = tts.generate(text, g)
     return np.asarray(a.samples, dtype="float32"), None
 

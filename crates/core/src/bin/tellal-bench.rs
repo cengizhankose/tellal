@@ -1,17 +1,24 @@
 //! `tellal-bench` — TTS / T3 / end-to-end benchmarks that write a run dir like the app.
 //!
-//! * default: cold model load + synthesize a fixed Turkish corpus, per-sentence numbers; each
-//!   sentence is saved as `<run_dir>/audio/bench-NN.wav` (unless `TELLAL_SAVE_AUDIO=0`).
+//! * default: cold model load + synthesize a fixed corpus (`--voice tr`, default: Turkish;
+//!   `--voice en`: English agent lines), per-sentence numbers; each sentence is saved as
+//!   `<run_dir>/audio/bench-NN.wav` (unless `TELLAL_SAVE_AUDIO=0`) and the numbers as
+//!   `<run_dir>/bench.json` (read back by `research/tts/bakeoff/harness/readback_en.py --tellal`).
 //!   `--corpus FILE` reads the sentences from FILE instead (one per line).
 //! * `--play`: same, and play each sentence.
+//! * `--download [ID ...]`: download voices (default: every voice) into `TELLAL_MODELS_DIR`
+//!   through the app's downloader (pinned URLs, SHA-256, atomic install); fails unless all end
+//!   Ready.
 //! * `--t3`: 3 rounds of listing every watched project.
 //! * `--theme`: resolve the T3 theme once; print the `ThemeView` as JSON, the resolution report
 //!   and the contrast table.
 //! * `--e2e`: headless `Core::start` → first `ThreadsUpdated` (rows dumped, then compared with
-//!   the next poll's order) → `set_listening(id, true)` on the first completed thread → its
-//!   catch-up line, sampling `ChannelView` progress every 250 ms, pausing ~1.2 s in for 1.5 s →
-//!   `SpeakingFinished` → `mute_all`. With `TELLAL_DEMO` the listed threads must be exactly the
-//!   fixture's.
+//!   the next poll's order) → voices listed, any download awaited → `set_listening(id, true)` on
+//!   the first completed thread → its catch-up line, sampling `ChannelView` progress every
+//!   250 ms, pausing ~1.2 s in for 1.5 s → `SpeakingFinished` → (demo: every thread listens until
+//!   the script's English lines are spoken) → `mute_all` → events.jsonl check: each `audio.play`
+//!   used its language's voice, and with both voices loaded both languages were heard. With
+//!   `TELLAL_DEMO` the listed threads must be exactly the fixture's.
 //! * `--computer [--secs N] [--warmup N]`: headless `Core::start`, prints `Core::computer()` on
 //!   every `ComputerUpdated` and `TaskStarted`, then this process's CPU% over the `N` seconds
 //!   after the warmup (default 60 / 15). Real mode with `--stop-on-session`: the first live
@@ -26,9 +33,9 @@ use std::time::{Duration, Instant};
 use serde_json::json;
 use tellal_core::telemetry::{self, Telemetry, ms};
 use tellal_core::tts::{TtsEngine, open_output, samples_source, write_wav};
-use tellal_core::{Config, Core, CoreEvent, NEW_TASK, ThreadView, t3, theme};
+use tellal_core::{Config, Core, CoreEvent, Lang, NEW_TASK, ThreadView, VoiceState, t3, theme};
 
-const CORPUS: [&str; 10] = [
+const CORPUS_TR: [&str; 10] = [
     "Tamam.",
     "Görev tamamlandı.",
     "80 görevin 20'si takıldı, kalanlar başarıyla bitti.",
@@ -41,12 +48,59 @@ const CORPUS: [&str; 10] = [
     "Model yüklemesi bittiğinde panel, seçtiğin konuşmanın son durumunu kısa bir Türkçe cümleyle okuyacak.",
 ];
 
+/// Agent-style English lines (the English bake-off corpus plus code, paths and units).
+const CORPUS_EN: [&str; 12] = [
+    "Okay, I'm collecting the errors first, then fixing the most common one.",
+    "Running the tests now.",
+    "80 tasks: 20 stuck, 30 failed, the rest finished with warnings. Want to start with the errors?",
+    "Pull request opened; waiting for your approval to deploy.",
+    "Build finished; I took a screenshot in the iOS simulator and added it to the report.",
+    "Stopped.",
+    "npm test passed in 42 seconds, 3 tests skipped.",
+    "The PR is ready for review, CI finished at 3:45 PM.",
+    "Deployed at 14:30; the API now answers in 120 ms.",
+    "Still running. 5 files changed so far, about 2 minutes left.",
+    "Fixed the crash in src/panel/voice.rs and pushed 3f9a2c1d to main.",
+    "Bundle size dropped 18% to 2.4 MB after the v2.1.0 upgrade.",
+];
+
+fn download(cfg: &Config, ids: &[String]) -> anyhow::Result<()> {
+    let ids: Vec<String> = if ids.is_empty() {
+        ["tr-ema-lightning", "en-supertonic-2"].map(str::to_owned).to_vec()
+    } else {
+        ids.to_vec()
+    };
+    let t = Instant::now();
+    let mut last_print = Instant::now();
+    let views = tellal_core::download_voices(cfg, &ids, |views| {
+        if last_print.elapsed() >= Duration::from_secs(1) {
+            last_print = Instant::now();
+            for v in views {
+                if let VoiceState::Downloading { done_bytes, total_bytes } = v.state {
+                    println!("  {:>5.1}s {} {:.1}/{:.1} MB", ms(t.elapsed()) / 1000.0, v.id, done_bytes as f64 / 1e6, total_bytes as f64 / 1e6);
+                }
+            }
+        }
+    })?;
+    println!("models_dir={} after {:.1} s", cfg.models_dir.display(), ms(t.elapsed()) / 1000.0);
+    for v in &views {
+        println!("voice {} ({} MB): {:?}", v.id, v.download_mb, v.state);
+    }
+    if let Some(v) = views.iter().find(|v| ids.contains(&v.id) && v.state != VoiceState::Ready) {
+        anyhow::bail!("{} is not Ready: {:?}", v.id, v.state);
+    }
+    Ok(())
+}
+
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let has = |f: &str| args.iter().any(|a| a == f);
     let cfg = Config::from_env();
     if has("--e2e") {
         return e2e(cfg);
+    }
+    if let Some(i) = args.iter().position(|a| a == "--download") {
+        return download(&cfg, &args[i + 1..]);
     }
     if has("--computer") {
         let num = |f: &str, d: u64| args.iter().position(|a| a == f).and_then(|i| args.get(i + 1)?.parse().ok()).unwrap_or(d);
@@ -70,24 +124,30 @@ fn main() -> anyhow::Result<()> {
     if has("--t3") {
         bench_t3(&tel, &cfg)?;
     } else {
+        let lang = match args.iter().position(|a| a == "--voice").and_then(|i| args.get(i + 1)) {
+            Some(v) => Lang::parse(v).ok_or_else(|| anyhow::anyhow!("--voice {v}: expected tr | en"))?,
+            None => Lang::Tr,
+        };
         let corpus: Vec<String> = match args.iter().position(|a| a == "--corpus").and_then(|i| args.get(i + 1)) {
             Some(path) => std::fs::read_to_string(path)?.lines().map(str::trim).filter(|l| !l.is_empty()).map(str::to_owned).collect(),
-            None => CORPUS.iter().map(|s| (*s).to_owned()).collect(),
+            None if lang == Lang::En => CORPUS_EN.iter().map(|s| (*s).to_owned()).collect(),
+            None => CORPUS_TR.iter().map(|s| (*s).to_owned()).collect(),
         };
-        bench_tts(&tel, &cfg, &corpus, has("--play"))?;
+        bench_tts(&tel, &cfg, lang, &corpus, has("--play"))?;
     }
     println!("peak_rss_mb={:.1}", telemetry::peak_rss_mb());
     println!("run_dir={}", tel.run_dir().display());
     Ok(())
 }
 
-fn bench_tts(tel: &Arc<Telemetry>, cfg: &Config, corpus: &[String], play: bool) -> anyhow::Result<()> {
+fn bench_tts(tel: &Arc<Telemetry>, cfg: &Config, lang: Lang, corpus: &[String], play: bool) -> anyhow::Result<()> {
     let rss0 = telemetry::current_rss_mb();
     let t = Instant::now();
-    let engine = TtsEngine::load(tel, cfg)?;
+    let engine = TtsEngine::load(tel, cfg, lang)?;
+    let load_ms = ms(t.elapsed());
     println!(
-        "cold_load_ms={:.1} rss_after_load_mb={:.1} (+{:.1}) sample_rate={} threads={}",
-        ms(t.elapsed()),
+        "voice={} cold_load_ms={load_ms:.1} rss_after_load_mb={:.1} (+{:.1}) sample_rate={} threads={}",
+        engine.voice,
         telemetry::current_rss_mb(),
         telemetry::current_rss_mb() - rss0,
         engine.sample_rate,
@@ -105,6 +165,7 @@ fn bench_tts(tel: &Arc<Telemetry>, cfg: &Config, corpus: &[String], play: bool) 
     });
     println!("{:>3} {:>5} {:>9} {:>9} {:>7}  text", "#", "chars", "synth_ms", "audio_ms", "rtf");
     let (mut synth_sum, mut audio_sum) = (0.0, 0.0);
+    let mut rows = Vec::with_capacity(corpus.len());
     for (i, text) in corpus.iter().enumerate() {
         let wav = cfg.save_audio.then(|| audio_dir.join(format!("bench-{:02}.wav", i + 1)));
         let s = engine.synth(tel, text, wav.as_deref())?;
@@ -114,6 +175,8 @@ fn bench_tts(tel: &Arc<Telemetry>, cfg: &Config, corpus: &[String], play: bool) 
         synth_sum += s.synth_ms;
         audio_sum += s.audio_ms;
         println!("{:>3} {:>5} {:>9.1} {:>9.1} {:>7.4}  {text}", i + 1, text.chars().count(), s.synth_ms, s.audio_ms, s.rtf);
+        rows.push(json!({"id": format!("{:02}", i + 1), "text": text, "synth_ms": s.synth_ms, "audio_ms": s.audio_ms,
+                         "rtf": s.rtf, "wav": wav}));
         if let Some(p) = &player {
             p.append(samples_source(s.samples, engine.sample_rate));
         }
@@ -122,6 +185,9 @@ fn bench_tts(tel: &Arc<Telemetry>, cfg: &Config, corpus: &[String], play: bool) 
     if let Some(p) = &player {
         p.sleep_until_end();
     }
+    let report = json!({"voice": engine.voice, "load_ms": load_ms, "sample_rate": engine.sample_rate,
+                        "threads": cfg.tts_threads, "peak_rss_mb": telemetry::peak_rss_mb(), "sentences": rows});
+    std::fs::write(tel.run_dir().join("bench.json"), serde_json::to_vec_pretty(&report)?)?;
     Ok(())
 }
 
@@ -162,6 +228,9 @@ fn bench_t3(tel: &Telemetry, cfg: &Config) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// The demo fixture's English live messages arrive by ~24 s after `Core::start`.
+const DEMO_SCRIPT_S: u64 = 26;
+
 fn e2e(cfg: Config) -> anyhow::Result<()> {
     let t = Instant::now();
     let demo = cfg.demo.clone();
@@ -184,10 +253,18 @@ fn e2e(cfg: Config) -> anyhow::Result<()> {
     if let Some(path) = &demo {
         check_demo_threads(path, &threads)?;
     }
-    let target = threads
-        .iter()
-        .find(|t| t.status == "completed")
-        .ok_or_else(|| anyhow::anyhow!("no completed thread among {} rows", threads.len()))?;
+    // Voices first: a scripted (demo) or automatic download finishes before anything is spoken.
+    print_voices(&core);
+    while core.voices().iter().any(|v| matches!(v.state, VoiceState::Downloading { .. })) {
+        match next("voice download")? {
+            CoreEvent::VoicesUpdated => {}
+            CoreEvent::Error(e) => eprintln!("core error: {e}"),
+            _ => {}
+        }
+    }
+    print_voices(&core);
+    let completed: Vec<&ThreadView> = threads.iter().filter(|t| t.status == "completed").collect();
+    let target = *completed.first().ok_or_else(|| anyhow::anyhow!("no completed thread among {} rows", threads.len()))?;
     println!("listening: {} [{}] {}", target.id, target.status, target.title);
     core.set_listening(&target.id, true);
     let mut started: Option<Instant> = None;
@@ -238,6 +315,31 @@ fn e2e(cfg: Config) -> anyhow::Result<()> {
             resumed = true;
         }
     }
+    // Demo: listen to every thread through the fixture's scripted live messages (the English
+    // ones at 15–23 s among Turkish catch-up lines) until the queue is drained, so one run speaks
+    // both languages; events.jsonl is checked for the voice of each line below.
+    if demo.is_some() {
+        for th in threads.iter().filter(|th| th.id != target.id) {
+            core.set_listening(&th.id, true);
+        }
+        println!("listening to all {} threads until the script's English lines (t >= {DEMO_SCRIPT_S} s) are spoken", threads.len());
+        loop {
+            match rx.recv_timeout(Duration::from_millis(250)) {
+                Ok(CoreEvent::SpeakingStarted { thread_id }) => println!("SpeakingStarted {thread_id}"),
+                Ok(CoreEvent::ThreadsUpdated) => polls += 1,
+                Ok(CoreEvent::Error(e)) => eprintln!("core error: {e}"),
+                Ok(_) | Err(crossbeam_channel::RecvTimeoutError::Timeout) => {}
+                Err(e) => anyhow::bail!("core channel: {e}"),
+            }
+            let busy = core.channels().values().any(|c| c.speaking || c.queued > 0);
+            if t.elapsed() >= Duration::from_secs(DEMO_SCRIPT_S) && !busy {
+                break;
+            }
+            if Instant::now() > deadline {
+                anyhow::bail!("timed out waiting for the demo script's lines");
+            }
+        }
+    }
     core.mute_all();
     while polls < 2 {
         if let CoreEvent::ThreadsUpdated = next("second ThreadsUpdated")? {
@@ -256,6 +358,49 @@ fn e2e(cfg: Config) -> anyhow::Result<()> {
     );
     println!("peak_rss_mb={:.1}", telemetry::peak_rss_mb());
     println!("run_dir={}", run_dir.display());
+    check_voices_used(&run_dir, &core.voices())
+}
+
+fn print_voices(core: &Core) {
+    for v in core.voices() {
+        println!("voice {} ({}, {}, {} MB): {:?}", v.id, v.name, v.lang.code(), v.download_mb, v.state);
+    }
+}
+
+/// Every `audio.play` in this run's events.jsonl: the line, its language and the voice that
+/// spoke it. A line whose language's voice loaded (`tts.load` ok) must be spoken by it; with both
+/// voices loaded, both languages must occur.
+fn check_voices_used(run_dir: &std::path::Path, voices: &[tellal_core::VoiceView]) -> anyhow::Result<()> {
+    // `audio.play` is logged right after `SpeakingFinished`: wait until every queued line has one.
+    let read = || -> anyhow::Result<Vec<serde_json::Value>> {
+        Ok(std::fs::read_to_string(run_dir.join("events.jsonl"))?.lines().filter_map(|l| serde_json::from_str(l).ok()).collect())
+    };
+    let count = |events: &[serde_json::Value], kind: &str| events.iter().filter(|e| e["kind"] == kind && e["ok"] == true).count();
+    let mut events = read()?;
+    let settle = Instant::now() + Duration::from_secs(2);
+    while count(&events, "audio.play") < count(&events, "speak.enqueue") && Instant::now() < settle {
+        std::thread::sleep(Duration::from_millis(50));
+        events = read()?;
+    }
+    let loaded: std::collections::BTreeSet<&str> = events
+        .iter()
+        .filter(|e| e["kind"] == "tts.load" && e["ok"] == true)
+        .filter_map(|e| e["in"]["voice"].as_str())
+        .collect();
+    let mut langs = std::collections::BTreeSet::new();
+    for e in events.iter().filter(|e| e["kind"] == "audio.play" && e["ok"] == true) {
+        let (lang, voice) = (e["in"]["lang"].as_str().unwrap_or("?"), e["in"]["voice"].as_str().unwrap_or("?"));
+        println!("audio.play lang={lang} voice={voice} text={}", e["in"]["text"]);
+        let own = voices.iter().find(|v| v.lang.code() == lang).map(|v| v.id.as_str());
+        if own.is_some_and(|o| loaded.contains(o)) && own != Some(voice) {
+            anyhow::bail!("a {lang} line was spoken by {voice}, expected {own:?}");
+        }
+        langs.insert(lang.to_owned());
+    }
+    if voices.iter().all(|v| loaded.contains(v.id.as_str())) && langs.len() < 2 {
+        anyhow::bail!("expected an English and a Turkish line, heard only {langs:?}");
+    }
+    println!("voices loaded {loaded:?}, languages spoken {langs:?}: OK");
     Ok(())
 }
 

@@ -2,6 +2,8 @@
 """Run bake-off entries, each in a fresh process under /usr/bin/time -l (stdlib only).
 
   python3 harness/run.py [--pass2] [run_id ...]   # default: every entry of harness/runs.json not yet in raw/
+  English pass: BAKEOFF_RUNS=runs.en.json BAKEOFF_CORPUS=corpus.en.json BAKEOFF_OUT=<dir> python3 harness/run.py
+  (raw/ and audio/ go under BAKEOFF_OUT; read back with harness/readback_en.py).
 Adds wall_s, max_rss_bytes and peak_footprint_bytes from /usr/bin/time -l to raw/<run_id>.json; on failure
 writes raw/<run_id>.error.txt with the tail of stderr.
 """
@@ -9,8 +11,8 @@ import json, os, re, subprocess, sys, time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parent
-RUNS = json.loads((HERE / "runs.json").read_text())
+ROOT = Path(os.environ.get("BAKEOFF_OUT") or HERE.parent)
+RUNS = json.loads((HERE / os.environ.get("BAKEOFF_RUNS", "runs.json")).read_text())
 
 
 def run(rid, pass2=False):

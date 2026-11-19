@@ -1,0 +1,127 @@
+{
+ "whisper": "ggml-large-v3-turbo-q8_0.bin -l en",
+ "engines": [
+  {
+   "id": "en-supertonic-2",
+   "config": null,
+   "device": null,
+   "load_ms": 252.3,
+   "first_synth_ms": 176.47,
+   "synth_p50_ms": 172.12,
+   "rtf": 0.0378,
+   "max_rss_mb": 245.3125,
+   "wer": 0.008,
+   "lead_p50_s": 0.0,
+   "sentences": [
+    {
+     "id": "01",
+     "text": "Okay, I'm collecting the errors first, then fixing the most common one.",
+     "heard": "Okay, I'm collecting the errors first, then fixing the most common one.",
+     "wer": 0.0,
+     "synth_ms": 176.47,
+     "audio_ms": 4670.07,
+     "lead_s": 0.0
+    },
+    {
+     "id": "02",
+     "text": "Running the tests now.",
+     "heard": "Running the tests now.",
+     "wer": 0.0,
+     "synth_ms": 153.7,
+     "audio_ms": 1919.23,
+     "lead_s": 0.0
+    },
+    {
+     "id": "03",
+     "text": "80 tasks: 20 stuck, 30 failed, the rest finished with warnings. Want to start with the errors?",
+     "heard": "80 tasks, 20 stuck, 30 failed. The rest finished with warnings. Want to start with the errors?",
+     "wer": 0.0,
+     "synth_ms": 225.25,
+     "audio_ms": 7175.15,
+     "lead_s": 0.0
+    },
+    {
+     "id": "04",
+     "text": "Pull request opened; waiting for your approval to deploy.",
+     "heard": "Pull request opened, waiting for your approval to deploy.",
+     "wer": 0.0,
+     "synth_ms": 150.49,
+     "audio_ms": 4037.19,
+     "lead_s": 0.0
+    },
+    {
+     "id": "05",
+     "text": "Build finished; I took a screenshot in the iOS simulator and added it to the report.",
+     "heard": "Build finished. I took a screenshot in the iOS simulator and added it to the report.",
+     "wer": 0.0,
+     "synth_ms": 190.89,
+     "audio_ms": 5644.65,
+     "lead_s": 0.0
+    },
+    {
+     "id": "06",
+     "text": "Stopped.",
+     "heard": "Stopped.",
+     "wer": 0.0,
+     "synth_ms": 139.36,
+     "audio_ms": 1331.13,
+     "lead_s": 0.533
+    },
+    {
+     "id": "07",
+     "text": "npm test passed in 42 seconds, 3 tests skipped.",
+     "heard": "NPM test passed in 42 seconds, three tests skipped.",
+     "wer": 0.0,
+     "synth_ms": 157.11,
+     "audio_ms": 4323.63,
+     "lead_s": 0.0
+    },
+    {
+     "id": "08",
+     "text": "The PR is ready for review, CI finished at 3:45 PM.",
+     "heard": "The PR is ready for review, CI finished at 3.45 p.m.",
+     "wer": 0.0,
+     "synth_ms": 173.49,
+     "audio_ms": 4797.19,
+     "lead_s": 0.0
+    },
+    {
+     "id": "09",
+     "text": "Deployed at 14:30; the API now answers in 120 ms.",
+     "heard": "Deployed at 14:30, the API now answers in 120 milliseconds.",
+     "wer": 0.0,
+     "synth_ms": 191.75,
+     "audio_ms": 5866.19,
+     "lead_s": 0.0
+    },
+    {
+     "id": "10",
+     "text": "Still running. 5 files changed so far, about 2 minutes left.",
+     "heard": "Still running, 5 files changed so far, about 2 minutes left.",
+     "wer": 0.0,
+     "synth_ms": 170.75,
+     "audio_ms": 4649.86,
+     "lead_s": 0.0
+    },
+    {
+     "id": "11",
+     "text": "Fixed the crash in src/panel/voice.rs and pushed 3f9a2c1d to main.",
+     "heard": "Fixed the crash in Voice.rs and pushed to main.",
+     "wer": 0.0,
+     "synth_ms": 148.2,
+     "audio_ms": 3788.48,
+     "lead_s": 0.0
+    },
+    {
+     "id": "12",
+     "text": "Bundle size dropped 18% to 2.4 MB after the v2.1.0 upgrade.",
+     "heard": "Bundle size dropped 18% to 2.5 megabytes after the version 2.1.0 upgrade.",
+     "wer": 0.067,
+     "synth_ms": 230.88,
+     "audio_ms": 7554.04,
+     "lead_s": 0.0
+    }
+   ]
+  }
+ ]
+}

@@ -1,4 +1,5 @@
-//! Local TTS (EMA Lightning on ONNX Runtime, see `ema.rs`) and the channel scheduler.
+//! Local TTS (one voice per language: EMA Lightning for Turkish, see `ema.rs`; Supertonic 2 for
+//! English, see `supertonic.rs`) and the channel scheduler.
 //!
 //! Every thread is a channel ([`ChannelView`]). Utterances come from the catch-up worker
 //! (unmute), the live tail (new assistant messages, waiting requests) and the poller (stopped
@@ -7,6 +8,11 @@
 //! time, sentence by sentence into one rodio `Player` (playback of sentence N overlaps synthesis
 //! of N+1), and prefetches the next utterance while the current one plays. Pausing a channel
 //! pauses its `Player` and parks it; resuming continues mid-sentence.
+//!
+//! Each utterance gets a language when queued ([`Config::voice`]: `Auto` detects it from the
+//! text, ties go to [`Config::lang`]; `Only(lang)` fixes it) and is spoken by that language's
+//! voice when Ready, else by the other Ready voice. With no Ready voice nothing is queued (the
+//! `speak.enqueue` failure and `Core::voices` say why).
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
@@ -16,11 +22,13 @@ use std::time::{Duration, Instant};
 use crossbeam_channel::Sender;
 use serde_json::{Value, json};
 
-use crate::ema::{self, Ema};
-use crate::extract::{extract, normalize, split_sentences};
+use crate::ema::Ema;
+use crate::extract::{Notice, extract, normalize, notice_text, split_sentences};
 use crate::lexicon::Lexicon;
+use crate::supertonic::Supertonic;
 use crate::telemetry::{self, Telemetry, current_rss_mb, ms, now_unix_ms, rfc3339_from_ms, round2};
-use crate::{ChannelView, Config, CoreEvent, ThreadView, t3};
+use crate::voices::{VOICES, VoiceDef, Voices};
+use crate::{ChannelView, Config, CoreEvent, Lang, ThreadView, VoicePref, english, lang, t3};
 
 /// Reads a thread's latest `n` complete messages (oldest → newest) for a catch-up line:
 /// `t3::latest_messages` or the demo fixture.
@@ -38,11 +46,19 @@ const LABEL_AFTER_SILENCE: Duration = Duration::from_secs(20);
 const LABEL_MAX_CHARS: usize = 30;
 const LABEL_WORDS: usize = 4;
 
-/// The loaded voice: EMA Lightning plus the pronunciation lexicon.
+/// A loaded voice: its model plus the pronunciation lexicon of its language.
 pub struct TtsEngine {
-    ema: Mutex<Ema>,
+    model: Mutex<Model>,
     lexicon: Lexicon,
     pub sample_rate: u32,
+    /// Voice id (`tr-ema-lightning`, `en-supertonic-2`).
+    pub voice: &'static str,
+    pub lang: Lang,
+}
+
+enum Model {
+    Ema(Ema),
+    Supertonic(Supertonic),
 }
 
 /// One synthesized sentence.
@@ -54,32 +70,47 @@ pub struct Synth {
 }
 
 impl TtsEngine {
-    /// Loads the EMA ONNX graphs from `cfg.model_dir` and the lexicon; logs `tts.load`.
-    pub fn load(tel: &Telemetry, cfg: &Config) -> anyhow::Result<TtsEngine> {
+    /// Loads the voice for `lang` from `cfg.models_dir` (see `scripts/fetch-models.sh`).
+    pub fn load(tel: &Telemetry, cfg: &Config, lang: Lang) -> anyhow::Result<TtsEngine> {
+        let def = VOICES.iter().find(|d| d.lang == lang).expect("a voice per language");
+        TtsEngine::load_voice(tel, cfg, def, &cfg.models_dir.join(def.dir))
+    }
+
+    /// Loads `def`'s model from `dir` and its language's lexicon; logs `tts.load`.
+    fn load_voice(tel: &Telemetry, cfg: &Config, def: &'static VoiceDef, dir: &Path) -> anyhow::Result<TtsEngine> {
         let start = Instant::now();
         let rss_before = current_rss_mb();
-        let input = json!({"engine": "ema-lightning-onnx", "model_dir": cfg.model_dir, "threads": cfg.tts_threads,
-                           "lexicon": cfg.lexicon_path});
-        let res = Ema::load(&cfg.model_dir, cfg.tts_threads)
-            .and_then(|ema| Lexicon::load(&cfg.lexicon_path).map(|lexicon| (ema, lexicon)));
+        let (lexicon_path, builtin) = match def.lang {
+            Lang::Tr => (&cfg.lexicon_path, crate::lexicon::BUILTIN),
+            Lang::En => (&cfg.lexicon_en_path, english::BUILTIN),
+        };
+        let input = json!({"voice": def.id, "dir": dir, "threads": cfg.tts_threads, "lexicon": lexicon_path});
+        let model = match def.lang {
+            Lang::Tr => Ema::load(dir, cfg.tts_threads).map(Model::Ema),
+            Lang::En => Supertonic::load(dir, cfg.tts_threads).map(Model::Supertonic),
+        };
+        let res = model.and_then(|m| Lexicon::load(lexicon_path, builtin).map(|lexicon| (m, lexicon)));
         let load_ms = ms(start.elapsed());
         match res {
-            Ok((ema, lexicon)) => {
-                let sample_rate = ema.sample_rate;
+            Ok((model, lexicon)) => {
+                let (sample_rate, steps) = match &model {
+                    Model::Ema(m) => (m.sample_rate, &m.load_ms),
+                    Model::Supertonic(m) => (m.sample_rate, &m.load_ms),
+                };
                 let model_bytes: u64 =
-                    ema::FILES.iter().filter_map(|f| std::fs::metadata(cfg.model_dir.join(f)).ok()).map(|m| m.len()).sum();
+                    def.files.iter().filter_map(|f| std::fs::metadata(dir.join(f.name)).ok()).map(|m| m.len()).sum();
                 tel.event(
                     "tts.load",
                     Some(load_ms),
                     true,
                     input,
                     json!({"sample_rate": sample_rate, "model_mb": round2(model_bytes as f64 / 1_048_576.0),
-                           "steps_ms": ema.load_ms.iter().map(|(k, v)| (*k, round2(*v))).collect::<HashMap<_, _>>(),
+                           "steps_ms": steps.iter().map(|(k, v)| (*k, round2(*v))).collect::<HashMap<_, _>>(),
                            "lexicon_entries": lexicon.entries, "lexicon_user_entries": lexicon.user_entries,
                            "load_ms": load_ms, "rss_delta_mb": round2(current_rss_mb() - rss_before)}),
                     None,
                 );
-                Ok(TtsEngine { ema: Mutex::new(ema), lexicon, sample_rate })
+                Ok(TtsEngine { model: Mutex::new(model), lexicon, sample_rate, voice: def.id, lang: def.lang })
             }
             Err(e) => {
                 tel.event("tts.load", Some(load_ms), false, input, Value::Null, Some(&format!("{e:#}")));
@@ -88,14 +119,26 @@ impl TtsEngine {
         }
     }
 
-    /// Synthesizes one sentence; logs `tts.synth` with the text as written, as respelled by the
-    /// lexicon, and as the model read it (after normalizer-tr).
+    /// What the model is given for `text`: Turkish = lexicon respellings (normalizer-tr runs
+    /// inside EMA); English = `english::normalize`, then the English lexicon.
+    fn prepare(&self, text: &str) -> String {
+        match self.lang {
+            Lang::Tr => self.lexicon.apply(text),
+            Lang::En => self.lexicon.apply(&english::normalize(text)),
+        }
+    }
+
+    /// Synthesizes one sentence; logs `tts.synth` with the voice, the text as written, as
+    /// prepared (lexicon/normalizer) and as the model read it.
     pub fn synth(&self, tel: &Telemetry, text: &str, wav: Option<&Path>) -> anyhow::Result<Synth> {
         let start = Instant::now();
-        let respelled = self.lexicon.apply(text);
-        let res = self.ema.lock().unwrap_or_else(|p| p.into_inner()).speak(&respelled);
+        let respelled = self.prepare(text);
+        let res = match &mut *self.model.lock().unwrap_or_else(|p| p.into_inner()) {
+            Model::Ema(m) => m.speak(&respelled),
+            Model::Supertonic(m) => m.speak(&respelled),
+        };
         let synth_ms = ms(start.elapsed());
-        let input = json!({"text": text, "chars": text.chars().count(),
+        let input = json!({"voice": self.voice, "text": text, "chars": text.chars().count(),
                            "respelled": (respelled != text).then_some(&respelled)});
         let spoken = match res {
             Ok(s) => s,
@@ -179,6 +222,8 @@ struct Item {
     /// `catchup` | `live` | `wait` | `stopped`.
     source: &'static str,
     text: String,
+    /// Language it is spoken in (picks the voice).
+    lang: Lang,
     arrived: Instant,
     /// T3 `created_at` (Unix ms) of the spoken assistant message → `msg_to_audio_ms`.
     created_ms: Option<i64>,
@@ -193,13 +238,16 @@ enum Prefetch {
     #[default]
     None,
     Failed,
-    Ready(Vec<Synth>),
+    /// Audio of every sentence by `voice`.
+    Ready { voice: &'static str, parts: Vec<Synth> },
 }
 
 /// The audible utterance, or a paused one held by its channel.
 struct Playing {
     item: Item,
     player: rodio::Player,
+    /// The voice speaking it.
+    voice: &'static str,
     sample_rate: u32,
     /// Speaker label spoken before the text.
     label: Option<String>,
@@ -225,12 +273,20 @@ struct Playing {
 }
 
 impl Playing {
-    fn new(item: Item, player: rodio::Player, sample_rate: u32, label: Option<String>, prefetched: bool) -> Playing {
+    fn new(
+        item: Item,
+        player: rodio::Player,
+        voice: &'static str,
+        sample_rate: u32,
+        label: Option<String>,
+        prefetched: bool,
+    ) -> Playing {
         Playing {
             queue_wait_ms: ms(item.arrived.elapsed()),
             prefetched,
             item,
             player,
+            voice,
             sample_rate,
             label,
             synth_done: false,
@@ -440,6 +496,10 @@ struct Shared {
     /// Thread id → spoken speaker label overriding the one derived from the title.
     labels: HashMap<String, String>,
     audio_dir: Option<PathBuf>,
+    voices: Voices,
+    /// `Config.lang`: the core's own lines and the language of undecidable text.
+    lang: Lang,
+    pref: VoicePref,
     state: Mutex<State>,
     wake: Condvar,
 }
@@ -467,7 +527,9 @@ impl Shared {
         self.wake.notify_all();
     }
 
-    /// Appends an utterance to the channel queue; logs `speak.enqueue`.
+    /// Appends an utterance to the channel queue in its language (`known`, else detected; see
+    /// the module docs); logs `speak.enqueue`. With no Ready voice nothing is queued: the failed
+    /// `speak.enqueue` says why. Returns whether it was queued.
     #[allow(clippy::too_many_arguments)]
     fn enqueue(
         &self,
@@ -475,14 +537,25 @@ impl Shared {
         thread: &str,
         source: &'static str,
         text: String,
+        known: Option<Lang>,
         created_ms: Option<i64>,
         click: Option<Instant>,
         extra: Value,
-    ) {
+    ) -> bool {
+        let lang = match self.pref {
+            VoicePref::Only(l) => l,
+            VoicePref::Auto => known.unwrap_or_else(|| lang::detect(&text, self.lang)),
+        };
+        let voice = self.voices.pick(lang);
         let chan = st.chan(thread);
-        let mut input = json!({"thread": thread, "source": source, "text": text, "chars": text.chars().count()});
+        let mut input = json!({"thread": thread, "source": source, "text": text, "chars": text.chars().count(),
+                               "lang": lang.code(), "voice": voice.map(|v| v.id)});
         if let (Value::Object(dst), Value::Object(src)) = (&mut input, extra) {
             dst.extend(src);
+        }
+        if voice.is_none() {
+            self.tel.event("speak.enqueue", None, false, input, Value::Null, Some(&self.voices.none_ready()));
+            return false;
         }
         let id = self.tel.event("speak.enqueue", None, true, input, json!({"queue_len": chan.queue.len() + 1}), None);
         let item = Item {
@@ -490,12 +563,14 @@ impl Shared {
             thread: thread.to_owned(),
             source,
             text,
+            lang,
             arrived: Instant::now(),
             created_ms,
             click,
             prefetch: Prefetch::None,
         };
         chan.queue.push_back(item);
+        true
     }
 
     /// Stops the channel's current/held utterance; `SpeakingFinished` if it was audible.
@@ -565,7 +640,8 @@ impl Shared {
             "audio.play",
             play_ms,
             err.is_none(),
-            json!({"thread": p.item.thread, "item": p.item.id, "source": p.item.source, "text": p.item.text}),
+            json!({"thread": p.item.thread, "item": p.item.id, "source": p.item.source, "text": p.item.text,
+                   "lang": p.item.lang.code(), "voice": p.voice}),
             json!({
                 "msg_to_audio_ms": p.msg_to_audio_ms, "click_to_audio_ms": p.click_to_audio_ms,
                 "paused_ms": round2(paused_ms), "skipped": dropped.is_some(), "dropped": dropped,
@@ -584,7 +660,8 @@ impl Shared {
             "audio.play",
             None,
             false,
-            json!({"thread": item.thread, "item": item.id, "source": item.source, "text": item.text}),
+            json!({"thread": item.thread, "item": item.id, "source": item.source, "text": item.text,
+                   "lang": item.lang.code()}),
             Value::Null,
             Some(err),
         );
@@ -612,6 +689,7 @@ impl Speech {
         threads: Arc<RwLock<Vec<ThreadView>>>,
         messages: MessageSource,
         labels: HashMap<String, String>,
+        voices: Voices,
     ) -> std::io::Result<Speech> {
         let shared = Arc::new(Shared {
             audio_dir: cfg.save_audio.then(|| tel.run_dir().join("audio")),
@@ -620,8 +698,19 @@ impl Speech {
             threads,
             messages,
             labels,
+            voices,
+            lang: cfg.lang,
+            pref: cfg.voice,
             state: Mutex::new(State::default()),
             wake: Condvar::new(),
+        });
+        // A voice that turns Ready wakes the player so it loads it.
+        let weak = Arc::downgrade(&shared);
+        shared.voices.on_ready(move || {
+            if let Some(sh) = weak.upgrade() {
+                let _st = sh.lock();
+                sh.wake.notify_all();
+            }
         });
         let (catchup_tx, catchup_rx) = crossbeam_channel::unbounded::<CatchUp>();
         {
@@ -834,7 +923,7 @@ impl Speech {
 
     /// A new complete assistant message from the live tail. Returns the `live.message` action:
     /// `enqueued` | `unheard` (muted) | `before_listen` (covered by catch-up/reply cursor) |
-    /// `empty` (nothing speakable).
+    /// `empty` (nothing speakable) | `no_voice` (no voice Ready).
     pub(crate) fn live_message(&self, thread: &str, created_ms: i64, speakable: &str) -> &'static str {
         let sh = &*self.shared;
         let mut st = sh.lock();
@@ -846,25 +935,31 @@ impl Speech {
             "before_listen"
         } else if speakable.is_empty() {
             "empty"
-        } else {
-            sh.enqueue(&mut st, thread, "live", speakable.to_owned(), Some(created_ms), None, Value::Null);
+        } else if sh.enqueue(&mut st, thread, "live", speakable.to_owned(), None, Some(created_ms), None, Value::Null) {
             "enqueued"
+        } else {
+            "no_voice"
         };
         sh.commit(&mut st);
         action
     }
 
-    /// Speaks a fixed notice (`wait`, `stopped`) on a listening channel. Returns whether it was
+    /// Speaks a fixed notice in `Config.lang` on a listening channel. Returns whether it was
     /// enqueued.
-    pub(crate) fn notice(&self, thread: &str, source: &'static str, text: &str) -> bool {
+    pub(crate) fn notice(&self, thread: &str, notice: Notice) -> bool {
         let sh = &*self.shared;
         let mut st = sh.lock();
         let listening = st.chans.get(thread).is_some_and(|c| c.listening);
+        let source = match notice {
+            Notice::Stopped => "stopped",
+            Notice::Wait => "wait",
+        };
+        let text = notice_text(notice, sh.lang).to_owned();
+        let queued = listening && sh.enqueue(&mut st, thread, source, text, Some(sh.lang), None, None, Value::Null);
         if listening {
-            sh.enqueue(&mut st, thread, source, text.to_owned(), None, None, Value::Null);
             sh.commit(&mut st);
         }
-        listening
+        queued
     }
 
     /// `waiting_for_user` for every listed thread.
@@ -915,13 +1010,13 @@ fn catch_up(sh: &Shared, req: CatchUp) {
             return;
         }
     };
-    let ex = extract(&status, &title, &messages);
+    let ex = extract(&status, &title, &messages, sh.lang);
     let mut st = sh.lock();
     if !valid(&st) {
         return;
     }
     let extra = json!({"rule": ex.rule, "status": status, "messages": messages.len(), "prep_ms": ms(req.click.elapsed())});
-    sh.enqueue(&mut st, &req.thread, "catchup", ex.text, None, Some(req.click), extra);
+    sh.enqueue(&mut st, &req.thread, "catchup", ex.text, None, None, Some(req.click), extra);
     sh.commit(&mut st);
 }
 
@@ -950,11 +1045,14 @@ fn open_device_async(tel: &Arc<Telemetry>, reason: &'static str) -> crossbeam_ch
     rx
 }
 
+/// Synthesized speaker labels per (voice, label).
+type Labels = HashMap<(&'static str, String), Vec<f32>>;
+
 /// Synthesizes and appends utterance `id` (label, then sentences or its prefetched audio).
 fn synthesize(
     sh: &Shared,
     engine: &TtsEngine,
-    labels: &mut HashMap<String, Vec<f32>>,
+    labels: &mut Labels,
     id: u64,
     label: Option<&str>,
     text: &str,
@@ -963,10 +1061,11 @@ fn synthesize(
     let tel = &*sh.tel;
     let sr = engine.sample_rate;
     if let Some(label) = label {
-        let samples = match labels.get(label) {
+        let key = (engine.voice, label.to_owned());
+        let samples = match labels.get(&key) {
             Some(s) => Some(s.clone()),
             None => engine.synth(tel, label, None).ok().map(|s| {
-                labels.insert(label.to_owned(), s.samples.clone());
+                labels.insert(key, s.samples.clone());
                 s.samples
             }),
         };
@@ -977,7 +1076,7 @@ fn synthesize(
         }
     }
     match prefetch {
-        Prefetch::Ready(parts) if !parts.is_empty() => {
+        Prefetch::Ready { voice, parts } if voice == engine.voice && !parts.is_empty() => {
             for s in parts {
                 if !sh.append(id, s.samples, sr, Some(s.synth_ms)) {
                     return;
@@ -1010,25 +1109,69 @@ fn synthesize(
 
 fn prefetch(tel: &Telemetry, engine: &TtsEngine, text: &str) -> Prefetch {
     let parts: anyhow::Result<Vec<Synth>> = split_sentences(text).iter().map(|s| engine.synth(tel, s, None)).collect();
-    parts.map_or(Prefetch::Failed, Prefetch::Ready)
+    parts.map_or(Prefetch::Failed, |parts| Prefetch::Ready { voice: engine.voice, parts })
 }
 
-/// The `tellal-tts` thread: owns the voice, the audio device and every `Player`.
+/// Voices loaded on the `tellal-tts` thread: the preferred one at start (or once it turns
+/// Ready), any other on first use.
+#[derive(Default)]
+struct Engines {
+    loaded: Vec<TtsEngine>,
+    /// Voices whose model failed to load this run.
+    broken: HashSet<&'static str>,
+}
+
+impl Engines {
+    /// The engine for an utterance in `lang`: that language's Ready voice, else the other Ready
+    /// one (loaded on first use; a failed load is reported and skipped).
+    fn get(&mut self, sh: &Shared, cfg: &Config, lang: Lang) -> Option<&TtsEngine> {
+        loop {
+            let def = sh.voices.pick_except(lang, &self.broken)?;
+            if let Some(i) = self.loaded.iter().position(|e| e.voice == def.id) {
+                return Some(&self.loaded[i]);
+            }
+            match TtsEngine::load_voice(&sh.tel, cfg, def, &sh.voices.dir(def)) {
+                Ok(engine) => {
+                    sh.tel.update_stats(|s| s.voice_ready = true);
+                    self.loaded.push(engine);
+                }
+                Err(e) => {
+                    self.broken.insert(def.id);
+                    let _ = sh.events.send(CoreEvent::Error(format!("voice {} failed to load: {e:#}", def.id)));
+                }
+            }
+        }
+    }
+}
+
+/// The queued head the player would start next: (thread, item id, text, lang).
+fn next_head(st: &State) -> Option<(String, u64, String, Lang)> {
+    let thread = st.next_thread()?;
+    let head = st.chans.get(thread)?.queue.front()?;
+    matches!(head.prefetch, Prefetch::None).then(|| (thread.to_owned(), head.id, head.text.clone(), head.lang))
+}
+
+/// The `tellal-tts` thread: owns the voices, the audio device and every `Player`.
 fn player_loop(sh: &Shared, cfg: &Config) {
     let tel = &*sh.tel;
-    let engine = TtsEngine::load(tel, cfg)
-        .inspect(|_| tel.update_stats(|s| s.voice_ready = true))
-        .inspect_err(|e| {
-            let _ = sh.events.send(CoreEvent::Error(format!("TTS model load failed: {e:#}")));
-        })
-        .ok();
+    let preferred = match cfg.voice {
+        VoicePref::Only(l) => l,
+        VoicePref::Auto => cfg.lang,
+    };
+    let mut engines = Engines::default();
     let mut device: Option<rodio::MixerDeviceSink> = None;
     let mut device_open_ms: Option<f64> = None;
     let mut opening: Option<crossbeam_channel::Receiver<Opened>> = None;
     let mut idle_since = Instant::now();
-    let mut labels: HashMap<String, Vec<f32>> = HashMap::new();
+    let mut labels = Labels::new();
     let mut st = sh.lock();
     loop {
+        if engines.loaded.is_empty() && sh.voices.pick_except(preferred, &engines.broken).is_some() {
+            drop(st);
+            engines.get(sh, cfg, preferred);
+            st = sh.lock();
+            continue;
+        }
         if st.current.as_ref().is_some_and(|p| p.synth_done && p.player.empty()) {
             let p = st.current.take().expect("checked above");
             st.last_audible_end = Some(Instant::now());
@@ -1074,21 +1217,21 @@ fn player_loop(sh: &Shared, cfg: &Config) {
             }
             // CoreAudio takes ~0.3 s to open: synthesize the first utterance (and its label)
             // meanwhile so it starts the moment the device is up.
-            if let Some(engine) = &engine
-                && let Some(thread) = st.next_thread().map(str::to_owned)
-                && let Some(head) = st.chans.get(&thread).and_then(|c| c.queue.front())
-                && matches!(head.prefetch, Prefetch::None)
-            {
-                let (id, text) = (head.id, head.text.clone());
+            if let Some((thread, id, text, lang)) = next_head(&st) {
                 let label = if st.needs_label(&thread) { sh.label(&thread) } else { None };
                 drop(st);
-                if let Some(label) = label
-                    && !labels.contains_key(&label)
-                    && let Ok(s) = engine.synth(tel, &label, None)
-                {
-                    labels.insert(label, s.samples);
-                }
-                let audio = prefetch(tel, engine, &text);
+                let audio = match engines.get(sh, cfg, lang) {
+                    Some(engine) => {
+                        if let Some(label) = label
+                            && !labels.contains_key(&(engine.voice, label.clone()))
+                            && let Ok(s) = engine.synth(tel, &label, None)
+                        {
+                            labels.insert((engine.voice, label), s.samples);
+                        }
+                        prefetch(tel, engine, &text)
+                    }
+                    None => Prefetch::Failed,
+                };
                 st = sh.lock();
                 if let Some(item) = st.chans.get_mut(&thread).and_then(|c| c.queue.iter_mut().find(|i| i.id == id)) {
                     item.prefetch = audio;
@@ -1113,19 +1256,24 @@ fn player_loop(sh: &Shared, cfg: &Config) {
             }
             if let Some(thread) = st.next_thread().map(str::to_owned) {
                 let mut item = st.chan(&thread).queue.pop_front().expect("next_thread has a head");
-                let (Some(engine), Some(dev)) = (&engine, &device) else {
+                let label = if st.needs_label(&thread) { sh.label(&thread) } else { None };
+                // Loading a voice for the first time takes ~0.3 s: not under the state lock.
+                drop(st);
+                let engine = engines.get(sh, cfg, item.lang);
+                st = sh.lock();
+                let (Some(engine), Some(dev)) = (engine, &device) else {
                     sh.commit(&mut st);
-                    sh.fail(&item, "TTS model not loaded");
+                    let why = if device.is_none() { "audio device closed".to_owned() } else { sh.voices.none_ready() };
+                    sh.fail(&item, &why);
                     continue;
                 };
-                let label = if st.needs_label(&thread) { sh.label(&thread) } else { None };
                 let id = item.id;
                 let text = item.text.clone();
                 let prefetched = std::mem::take(&mut item.prefetch);
                 let player = rodio::Player::connect_new(dev.mixer());
                 player.set_volume(cfg.output_volume);
-                let ready = matches!(prefetched, Prefetch::Ready(_));
-                let mut p = Playing::new(item, player, engine.sample_rate, label.clone(), ready);
+                let ready = matches!(&prefetched, Prefetch::Ready { voice, .. } if *voice == engine.voice);
+                let mut p = Playing::new(item, player, engine.voice, engine.sample_rate, label.clone(), ready);
                 p.device_open_ms = device_open_ms.take();
                 st.last_thread = Some(thread.clone());
                 let _ = sh.events.send(CoreEvent::SpeakingStarted { thread_id: thread });
@@ -1136,15 +1284,11 @@ fn player_loop(sh: &Shared, cfg: &Config) {
                 st = sh.lock();
                 continue;
             }
-        } else if let Some(engine) = &engine
-            && st.current.as_ref().is_some_and(|p| p.synth_done)
-            && let Some(thread) = st.next_thread().map(str::to_owned)
-            && let Some(head) = st.chans.get(&thread).and_then(|c| c.queue.front())
-            && matches!(head.prefetch, Prefetch::None)
+        } else if st.current.as_ref().is_some_and(|p| p.synth_done)
+            && let Some((thread, id, text, lang)) = next_head(&st)
         {
-            let (id, text) = (head.id, head.text.clone());
             drop(st);
-            let audio = prefetch(tel, engine, &text);
+            let audio = engines.get(sh, cfg, lang).map_or(Prefetch::Failed, |engine| prefetch(tel, engine, &text));
             st = sh.lock();
             if let Some(item) = st.chans.get_mut(&thread).and_then(|c| c.queue.iter_mut().find(|i| i.id == id)) {
                 item.prefetch = audio;
@@ -1178,6 +1322,7 @@ mod tests {
             thread: thread.to_owned(),
             source: "live",
             text: format!("t{id}"),
+            lang: Lang::Tr,
             arrived: Instant::now(),
             created_ms: None,
             click: None,
@@ -1196,7 +1341,7 @@ mod tests {
         let thread = st.next_thread()?.to_owned();
         let item = st.chan(&thread).queue.pop_front()?;
         let id = item.id;
-        st.current = Some(Playing::new(item, rodio::Player::new().0, 22_050, None, false));
+        st.current = Some(Playing::new(item, rodio::Player::new().0, "test", 22_050, None, false));
         Some(id)
     }
 
@@ -1215,6 +1360,7 @@ mod tests {
             thread: "c".into(),
             source: "live",
             text: String::new(),
+            lang: Lang::Tr,
             arrived: Instant::now() - Duration::from_secs(5),
             created_ms: None,
             click: None,

@@ -23,9 +23,6 @@ use serde::Deserialize;
 use unicode_normalization::UnicodeNormalization;
 use unicode_normalization::char::is_combining_mark;
 
-/// Model files inside the model dir.
-pub const FILES: [&str; 4] = ["meta.json", "text.onnx", "sound.onnx", "decoder.onnx"];
-
 const MAX_WORD_FRAMES: f64 = 250.0;
 const MAX_FRAMES: usize = 3000;
 /// A piece's first decoded window is one second, later ones four (as the reference streams).
@@ -76,9 +73,23 @@ pub struct Ema {
     pub load_ms: Vec<(&'static str, f64)>,
 }
 
-/// ONNX Runtime allows one environment per process.
+/// ONNX Runtime allows one environment per process (shared by every voice).
 static ENV: LazyLock<Result<Environment, String>> =
     LazyLock::new(|| ort::init().with_name("tellal").build().map_err(|e| e.to_string()));
+
+/// A CPU-only session (`threads` intra-op threads). `ort` defaults to
+/// `AutoDevicePolicy::MaxEfficiency`, which on macOS registers CoreML: it kept ~230 MB (sound) +
+/// ~130 MB (decoder) of working memory per session. Plain CPU keeps a few MB and is fast enough.
+pub(crate) fn cpu_session(path: &Path, threads: usize) -> anyhow::Result<Session> {
+    let env = ENV.as_ref().map_err(|e| anyhow::anyhow!("onnxruntime init: {e}"))?;
+    Session::builder(env)?
+        .with_auto_device(AutoDevicePolicy::PreferCPU)
+        .and_then(|b| b.with_intra_threads(threads))
+        .and_then(|b| b.with_inter_threads(1))
+        .map_err(|e| anyhow::anyhow!("{e}"))?
+        .commit_from_file(path)
+        .with_context(|| format!("load {}", path.display()))
+}
 
 impl Ema {
     pub fn load(model_dir: &Path, threads: usize) -> anyhow::Result<Ema> {
@@ -86,20 +97,7 @@ impl Ema {
             &std::fs::read(model_dir.join("meta.json"))
                 .with_context(|| format!("{}/meta.json (run scripts/fetch-models.sh)", model_dir.display()))?,
         )?;
-        let env = ENV.as_ref().map_err(|e| anyhow::anyhow!("onnxruntime init: {e}"))?;
-        // `ort` defaults to `AutoDevicePolicy::MaxEfficiency`, which on macOS registers CoreML: it
-        // kept ~230 MB (sound) + ~130 MB (decoder) of working memory per session. Plain CPU keeps
-        // a few MB and is fast enough (RTF ~0.03).
-        let session = |name: &str| -> anyhow::Result<Session> {
-            let path = model_dir.join(name);
-            Session::builder(env)?
-                .with_auto_device(AutoDevicePolicy::PreferCPU)
-                .and_then(|b| b.with_intra_threads(threads))
-                .and_then(|b| b.with_inter_threads(1))
-                .map_err(|e| anyhow::anyhow!("{e}"))?
-                .commit_from_file(&path)
-                .with_context(|| format!("load {}", path.display()))
-        };
+        let session = |name: &str| cpu_session(&model_dir.join(name), threads);
         let mut load_ms = Vec::with_capacity(4);
         let mut timed = |step: &'static str, t: Instant| load_ms.push((step, t.elapsed().as_secs_f64() * 1000.0));
         let stoi = meta
@@ -420,7 +418,7 @@ fn windows(frames: usize, first: usize) -> Vec<(usize, usize)> {
 }
 
 /// Seeded standard normal noise (mulberry32 + Box–Muller, as `web/tts.js`).
-fn gaussian(seed: u32, n: usize) -> Vec<f32> {
+pub(crate) fn gaussian(seed: u32, n: usize) -> Vec<f32> {
     let mut a = seed;
     let mut uniform = || {
         a = a.wrapping_add(0x6d2b_79f5);
@@ -443,7 +441,7 @@ fn gaussian(seed: u32, n: usize) -> Vec<f32> {
     out
 }
 
-fn fade_out(samples: &mut [f32], len: usize) {
+pub(crate) fn fade_out(samples: &mut [f32], len: usize) {
     let len = len.min(samples.len());
     let start = samples.len() - len;
     for (k, s) in samples[start..].iter_mut().enumerate() {

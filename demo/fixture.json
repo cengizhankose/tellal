@@ -1,5 +1,8 @@
 {
   "theme": "t3",
+  "voices": [
+    {"id": "en-supertonic-2", "state": "downloading:40"}
+  ],
   "projects": [
     {"id": "p-web", "title": "acme-web", "icon": {"kind": "lucide", "name": "globe-2", "color": "sky"}, "pinned": true},
     {"id": "p-billing", "title": "billing-api", "icon": {"kind": "lucide", "name": "server", "color": "violet"}, "pinned": false},

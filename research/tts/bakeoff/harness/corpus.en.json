@@ -1,0 +1,12 @@
+[
+  {"id": "a", "text": "Okay, I'm collecting the errors first, then fixing the most common one."},
+  {"id": "b", "text": "Running the tests now."},
+  {"id": "c", "text": "80 tasks: 20 stuck, 30 failed, the rest finished with warnings. Want to start with the errors?"},
+  {"id": "d", "text": "Pull request opened; waiting for your approval to deploy."},
+  {"id": "e", "text": "Build finished; I took a screenshot in the iOS simulator and added it to the report."},
+  {"id": "f", "text": "Stopped."},
+  {"id": "g", "text": "npm test passed in 42 seconds, 3 tests skipped."},
+  {"id": "h", "text": "The PR is ready for review, CI finished at 3:45 PM."},
+  {"id": "i", "text": "Deployed at 14:30; the API now answers in 120 ms."},
+  {"id": "j", "text": "Still running. 5 files changed so far, about 2 minutes left."}
+]

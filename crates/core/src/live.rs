@@ -11,14 +11,11 @@ use std::time::{Duration, Instant};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use crate::extract::live_line;
+use crate::extract::{Notice, live_line};
 use crate::speech::Speech;
 use crate::t3::{self, sql_str};
 use crate::telemetry::{Telemetry, ms, parse_rfc3339_ms, rfc3339_from_ms};
 use crate::ThreadView;
-
-/// Spoken on a listening channel when its thread starts waiting for the user.
-const WAIT_TEXT: &str = "senden cevap bekliyor.";
 
 /// One row of the tail query: `k` = `m` (assistant message: `ts` = created_at, `text`) or
 /// `w` (waiting request: `ts` = updated_at, `text` = request type).
@@ -170,9 +167,9 @@ pub(crate) fn deliver_message(tel: &Telemetry, speech: &Speech, input: Value, th
 }
 
 /// A new waiting request: unless `initial` (already waiting when first listed), a listening
-/// channel hears [`WAIT_TEXT`]. Logged as `wait.detect` with `input`. The caller still updates
-/// `waiting_for_user` through `Speech::set_waiting`.
+/// channel hears the [`Notice::Wait`] line. Logged as `wait.detect` with `input`. The caller still
+/// updates `waiting_for_user` through `Speech::set_waiting`.
 pub(crate) fn detect_wait(tel: &Telemetry, speech: &Speech, thread: &str, input: Value, initial: bool) {
-    let spoken = !initial && speech.notice(thread, "wait", WAIT_TEXT);
+    let spoken = !initial && speech.notice(thread, Notice::Wait);
     tel.event("wait.detect", None, true, input, json!({"initial": initial, "spoken": spoken}), None);
 }

@@ -1,0 +1,30 @@
+{
+ "en-supertonic2-int8-M1-s5": {
+  "python": "/tmp/enbake/venv/bin/python",
+  "config": {"engine": "sherpa", "model": "supertonic", "dir": "/tmp/enbake/models/sherpa-onnx-supertonic-tts-int8-2026-03-06", "lang": "en", "sid": 5, "steps": 5, "speed": 1.05}
+ },
+ "en-supertonic2-int8-F1-s5": {
+  "python": "/tmp/enbake/venv/bin/python",
+  "config": {"engine": "sherpa", "model": "supertonic", "dir": "/tmp/enbake/models/sherpa-onnx-supertonic-tts-int8-2026-03-06", "lang": "en", "sid": 0, "steps": 5, "speed": 1.05}
+ },
+ "en-supertonic2-int8-M1-s3": {
+  "python": "/tmp/enbake/venv/bin/python",
+  "config": {"engine": "sherpa", "model": "supertonic", "dir": "/tmp/enbake/models/sherpa-onnx-supertonic-tts-int8-2026-03-06", "lang": "en", "sid": 5, "steps": 3, "speed": 1.05}
+ },
+ "en-supertonic3-int8-M1-s5": {
+  "python": "/tmp/enbake/venv/bin/python",
+  "config": {"engine": "sherpa", "model": "supertonic", "dir": "/tmp/enbake/models/sherpa-onnx-supertonic-3-tts-int8-2026-05-11", "lang": "en", "sid": 5, "steps": 5, "speed": 1.05}
+ },
+ "en-kokoro-int8-af": {
+  "python": "/tmp/enbake/venv113/bin/python",
+  "config": {"engine": "sherpa", "model": "kokoro", "dir": "/tmp/enbake/models/kokoro-int8-en-v0_19", "sid": 0, "speed": 1.0}
+ },
+ "en-kitten-nano-fp16": {
+  "python": "/tmp/enbake/venv113/bin/python",
+  "config": {"engine": "sherpa", "model": "kitten", "dir": "/tmp/enbake/models/kitten-nano-en-v0_2-fp16", "file": "model.fp16.onnx", "sid": 0, "speed": 1.0}
+ },
+ "en-pocket-int8-bria": {
+  "python": "/tmp/enbake/venv/bin/python",
+  "config": {"engine": "sherpa", "model": "pocket", "dir": "/tmp/enbake/models/sherpa-onnx-pocket-tts-int8-2026-01-26", "reference": "bria.wav", "speed": 1.0}
+ }
+}

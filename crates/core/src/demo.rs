@@ -52,6 +52,9 @@ struct Fixture {
     /// The thread `Core::start_task` creates; `dictation_start(NEW_TASK)` hears its `dictation`.
     #[serde(default)]
     new_task: Option<FxNewTask>,
+    /// Scripted voice states (`Core::voices`); unlisted voices report their on-disk state.
+    #[serde(default)]
+    voices: Vec<crate::voices::DemoVoice>,
 }
 
 #[derive(Deserialize)]
@@ -355,6 +358,8 @@ struct Shared {
     /// Fixture `computer.sessions`.
     sessions: Vec<FxSession>,
     new_task: Option<FxNewTask>,
+    /// Fixture `voices`.
+    voices: Vec<crate::voices::DemoVoice>,
 }
 
 /// Handle owned by `Core` in demo mode.
@@ -460,7 +465,8 @@ impl Demo {
             json!({"path": path}),
             json!({"projects": fx.projects.len(), "threads": fx.threads.len(), "script_steps": steps,
                    "computer_entries": sessions.len(), "new_task": fx.new_task.as_ref().map(|t| &t.title),
-                   "script_span_s": span_s, "theme": if default_theme { "default" } else { "t3" }}),
+                   "script_span_s": span_s, "theme": if default_theme { "default" } else { "t3" },
+                   "voices": fx.voices.iter().map(|v| json!({"id": v.id, "state": v.state})).collect::<Vec<_>>()}),
             None,
         );
         let state = State {
@@ -485,6 +491,7 @@ impl Demo {
             computer,
             sessions,
             new_task: fx.new_task,
+            voices: fx.voices,
         };
         Ok((Demo { sh: Arc::new(sh) }, Jobs(rx)))
     }
@@ -492,6 +499,11 @@ impl Demo {
     /// The fixture sets `"theme": "default"`: T3's theme is not read.
     pub(crate) fn default_theme(&self) -> bool {
         self.sh.default_theme
+    }
+
+    /// The fixture `voices` block (scripted voice states; empty = on-disk states).
+    pub(crate) fn voices(&self) -> Vec<crate::voices::DemoVoice> {
+        self.sh.voices.clone()
     }
 
     /// Thread id → fixture `label`.

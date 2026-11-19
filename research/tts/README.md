@@ -8,6 +8,7 @@ Kaynaklar:
 - [bakeoff.md](bakeoff.md) ve [bakeoff/index.html](bakeoff/index.html): bu Mac'te 59 çalıştırma, 7 panel cümlesi, 413 ses dosyası.
 - [compare.html](compare.html): öne çıkan adayların grafiği.
 - `listen/`: aday başına 3 cümlelik dinleme dosyası (baştaki sessizlik kesildi, ses seviyesi eşitlendi). Ses dosyaları yereldir, depoya girmez (`.gitignore`).
+- [english.md](english.md) (19 Kasım 2026, İngilizce): İngilizce ses seçimi. Aynı harness ile 7 çalıştırma (`harness/corpus.en.json`, `runs.en.json`, `readback_en.py`); seçilen **Supertonic 2 (M1, int8, 96 MB)**, panelde `en-supertonic-2`.
 
 ## Karar (11 Kasım 2026)
 

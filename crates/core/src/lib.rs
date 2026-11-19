@@ -1,5 +1,6 @@
 //! Tellal core: T3 thread source (or the demo fixture), live message tail, per-thread speech
-//! channels, local TTS, Wispr Flow dictation bridge and telemetry.
+//! channels, local TTS (a Turkish and an English voice, downloaded on demand), Wispr Flow
+//! dictation bridge and telemetry.
 //!
 //! PUBLIC API CONTRACT (the GPUI app depends on exactly these items; keep signatures stable).
 //! The modules below are public for the `tellal-bench` / `tellal-report` tools.
@@ -17,13 +18,17 @@ use serde_json::{Value, json};
 mod computer;
 mod demo;
 mod ema;
+mod english;
 pub mod extract;
+mod lang;
 mod lexicon;
 mod live;
 mod speech;
+mod supertonic;
 pub mod t3;
 pub mod telemetry;
 pub mod theme;
+mod voices;
 mod wispr;
 pub mod tts {
     //! TTS engine and audio helpers (used by `tellal-bench`).
@@ -42,15 +47,19 @@ pub struct Config {
     pub projects: Option<Vec<String>>,
     /// Thread list poll interval. Default 5s. Env `TELLAL_POLL_MS`.
     pub poll_interval: Duration,
-    /// EMA Lightning ONNX model directory (`meta.json`, `text.onnx`, `sound.onnx`,
-    /// `decoder.onnx`). Default `~/Library/Application Support/tellal/models/ema-lightning-onnx`.
-    /// Env `TELLAL_MODEL_DIR`.
-    pub model_dir: PathBuf,
-    /// ONNX Runtime intra-op threads for the voice. Default 2. Env `TELLAL_TTS_THREADS`.
+    /// Root of the voice models, one directory per voice (`ema-lightning-onnx`,
+    /// `supertonic-2-en`). Default `~/Library/Application Support/tellal/models`. Env
+    /// `TELLAL_MODELS_DIR`.
+    pub models_dir: PathBuf,
+    /// ONNX Runtime intra-op threads per voice. Default 2. Env `TELLAL_TTS_THREADS`.
     pub tts_threads: usize,
-    /// User pronunciation lexicon (`written<TAB>spoken` per line), added to the built-in one.
-    /// Default `~/Library/Application Support/tellal/lexicon.tsv`. Env `TELLAL_LEXICON`.
+    /// User pronunciation lexicon for the Turkish voice (`written<TAB>spoken` per line), added to
+    /// the built-in one. Default `~/Library/Application Support/tellal/lexicon.tsv`. Env
+    /// `TELLAL_LEXICON`.
     pub lexicon_path: PathBuf,
+    /// The same for the English voice. Default `~/Library/Application Support/tellal/lexicon-en.tsv`.
+    /// Env `TELLAL_LEXICON_EN`.
+    pub lexicon_en_path: PathBuf,
     /// Root for per-run telemetry dirs. Default `~/Library/Logs/tellal`. Env `TELLAL_LOG_ROOT`.
     pub log_root: PathBuf,
     /// Save every synthesized utterance as WAV in the run dir. Default true. Env `TELLAL_SAVE_AUDIO=0` disables.
@@ -62,8 +71,9 @@ pub struct Config {
     /// Live-tail interval (new assistant messages + waiting requests of listed threads, one
     /// read-only query). Default 1s. Env `TELLAL_LIVE_POLL_MS`.
     pub live_poll_interval: Duration,
-    /// Prepended to every reply sent from the panel so the agent uses the `sesli` skill.
-    /// Default `"$sesli "`. Env `TELLAL_REPLY_PREFIX` (empty string disables).
+    /// Prepended to every reply and new task sent from the panel so the agent speaks through its
+    /// skill: `"$sesli "` (Turkish, `sesli` skill) or `"$aloud "` (English, `aloud` skill) by
+    /// [`Config::lang`]. Env `TELLAL_REPLY_PREFIX` overrides (empty string disables).
     pub reply_prefix: String,
     /// Wispr Flow History DB (read-only). Default
     /// `~/Library/Application Support/Wispr Flow/flow.sqlite`. Env `TELLAL_WISPR_DB`.
@@ -118,9 +128,11 @@ impl Lang {
             Lang::En => "en",
         }
     }
-    /// macOS's preferred language (`tr*` → `Tr`, anything else → `En`).
+    /// macOS's preferred language (`tr*` → `Tr`, anything else → `En`), read from
+    /// CoreFoundation (`CFLocaleCopyPreferredLanguages`; no subprocess). `Config::from_env`
+    /// calls it once, only when `TELLAL_LANG` is unset.
     pub fn system() -> Lang {
-        Lang::Tr
+        lang::from_tag(lang::preferred_language().as_deref())
     }
 }
 
@@ -162,6 +174,8 @@ impl Config {
     pub fn from_env() -> Config {
         let home = PathBuf::from(std::env::var("HOME").unwrap_or_default());
         let var = |k: &str| std::env::var(k).ok().filter(|v| !v.trim().is_empty());
+        let lang = var("TELLAL_LANG").and_then(|v| Lang::parse(&v)).unwrap_or_else(Lang::system);
+        let support = home.join("Library/Application Support/tellal");
         Config {
             t3_bin: var("TELLAL_T3_BIN").map_or_else(|| home.join(".t3/bin/t3"), PathBuf::from),
             projects: var("TELLAL_PROJECTS").map(|v| {
@@ -170,13 +184,10 @@ impl Config {
             poll_interval: var("TELLAL_POLL_MS")
                 .and_then(|v| v.trim().parse().ok())
                 .map_or(Duration::from_secs(5), Duration::from_millis),
-            model_dir: var("TELLAL_MODEL_DIR").map_or_else(
-                || home.join("Library/Application Support/tellal/models/ema-lightning-onnx"),
-                PathBuf::from,
-            ),
+            models_dir: var("TELLAL_MODELS_DIR").map_or_else(|| support.join("models"), PathBuf::from),
             tts_threads: var("TELLAL_TTS_THREADS").and_then(|v| v.trim().parse().ok()).filter(|&n| n > 0).unwrap_or(2),
-            lexicon_path: var("TELLAL_LEXICON")
-                .map_or_else(|| home.join("Library/Application Support/tellal/lexicon.tsv"), PathBuf::from),
+            lexicon_path: var("TELLAL_LEXICON").map_or_else(|| support.join("lexicon.tsv"), PathBuf::from),
+            lexicon_en_path: var("TELLAL_LEXICON_EN").map_or_else(|| support.join("lexicon-en.tsv"), PathBuf::from),
             log_root: var("TELLAL_LOG_ROOT").map_or_else(|| home.join("Library/Logs/tellal"), PathBuf::from),
             save_audio: var("TELLAL_SAVE_AUDIO").is_none_or(|v| v.trim() != "0"),
             recent_window: Duration::from_secs(6 * 3600),
@@ -184,7 +195,13 @@ impl Config {
             live_poll_interval: var("TELLAL_LIVE_POLL_MS")
                 .and_then(|v| v.trim().parse().ok())
                 .map_or(Duration::from_secs(1), Duration::from_millis),
-            reply_prefix: std::env::var("TELLAL_REPLY_PREFIX").unwrap_or_else(|_| "$sesli ".to_owned()),
+            reply_prefix: std::env::var("TELLAL_REPLY_PREFIX").unwrap_or_else(|_| {
+                match lang {
+                    Lang::Tr => "$sesli ",
+                    Lang::En => "$aloud ",
+                }
+                .to_owned()
+            }),
             wispr_db: var("TELLAL_WISPR_DB")
                 .map_or_else(|| home.join("Library/Application Support/Wispr Flow/flow.sqlite"), PathBuf::from),
             t3_app: var("TELLAL_T3_APP").map(PathBuf::from),
@@ -198,7 +215,7 @@ impl Config {
             cua_driver: var("TELLAL_CUA_DRIVER")
                 .map_or_else(|| PathBuf::from("/Applications/CuaDriver.app/Contents/MacOS/cua-driver"), PathBuf::from),
             task_project: var("TELLAL_TASK_PROJECT"),
-            lang: var("TELLAL_LANG").and_then(|v| Lang::parse(&v)).unwrap_or_else(Lang::system),
+            lang,
             voice: var("TELLAL_VOICE").and_then(|v| VoicePref::parse(&v)).unwrap_or(VoicePref::Auto),
         }
     }
@@ -207,8 +224,8 @@ impl Config {
     pub fn to_json(&self) -> Value {
         json!({
             "t3_bin": self.t3_bin, "projects": self.projects,
-            "poll_interval_ms": self.poll_interval.as_millis() as u64, "model_dir": self.model_dir,
-            "tts_threads": self.tts_threads, "lexicon_path": self.lexicon_path,
+            "poll_interval_ms": self.poll_interval.as_millis() as u64, "models_dir": self.models_dir,
+            "tts_threads": self.tts_threads, "lexicon_path": self.lexicon_path, "lexicon_en_path": self.lexicon_en_path,
             "log_root": self.log_root, "save_audio": self.save_audio,
             "recent_window_s": self.recent_window.as_secs(), "max_threads": self.max_threads,
             "live_poll_interval_ms": self.live_poll_interval.as_millis() as u64,
@@ -461,6 +478,7 @@ struct Inner {
     /// T3 project id → display name, for every project the poller knows (T3 source only).
     project_names: Arc<RwLock<HashMap<String, String>>>,
     lang: Lang,
+    voices: voices::Voices,
 }
 
 /// Where threads, messages, dictation and replies come from.
@@ -475,7 +493,8 @@ enum Source {
 impl Core {
     /// Creates the run dir, starts the poller, live tail, cua-driver watcher, TTS worker and
     /// metrics sampler (in demo mode the fixture driver replaces the poller, live tail, Wispr
-    /// bridge and cua-driver watcher).
+    /// bridge and cua-driver watcher), and downloads the voice for `Config.lang` when it is
+    /// missing (real mode).
     pub fn start(config: Config) -> anyhow::Result<(Core, Receiver<CoreEvent>)> {
         let start_ms = telemetry::now_unix_ms();
         let lang = config.lang;
@@ -512,7 +531,12 @@ impl Core {
             Some((d, _)) => (d.message_source(), d.labels()),
             None => (Arc::new(t3::latest_messages), HashMap::new()),
         };
-        let speech = speech::Speech::start(tel.clone(), &config, tx.clone(), threads.clone(), messages, labels)?;
+        let demo_voices = demo.as_ref().map(|(d, _)| d.voices());
+        let voices =
+            voices::Voices::new(tel.clone(), tx.clone(), config.models_dir.clone(), &voices::VOICES, demo_voices.as_deref())?;
+        let speech =
+            speech::Speech::start(tel.clone(), &config, tx.clone(), threads.clone(), messages, labels, voices.clone())?;
+        voices.start(lang);
         let theme = match &demo {
             Some((d, _)) if d.default_theme() => Arc::new(RwLock::new(ThemeView::default())),
             _ => theme::start(tel.clone(), &config, tx.clone())?,
@@ -549,6 +573,7 @@ impl Core {
             computer: computer_view,
             project_names,
             lang,
+            voices,
         };
         Ok((Core { inner: Arc::new(inner) }, rx))
     }
@@ -723,12 +748,18 @@ impl Core {
     pub fn lang(&self) -> Lang {
         self.inner.lang
     }
-    /// Every voice Tellal knows, installed or not (never blocks on I/O).
+    /// Every voice Tellal knows, installed or not, Turkish first (never blocks on I/O): registry
+    /// + on-disk state (scanned at start and after each download) + live download progress.
     pub fn voices(&self) -> Vec<VoiceView> {
-        Vec::new()
+        self.inner.voices.views()
     }
-    /// Downloads and installs voice `id` in the background; progress → `VoicesUpdated`.
-    pub fn download_voice(&self, _id: &str) {}
+    /// Downloads and installs voice `id` in the background (HTTPS from its pinned Hugging Face
+    /// revision, SHA-256 per file, atomic install); progress → `VoicesUpdated` (≤ ~4/s), logged
+    /// as `voice.download`. Ignored while it is Ready or downloading. Demo mode: simulated, no
+    /// network (see `voices.rs`).
+    pub fn download_voice(&self, id: &str) {
+        self.inner.voices.download(id, "user");
+    }
     /// Emergency stop: revoke every live cua-driver session (`cua-driver revoke --all`) so no
     /// agent can act on the screen until it reconnects. Non-blocking; → `ComputerUpdated`.
     /// Demo mode: every live scripted session ends at once.
@@ -851,11 +882,30 @@ impl Core {
     }
 }
 
+/// Downloads voices `ids` into `cfg.models_dir` exactly as [`Core::download_voice`] does (same
+/// pinned files, checks and `voice.download` events in a run dir under `cfg.log_root`), blocking
+/// until none is downloading; `on_update` sees every `VoicesUpdated`. For `tellal-bench
+/// --download`, without starting the panel's sources.
+pub fn download_voices(cfg: &Config, ids: &[String], mut on_update: impl FnMut(&[VoiceView])) -> anyhow::Result<Vec<VoiceView>> {
+    let tel = Telemetry::create(&cfg.log_root)?;
+    let (tx, rx) = crossbeam_channel::unbounded();
+    let voices = voices::Voices::new(tel, tx, cfg.models_dir.clone(), &voices::VOICES, None)?;
+    for id in ids {
+        voices.download(id, "bench");
+    }
+    while voices.views().iter().any(|v| matches!(v.state, VoiceState::Downloading { .. })) {
+        if let Ok(CoreEvent::VoicesUpdated) = rx.recv_timeout(Duration::from_secs(1)) {
+            on_update(&voices.views());
+        }
+    }
+    Ok(voices.views())
+}
+
 /// Side effect of a logged `state.change` (T3 poller and demo source): a listening channel hears
 /// that its thread was stopped.
 fn status_changed(speech: &speech::Speech, thread: &str, to: &str) {
     if matches!(to, "interrupted" | "cancelled") {
-        speech.notice(thread, "stopped", "Durduruldu.");
+        speech.notice(thread, extract::Notice::Stopped);
     }
 }
 

@@ -1,0 +1,784 @@
+{
+ "whisper": "ggml-large-v3-turbo-q8_0.bin -l en",
+ "engines": [
+  {
+   "id": "en-kitten-nano-fp16",
+   "config": {
+    "engine": "sherpa",
+    "model": "kitten",
+    "dir": "/tmp/enbake/models/kitten-nano-en-v0_2-fp16",
+    "file": "model.fp16.onnx",
+    "sid": 0,
+    "speed": 1.0
+   },
+   "device": "CPU (sherpa-onnx 1.12.40, 2 threads, int8, kitten)",
+   "load_ms": 408.6,
+   "first_synth_ms": 749.1,
+   "synth_p50_ms": 682.45,
+   "rtf": 0.1195,
+   "max_rss_mb": 300,
+   "wer": 0.038,
+   "lead_p50_s": 0.0,
+   "sentences": [
+    {
+     "id": "a",
+     "text": "Okay, I'm collecting the errors first, then fixing the most common one.",
+     "heard": "Okay, I'm collecting the errors first, then fixing the most common one,",
+     "wer": 0.0,
+     "synth_ms": 749.1,
+     "audio_ms": 5362.6,
+     "lead_s": 0.0
+    },
+    {
+     "id": "b",
+     "text": "Running the tests now.",
+     "heard": "Running the tests now,",
+     "wer": 0.0,
+     "synth_ms": 286.6,
+     "audio_ms": 2225.0,
+     "lead_s": 0.0
+    },
+    {
+     "id": "c",
+     "text": "80 tasks: 20 stuck, 30 failed, the rest finished with warnings. Want to start with the errors?",
+     "heard": "80 tasks, 20 stuck, 30 failed, the rest finished with warnings. Want to start with the errors",
+     "wer": 0.0,
+     "synth_ms": 921.7,
+     "audio_ms": 7758.5,
+     "lead_s": 0.0
+    },
+    {
+     "id": "d",
+     "text": "Pull request opened; waiting for your approval to deploy.",
+     "heard": "Pull request opened, waiting for your approval to deploy,",
+     "wer": 0.0,
+     "synth_ms": 427.3,
+     "audio_ms": 4325.0,
+     "lead_s": 0.0
+    },
+    {
+     "id": "e",
+     "text": "Build finished; I took a screenshot in the iOS simulator and added it to the report.",
+     "heard": "Build finished, I took a screenshot in the iOS simulator and added it to the report.",
+     "wer": 0.0,
+     "synth_ms": 831.6,
+     "audio_ms": 6254.2,
+     "lead_s": 0.0
+    },
+    {
+     "id": "f",
+     "text": "Stopped.",
+     "heard": "Stop t-",
+     "wer": 2.0,
+     "synth_ms": 163.1,
+     "audio_ms": 1325.0,
+     "lead_s": 0.0
+    },
+    {
+     "id": "g",
+     "text": "npm test passed in 42 seconds, 3 tests skipped.",
+     "heard": "NPM test passed in 42 seconds. Vri test skipped.",
+     "wer": 0.2,
+     "synth_ms": 625.8,
+     "audio_ms": 5185.2,
+     "lead_s": 0.0
+    },
+    {
+     "id": "h",
+     "text": "The PR is ready for review, CI finished at 3:45 PM.",
+     "heard": "The PR is ready for review, CI finished at 3:45 p.m.",
+     "wer": 0.0,
+     "synth_ms": 686.5,
+     "audio_ms": 5961.8,
+     "lead_s": 0.0
+    },
+    {
+     "id": "i",
+     "text": "Deployed at 14:30; the API now answers in 120 ms.",
+     "heard": "Deployed at 14:30, the API now answers in 120 MS,",
+     "wer": 0.0,
+     "synth_ms": 683.2,
+     "audio_ms": 6286.8,
+     "lead_s": 0.0
+    },
+    {
+     "id": "j",
+     "text": "Still running. 5 files changed so far, about 2 minutes left.",
+     "heard": "Still running. Five files changed so far, about two minutes left.",
+     "wer": 0.0,
+     "synth_ms": 681.7,
+     "audio_ms": 5980.2,
+     "lead_s": 0.0
+    }
+   ]
+  },
+  {
+   "id": "en-kokoro-int8-af",
+   "config": {
+    "engine": "sherpa",
+    "model": "kokoro",
+    "dir": "/tmp/enbake/models/kokoro-int8-en-v0_19",
+    "sid": 0,
+    "speed": 1.0
+   },
+   "device": "CPU (sherpa-onnx 1.12.40, 2 threads, int8, kokoro)",
+   "load_ms": 411.0,
+   "first_synth_ms": 2828.3,
+   "synth_p50_ms": 2783.65,
+   "rtf": 0.7086,
+   "max_rss_mb": 641,
+   "wer": 0.0,
+   "lead_p50_s": 0.0,
+   "sentences": [
+    {
+     "id": "a",
+     "text": "Okay, I'm collecting the errors first, then fixing the most common one.",
+     "heard": "Okay, I'm collecting the errors first, then fixing the most common one.",
+     "wer": 0.0,
+     "synth_ms": 2828.3,
+     "audio_ms": 3888.6,
+     "lead_s": 0.0
+    },
+    {
+     "id": "b",
+     "text": "Running the tests now.",
+     "heard": "Running the tests now.",
+     "wer": 0.0,
+     "synth_ms": 1245.0,
+     "audio_ms": 1437.1,
+     "lead_s": 0.0
+    },
+    {
+     "id": "c",
+     "text": "80 tasks: 20 stuck, 30 failed, the rest finished with warnings. Want to start with the errors?",
+     "heard": "80 tasks, 20 stuck, 30 failed, the rest finished with warnings. Want to start with the errors.",
+     "wer": 0.0,
+     "synth_ms": 3993.6,
+     "audio_ms": 5826.4,
+     "lead_s": 0.0
+    },
+    {
+     "id": "d",
+     "text": "Pull request opened; waiting for your approval to deploy.",
+     "heard": "Pull request opened, waiting for your approval to deploy.",
+     "wer": 0.0,
+     "synth_ms": 2087.5,
+     "audio_ms": 3318.6,
+     "lead_s": 0.0
+    },
+    {
+     "id": "e",
+     "text": "Build finished; I took a screenshot in the iOS simulator and added it to the report.",
+     "heard": "Build finished. I took a screenshot in the iOS simulator and added it to the report.",
+     "wer": 0.0,
+     "synth_ms": 3091.9,
+     "audio_ms": 4775.8,
+     "lead_s": 0.0
+    },
+    {
+     "id": "f",
+     "text": "Stopped.",
+     "heard": "Stopped.",
+     "wer": 0.0,
+     "synth_ms": 910.6,
+     "audio_ms": 778.8,
+     "lead_s": 0.0
+    },
+    {
+     "id": "g",
+     "text": "npm test passed in 42 seconds, 3 tests skipped.",
+     "heard": "NPM test passed in 42 seconds. Three tests skipped.",
+     "wer": 0.0,
+     "synth_ms": 2647.8,
+     "audio_ms": 3956.5,
+     "lead_s": 0.0
+    },
+    {
+     "id": "h",
+     "text": "The PR is ready for review, CI finished at 3:45 PM.",
+     "heard": "The PR is ready for review. CI finished at 3.45 p.m.",
+     "wer": 0.0,
+     "synth_ms": 2880.3,
+     "audio_ms": 4232.2,
+     "lead_s": 0.0
+    },
+    {
+     "id": "i",
+     "text": "Deployed at 14:30; the API now answers in 120 ms.",
+     "heard": "Deployed at 14:30, the API now answers in 120 MS.",
+     "wer": 0.0,
+     "synth_ms": 2739.0,
+     "audio_ms": 4511.2,
+     "lead_s": 0.0
+    },
+    {
+     "id": "j",
+     "text": "Still running. 5 files changed so far, about 2 minutes left.",
+     "heard": "Still running. Five files changed so far. About two minutes left.",
+     "wer": 0.0,
+     "synth_ms": 3751.1,
+     "audio_ms": 4216.5,
+     "lead_s": 0.0
+    }
+   ]
+  },
+  {
+   "id": "en-pocket-int8-bria",
+   "config": {
+    "engine": "sherpa",
+    "model": "pocket",
+    "dir": "/tmp/enbake/models/sherpa-onnx-pocket-tts-int8-2026-01-26",
+    "reference": "bria.wav",
+    "speed": 1.0
+   },
+   "device": "CPU (sherpa-onnx 2.0.2, 2 threads, int8, pocket)",
+   "load_ms": 367.8,
+   "first_synth_ms": 510.8,
+   "synth_p50_ms": 489.54999999999995,
+   "rtf": 0.1338,
+   "max_rss_mb": 700,
+   "wer": 0.047,
+   "lead_p50_s": 0.0,
+   "sentences": [
+    {
+     "id": "a",
+     "text": "Okay, I'm collecting the errors first, then fixing the most common one.",
+     "heard": "Okay, I'm collecting the errors first, then fixing the most common one.",
+     "wer": 0.0,
+     "synth_ms": 510.8,
+     "audio_ms": 3478.6,
+     "lead_s": 0.0
+    },
+    {
+     "id": "b",
+     "text": "Running the tests now.",
+     "heard": "Running the tests now.",
+     "wer": 0.0,
+     "synth_ms": 177.6,
+     "audio_ms": 1112.9,
+     "lead_s": 0.0
+    },
+    {
+     "id": "c",
+     "text": "80 tasks: 20 stuck, 30 failed, the rest finished with warnings. Want to start with the errors?",
+     "heard": "80 tasks. 20 stuck. 30 failed. The rest finished with warnings. Want to start with the errors?",
+     "wer": 0.0,
+     "synth_ms": 691.8,
+     "audio_ms": 5553.4,
+     "lead_s": 0.0
+    },
+    {
+     "id": "d",
+     "text": "Pull request opened; waiting for your approval to deploy.",
+     "heard": "call request opened, waiting for your approval to deploy.",
+     "wer": 0.111,
+     "synth_ms": 384.0,
+     "audio_ms": 2983.6,
+     "lead_s": 0.0
+    },
+    {
+     "id": "e",
+     "text": "Build finished; I took a screenshot in the iOS simulator and added it to the report.",
+     "heard": "build finished, I took a screenshot in the iOS simulator and added it to the report.",
+     "wer": 0.0,
+     "synth_ms": 632.2,
+     "audio_ms": 4567.1,
+     "lead_s": 0.0
+    },
+    {
+     "id": "f",
+     "text": "Stopped.",
+     "heard": "stopped.",
+     "wer": 0.0,
+     "synth_ms": 155.3,
+     "audio_ms": 720.0,
+     "lead_s": 0.0
+    },
+    {
+     "id": "g",
+     "text": "npm test passed in 42 seconds, 3 tests skipped.",
+     "heard": "Magnium test passed in 42 seconds. Three tests skipped.",
+     "wer": 0.1,
+     "synth_ms": 508.2,
+     "audio_ms": 3529.1,
+     "lead_s": 0.0
+    },
+    {
+     "id": "h",
+     "text": "The PR is ready for review, CI finished at 3:45 PM.",
+     "heard": "The PR is ready for review. CI finished at 3.45 p.m.",
+     "wer": 0.0,
+     "synth_ms": 513.8,
+     "audio_ms": 4019.7,
+     "lead_s": 0.0
+    },
+    {
+     "id": "i",
+     "text": "Deployed at 14:30; the API now answers in 120 ms.",
+     "heard": "deployed at 14:30, the API now answers in 20 minutes.",
+     "wer": 0.231,
+     "synth_ms": 448.6,
+     "audio_ms": 3840.0,
+     "lead_s": 0.0
+    },
+    {
+     "id": "j",
+     "text": "Still running. 5 files changed so far, about 2 minutes left.",
+     "heard": "still running, five files changed so far, about two minutes left.",
+     "wer": 0.0,
+     "synth_ms": 470.9,
+     "audio_ms": 3779.0,
+     "lead_s": 0.0
+    }
+   ]
+  },
+  {
+   "id": "en-supertonic2-int8-F1-s5",
+   "config": {
+    "engine": "sherpa",
+    "model": "supertonic",
+    "dir": "/tmp/enbake/models/sherpa-onnx-supertonic-tts-int8-2026-03-06",
+    "lang": "en",
+    "sid": 0,
+    "steps": 5,
+    "speed": 1.05
+   },
+   "device": "CPU (sherpa-onnx 2.0.2, 2 threads, int8, supertonic)",
+   "load_ms": 238.3,
+   "first_synth_ms": 165.6,
+   "synth_p50_ms": 132.85,
+   "rtf": 0.0299,
+   "max_rss_mb": 385,
+   "wer": 0.038,
+   "lead_p50_s": 0.0,
+   "sentences": [
+    {
+     "id": "a",
+     "text": "Okay, I'm collecting the errors first, then fixing the most common one.",
+     "heard": "Okay, I'm collecting the errors first, then the most common one.",
+     "wer": 0.083,
+     "synth_ms": 165.6,
+     "audio_ms": 4625.3,
+     "lead_s": 0.0
+    },
+    {
+     "id": "b",
+     "text": "Running the tests now.",
+     "heard": "Running the tests now.",
+     "wer": 0.0,
+     "synth_ms": 101.2,
+     "audio_ms": 1803.7,
+     "lead_s": 0.0
+    },
+    {
+     "id": "c",
+     "text": "80 tasks: 20 stuck, 30 failed, the rest finished with warnings. Want to start with the errors?",
+     "heard": "80 tasks, 20 stuck, 30 failed, the rest finished with warnings. Want to start with the errors?",
+     "wer": 0.0,
+     "synth_ms": 162.6,
+     "audio_ms": 7197.4,
+     "lead_s": 0.0
+    },
+    {
+     "id": "d",
+     "text": "Pull request opened; waiting for your approval to deploy.",
+     "heard": "Pull request opened, waiting for your approval to deploy.",
+     "wer": 0.0,
+     "synth_ms": 109.6,
+     "audio_ms": 3936.5,
+     "lead_s": 0.0
+    },
+    {
+     "id": "e",
+     "text": "Build finished; I took a screenshot in the iOS simulator and added it to the report.",
+     "heard": "Build finished, I took a screenshot in the iOS simulator and added it to the report.",
+     "wer": 0.0,
+     "synth_ms": 142.7,
+     "audio_ms": 5648.0,
+     "lead_s": 0.0
+    },
+    {
+     "id": "f",
+     "text": "Stopped.",
+     "heard": "Stopped.",
+     "wer": 0.0,
+     "synth_ms": 87.8,
+     "audio_ms": 1229.2,
+     "lead_s": 0.43
+    },
+    {
+     "id": "g",
+     "text": "npm test passed in 42 seconds, 3 tests skipped.",
+     "heard": "End PMM test in 42 seconds. Three tests skipped.",
+     "wer": 0.3,
+     "synth_ms": 105.0,
+     "audio_ms": 3883.9,
+     "lead_s": 0.0
+    },
+    {
+     "id": "h",
+     "text": "The PR is ready for review, CI finished at 3:45 PM.",
+     "heard": "The PR is ready for review, CI finished at 3.45 p.m.",
+     "wer": 0.0,
+     "synth_ms": 130.2,
+     "audio_ms": 4891.2,
+     "lead_s": 0.0
+    },
+    {
+     "id": "i",
+     "text": "Deployed at 14:30; the API now answers in 120 ms.",
+     "heard": "deployed at 14:30, the API now answers in 120 milliseconds.",
+     "wer": 0.0,
+     "synth_ms": 135.5,
+     "audio_ms": 4879.6,
+     "lead_s": 0.0
+    },
+    {
+     "id": "j",
+     "text": "Still running. 5 files changed so far, about 2 minutes left.",
+     "heard": "Still running, five files changed so far, about two minutes left.",
+     "wer": 0.0,
+     "synth_ms": 137.0,
+     "audio_ms": 4642.9,
+     "lead_s": 0.0
+    }
+   ]
+  },
+  {
+   "id": "en-supertonic2-int8-M1-s3",
+   "config": {
+    "engine": "sherpa",
+    "model": "supertonic",
+    "dir": "/tmp/enbake/models/sherpa-onnx-supertonic-tts-int8-2026-03-06",
+    "lang": "en",
+    "sid": 5,
+    "steps": 3,
+    "speed": 1.05
+   },
+   "device": "CPU (sherpa-onnx 2.0.2, 2 threads, int8, supertonic)",
+   "load_ms": 226.6,
+   "first_synth_ms": 128.3,
+   "synth_p50_ms": 94.45,
+   "rtf": 0.0224,
+   "max_rss_mb": 405,
+   "wer": 0.075,
+   "lead_p50_s": 0.0,
+   "sentences": [
+    {
+     "id": "a",
+     "text": "Okay, I'm collecting the errors first, then fixing the most common one.",
+     "heard": "Okay, I'm collecting the errors first, then fixing the most common one.",
+     "wer": 0.0,
+     "synth_ms": 128.3,
+     "audio_ms": 4670.1,
+     "lead_s": 0.0
+    },
+    {
+     "id": "b",
+     "text": "Running the tests now.",
+     "heard": "Tests now.",
+     "wer": 0.5,
+     "synth_ms": 73.0,
+     "audio_ms": 1919.2,
+     "lead_s": 0.828
+    },
+    {
+     "id": "c",
+     "text": "80 tasks: 20 stuck, 30 failed, the rest finished with warnings. Want to start with the errors?",
+     "heard": "80 tasks, 20 stuck, 30 failed, the rest finished with warnings. Want to start with the errors?",
+     "wer": 0.0,
+     "synth_ms": 131.7,
+     "audio_ms": 7167.3,
+     "lead_s": 0.0
+    },
+    {
+     "id": "d",
+     "text": "Pull request opened; waiting for your approval to deploy.",
+     "heard": "Poll request opened, waiting for your approval to deploy.",
+     "wer": 0.111,
+     "synth_ms": 84.7,
+     "audio_ms": 3975.7,
+     "lead_s": 0.0
+    },
+    {
+     "id": "e",
+     "text": "Build finished; I took a screenshot in the iOS simulator and added it to the report.",
+     "heard": "Build finished. I took a screenshot in the iOS simulator and added it to the report.",
+     "wer": 0.0,
+     "synth_ms": 107.2,
+     "audio_ms": 5644.6,
+     "lead_s": 0.0
+    },
+    {
+     "id": "f",
+     "text": "Stopped.",
+     "heard": "Stamped.",
+     "wer": 1.0,
+     "synth_ms": 67.8,
+     "audio_ms": 1331.1,
+     "lead_s": 0.786
+    },
+    {
+     "id": "g",
+     "text": "npm test passed in 42 seconds, 3 tests skipped.",
+     "heard": "NPM test passed in 42 seconds, three tests skipped.",
+     "wer": 0.0,
+     "synth_ms": 86.4,
+     "audio_ms": 3921.1,
+     "lead_s": 0.0
+    },
+    {
+     "id": "h",
+     "text": "The PR is ready for review, CI finished at 3:45 PM.",
+     "heard": "The PR is ready for review, CI finished at 3.45 p.m.",
+     "wer": 0.0,
+     "synth_ms": 96.0,
+     "audio_ms": 4936.5,
+     "lead_s": 0.0
+    },
+    {
+     "id": "i",
+     "text": "Deployed at 14:30; the API now answers in 120 ms.",
+     "heard": "deployed at 1430. The API now answers in 120 milliseconds.",
+     "wer": 0.308,
+     "synth_ms": 97.7,
+     "audio_ms": 4934.1,
+     "lead_s": 0.0
+    },
+    {
+     "id": "j",
+     "text": "Still running. 5 files changed so far, about 2 minutes left.",
+     "heard": "Still running. 5 files changed so far, about 2 minutes left.",
+     "wer": 0.0,
+     "synth_ms": 92.9,
+     "audio_ms": 4696.6,
+     "lead_s": 0.0
+    }
+   ]
+  },
+  {
+   "id": "en-supertonic2-int8-M1-s5",
+   "config": {
+    "engine": "sherpa",
+    "model": "supertonic",
+    "dir": "/tmp/enbake/models/sherpa-onnx-supertonic-tts-int8-2026-03-06",
+    "lang": "en",
+    "sid": 5,
+    "steps": 5,
+    "speed": 1.05
+   },
+   "device": "CPU (sherpa-onnx 2.0.2, 2 threads, int8, supertonic)",
+   "load_ms": 279.7,
+   "first_synth_ms": 186.6,
+   "synth_p50_ms": 123.0,
+   "rtf": 0.0303,
+   "max_rss_mb": 387,
+   "wer": 0.0,
+   "lead_p50_s": 0.0,
+   "sentences": [
+    {
+     "id": "a",
+     "text": "Okay, I'm collecting the errors first, then fixing the most common one.",
+     "heard": "Okay, I'm collecting the errors first, then fixing the most common one.",
+     "wer": 0.0,
+     "synth_ms": 186.6,
+     "audio_ms": 4670.1,
+     "lead_s": 0.0
+    },
+    {
+     "id": "b",
+     "text": "Running the tests now.",
+     "heard": "running the tests now.",
+     "wer": 0.0,
+     "synth_ms": 107.2,
+     "audio_ms": 1919.2,
+     "lead_s": 0.0
+    },
+    {
+     "id": "c",
+     "text": "80 tasks: 20 stuck, 30 failed, the rest finished with warnings. Want to start with the errors?",
+     "heard": "80 tasks. 20 stuck, 30 failed, the rest finished with warnings. Want to start with the errors?",
+     "wer": 0.0,
+     "synth_ms": 184.7,
+     "audio_ms": 7167.3,
+     "lead_s": 0.0
+    },
+    {
+     "id": "d",
+     "text": "Pull request opened; waiting for your approval to deploy.",
+     "heard": "Pull request opened, waiting for your approval to deploy,",
+     "wer": 0.0,
+     "synth_ms": 116.2,
+     "audio_ms": 3975.7,
+     "lead_s": 0.0
+    },
+    {
+     "id": "e",
+     "text": "Build finished; I took a screenshot in the iOS simulator and added it to the report.",
+     "heard": "Build finished. I took a screenshot in the iOS simulator and added it to the report.",
+     "wer": 0.0,
+     "synth_ms": 137.1,
+     "audio_ms": 5644.6,
+     "lead_s": 0.0
+    },
+    {
+     "id": "f",
+     "text": "Stopped.",
+     "heard": "stopped.",
+     "wer": 0.0,
+     "synth_ms": 93.2,
+     "audio_ms": 1331.1,
+     "lead_s": 0.527
+    },
+    {
+     "id": "g",
+     "text": "npm test passed in 42 seconds, 3 tests skipped.",
+     "heard": "NPM test passed in 42 seconds, three tests skipped.",
+     "wer": 0.0,
+     "synth_ms": 111.4,
+     "audio_ms": 3921.1,
+     "lead_s": 0.0
+    },
+    {
+     "id": "h",
+     "text": "The PR is ready for review, CI finished at 3:45 PM.",
+     "heard": "The PR is ready for review, CI finished, at 3.45 p.m.",
+     "wer": 0.0,
+     "synth_ms": 125.3,
+     "audio_ms": 4936.5,
+     "lead_s": 0.0
+    },
+    {
+     "id": "i",
+     "text": "Deployed at 14:30; the API now answers in 120 ms.",
+     "heard": "Deployed at 14:30, the API now answers in 120 milliseconds.",
+     "wer": 0.0,
+     "synth_ms": 126.1,
+     "audio_ms": 4934.1,
+     "lead_s": 0.0
+    },
+    {
+     "id": "j",
+     "text": "Still running. 5 files changed so far, about 2 minutes left.",
+     "heard": "Still running. Five files changed so far. About two minutes left.",
+     "wer": 0.0,
+     "synth_ms": 120.7,
+     "audio_ms": 4696.6,
+     "lead_s": 0.0
+    }
+   ]
+  },
+  {
+   "id": "en-supertonic3-int8-M1-s5",
+   "config": {
+    "engine": "sherpa",
+    "model": "supertonic",
+    "dir": "/tmp/enbake/models/sherpa-onnx-supertonic-3-tts-int8-2026-05-11",
+    "lang": "en",
+    "sid": 5,
+    "steps": 5,
+    "speed": 1.05
+   },
+   "device": "CPU (sherpa-onnx 2.0.2, 2 threads, int8, supertonic)",
+   "load_ms": 284.7,
+   "first_synth_ms": 623.4,
+   "synth_p50_ms": 594.65,
+   "rtf": 0.1264,
+   "max_rss_mb": 447,
+   "wer": 0.019,
+   "lead_p50_s": 0.534,
+   "sentences": [
+    {
+     "id": "a",
+     "text": "Okay, I'm collecting the errors first, then fixing the most common one.",
+     "heard": "Okay, I'm collecting the errors first, then fixing the most common one.",
+     "wer": 0.0,
+     "synth_ms": 623.4,
+     "audio_ms": 4831.2,
+     "lead_s": 0.631
+    },
+    {
+     "id": "b",
+     "text": "Running the tests now.",
+     "heard": "Running the tests now.",
+     "wer": 0.0,
+     "synth_ms": 286.8,
+     "audio_ms": 1820.4,
+     "lead_s": 0.369
+    },
+    {
+     "id": "c",
+     "text": "80 tasks: 20 stuck, 30 failed, the rest finished with warnings. Want to start with the errors?",
+     "heard": "80 tasks, 20 stuck, 30 failed. The rest finished with warnings. Want to start with the errors?",
+     "wer": 0.0,
+     "synth_ms": 957.7,
+     "audio_ms": 8469.6,
+     "lead_s": 0.574
+    },
+    {
+     "id": "d",
+     "text": "Pull request opened; waiting for your approval to deploy.",
+     "heard": "Pull request opened. Waiting for your approval to deploy.",
+     "wer": 0.0,
+     "synth_ms": 500.5,
+     "audio_ms": 3624.2,
+     "lead_s": 0.44
+    },
+    {
+     "id": "e",
+     "text": "Build finished; I took a screenshot in the iOS simulator and added it to the report.",
+     "heard": "Build finished. I took a screenshot in the iOS simulator and added it to the report.",
+     "wer": 0.0,
+     "synth_ms": 752.9,
+     "audio_ms": 5983.7,
+     "lead_s": 0.606
+    },
+    {
+     "id": "f",
+     "text": "Stopped.",
+     "heard": "Stopped.",
+     "wer": 0.0,
+     "synth_ms": 250.8,
+     "audio_ms": 1309.9,
+     "lead_s": 0.373
+    },
+    {
+     "id": "g",
+     "text": "npm test passed in 42 seconds, 3 tests skipped.",
+     "heard": "NPN test passed in 42 seconds. Three tests skipped.",
+     "wer": 0.1,
+     "synth_ms": 586.7,
+     "audio_ms": 4622.1,
+     "lead_s": 0.592
+    },
+    {
+     "id": "h",
+     "text": "The PR is ready for review, CI finished at 3:45 PM.",
+     "heard": "The PR is ready for review. CI finished at 3.45 p.m.",
+     "wer": 0.0,
+     "synth_ms": 591.9,
+     "audio_ms": 4928.9,
+     "lead_s": 0.532
+    },
+    {
+     "id": "i",
+     "text": "Deployed at 14:30; the API now answers in 120 ms.",
+     "heard": "Deployed at 14:30, the API now answers in 120 miles.",
+     "wer": 0.077,
+     "synth_ms": 597.4,
+     "audio_ms": 4692.8,
+     "lead_s": 0.416
+    },
+    {
+     "id": "j",
+     "text": "Still running. 5 files changed so far, about 2 minutes left.",
+     "heard": "Still running. Five files changed so far. About two minutes left.",
+     "wer": 0.0,
+     "synth_ms": 618.4,
+     "audio_ms": 5330.8,
+     "lead_s": 0.536
+    }
+   ]
+  }
+ ]
+}
