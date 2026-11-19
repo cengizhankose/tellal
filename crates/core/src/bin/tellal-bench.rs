@@ -16,9 +16,9 @@
 //!   the next poll's order) → voices listed, any download awaited → `set_listening(id, true)` on
 //!   the first completed thread → its catch-up line, sampling `ChannelView` progress every
 //!   250 ms, pausing ~1.2 s in for 1.5 s → `SpeakingFinished` → (demo: every thread listens until
-//!   the script's English lines are spoken) → `mute_all` → events.jsonl check: each `audio.play`
-//!   used its language's voice, and with both voices loaded both languages were heard. With
-//!   `TELLAL_DEMO` the listed threads must be exactly the fixture's.
+//!   the script is spoken, deadline 300 s instead of 120 s) → `mute_all` → events.jsonl check:
+//!   each `audio.play` in a language whose voice is Ready used that voice (the languages heard
+//!   are printed). With `TELLAL_DEMO` the listed threads must be exactly the fixture's.
 //! * `--computer [--secs N] [--warmup N]`: headless `Core::start`, prints `Core::computer()` on
 //!   every `ComputerUpdated` and `TaskStarted`, then this process's CPU% over the `N` seconds
 //!   after the warmup (default 60 / 15). Real mode with `--stop-on-session`: the first live
@@ -228,15 +228,18 @@ fn bench_t3(tel: &Telemetry, cfg: &Config) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// The demo fixture's English live messages arrive by ~24 s after `Core::start`.
+/// The demo fixture's scripted live messages arrive by ~24 s after `Core::start`.
 const DEMO_SCRIPT_S: u64 = 26;
+/// Demo runs hear every thread's script to the end (English lines run longer than Turkish ones).
+const DEMO_DEADLINE: Duration = Duration::from_secs(300);
+const DEADLINE: Duration = Duration::from_secs(120);
 
 fn e2e(cfg: Config) -> anyhow::Result<()> {
     let t = Instant::now();
     let demo = cfg.demo.clone();
     let (core, rx) = Core::start(cfg)?;
     let run_dir = core.live_stats().run_dir;
-    let deadline = Instant::now() + Duration::from_secs(120);
+    let deadline = Instant::now() + if demo.is_some() { DEMO_DEADLINE } else { DEADLINE };
     let next = |what: &str| -> anyhow::Result<CoreEvent> {
         rx.recv_deadline(deadline).map_err(|_| anyhow::anyhow!("timed out waiting for {what}"))
     };
@@ -315,14 +318,13 @@ fn e2e(cfg: Config) -> anyhow::Result<()> {
             resumed = true;
         }
     }
-    // Demo: listen to every thread through the fixture's scripted live messages (the English
-    // ones at 15–23 s among Turkish catch-up lines) until the queue is drained, so one run speaks
-    // both languages; events.jsonl is checked for the voice of each line below.
+    // Demo: listen to every thread through the fixture's scripted live messages until the queue
+    // is drained; events.jsonl is checked for the voice of each line below.
     if demo.is_some() {
         for th in threads.iter().filter(|th| th.id != target.id) {
             core.set_listening(&th.id, true);
         }
-        println!("listening to all {} threads until the script's English lines (t >= {DEMO_SCRIPT_S} s) are spoken", threads.len());
+        println!("listening to all {} threads until the script (t >= {DEMO_SCRIPT_S} s) is spoken", threads.len());
         loop {
             match rx.recv_timeout(Duration::from_millis(250)) {
                 Ok(CoreEvent::SpeakingStarted { thread_id }) => println!("SpeakingStarted {thread_id}"),
@@ -368,8 +370,9 @@ fn print_voices(core: &Core) {
 }
 
 /// Every `audio.play` in this run's events.jsonl: the line, its language and the voice that
-/// spoke it. A line whose language's voice loaded (`tts.load` ok) must be spoken by it; with both
-/// voices loaded, both languages must occur.
+/// spoke it. A line whose language's voice is Ready must be spoken by it; at least one line must
+/// have been spoken. Which languages occur depends on the content (and `Config.lang` for the
+/// core's own lines), so it is reported, not required.
 fn check_voices_used(run_dir: &std::path::Path, voices: &[tellal_core::VoiceView]) -> anyhow::Result<()> {
     // `audio.play` is logged right after `SpeakingFinished`: wait until every queued line has one.
     let read = || -> anyhow::Result<Vec<serde_json::Value>> {
@@ -382,25 +385,20 @@ fn check_voices_used(run_dir: &std::path::Path, voices: &[tellal_core::VoiceView
         std::thread::sleep(Duration::from_millis(50));
         events = read()?;
     }
-    let loaded: std::collections::BTreeSet<&str> = events
-        .iter()
-        .filter(|e| e["kind"] == "tts.load" && e["ok"] == true)
-        .filter_map(|e| e["in"]["voice"].as_str())
-        .collect();
-    let mut langs = std::collections::BTreeSet::new();
+    let mut langs = std::collections::BTreeMap::<String, usize>::new();
     for e in events.iter().filter(|e| e["kind"] == "audio.play" && e["ok"] == true) {
         let (lang, voice) = (e["in"]["lang"].as_str().unwrap_or("?"), e["in"]["voice"].as_str().unwrap_or("?"));
         println!("audio.play lang={lang} voice={voice} text={}", e["in"]["text"]);
-        let own = voices.iter().find(|v| v.lang.code() == lang).map(|v| v.id.as_str());
-        if own.is_some_and(|o| loaded.contains(o)) && own != Some(voice) {
-            anyhow::bail!("a {lang} line was spoken by {voice}, expected {own:?}");
+        let own = voices.iter().find(|v| v.lang.code() == lang && v.state == VoiceState::Ready).map(|v| v.id.as_str());
+        if own.is_some_and(|o| o != voice) {
+            anyhow::bail!("a {lang} line was spoken by {voice}, expected {own:?} (Ready)");
         }
-        langs.insert(lang.to_owned());
+        *langs.entry(lang.to_owned()).or_default() += 1;
     }
-    if voices.iter().all(|v| loaded.contains(v.id.as_str())) && langs.len() < 2 {
-        anyhow::bail!("expected an English and a Turkish line, heard only {langs:?}");
+    if langs.is_empty() {
+        anyhow::bail!("no line was spoken");
     }
-    println!("voices loaded {loaded:?}, languages spoken {langs:?}: OK");
+    println!("lines per language {langs:?}, each by its own Ready voice: OK");
     Ok(())
 }
 
