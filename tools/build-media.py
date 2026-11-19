@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Builds docs/media from the recordings `tools/record-demo.sh <root> all` makes.
 
-Usage: tools/build-media.py <root-dir> [<media-dir>]   (default docs/media)
+Usage: tools/build-media.py <root-dir> [<media-dir>] [--lang tr|en]
+       (default tr → docs/media; en → docs/media/en, from runs recorded with `record-demo.sh … en`)
 
 <root-dir> holds one run dir per recording: `demo-dark`, `demo-light` (TELLAL_SELFTEST=demo) and
 one per README clip (`listen`, `summary`, `attention`, `reply`, `new-task`, `computer`, `theme`;
@@ -11,11 +12,12 @@ audio/*.wav from a silent (TELLAL_OUTPUT_VOLUME=0) run.
 
 * Audio: every `audio.play` WAV is placed at its playback start (event time - play_ms), with the
   pauses of `toggle_pause` clicks on its thread cut in, mixed to one 48 kHz track.
-* Captions: English, from demo/fixture.json (`en`, `dictation_en`, `ack_en`, the new task's
-  `en`s, a waiting step's `en` for the spoken "senden cevap bekliyor."), shown while the Turkish
-  line plays; dictated text is captioned while it sits in the dock.
-* Clips: a window of each clip run around its beats (`ui.selftest_action`), a title on top, the
-  Turkish UI words it shows translated in a badge, captions below.
+* Captions: English. Turkish runs (`--lang tr`): from demo/fixture.json (`en`, `dictation_en`,
+  `ack_en`, the new task's `en`s, a waiting step's `en` for the spoken "senden cevap bekliyor."),
+  shown while the Turkish line plays. English runs (`--lang en`): the spoken line itself. Dictated
+  text is captioned while it sits in the dock.
+* Clips: a window of each clip run around its beats (`ui.selftest_action`), a title on top, a
+  badge (Turkish runs: the Turkish UI words it shows, translated), captions below.
 * Stills: frames of the recordings at `ui.selftest_state` times.
 
 A run that received real clicks or keys (the window sits where a live panel would) is refused.
@@ -43,7 +45,10 @@ FPS = 30
 RATE = 48000
 NAME = "Tellal"
 TAGLINE = "A voice for your T3 Code agents."
-FOOTNOTE = "Turkish voice · runs on your Mac · open source"
+FOOTNOTES = {"tr": "Turkish voice · runs on your Mac · open source",
+             "en": "English & Turkish voice · runs on your Mac · open source"}
+# `--lang` (main): the recordings' UI and speech language.
+LANG = "tr"
 REPO_URL = "github.com/cengizhankose/tellal"
 
 BG_TOP = (24, 24, 28)
@@ -57,14 +62,16 @@ KEY_FILL = (44, 44, 50)
 CUES = {
     "listen": "Unmute a thread: a catch-up line, then live narration",
     "attention": "Another agent is waiting for you",
-    "reply": "Cevapla (Reply): answer by voice",
+    "reply": {"tr": "Cevapla (Reply): answer by voice", "en": "Reply: answer by voice"},
     "send": "Sent. The agent answers out loud",
     "pause": "Pause and resume mid-sentence",
     "compact": "Compact: just the player",
     "drawer": "Metrics: everything runs on this Mac",
-    "computer": "An agent is using the screen; Durdur (Stop) ends it",
+    "computer": {"tr": "An agent is using the screen; Durdur (Stop) ends it",
+                 "en": "An agent is using the screen; Stop ends it"},
     "new_task": "+ starts a new task by voice",
 }
+# crates/core/src/extract.rs (catch-up line of a running thread, Turkish)
 STILL_PREFIX = "Hâlâ çalışıyor."
 # crates/core/src/live.rs WAIT_TEXT
 WAIT_TEXT = "senden cevap bekliyor."
@@ -152,6 +159,11 @@ class Run:
         if foreign:
             raise SystemExit(f"{root}: real input during the recording ({foreign[0]['kind']} "
                              f"{json.dumps(foreign[0]['in'])}); record it again")
+        # Runs from before TELLAL_LANG existed were Turkish.
+        lang = next((e["in"]["config"].get("lang", "tr") for e in events if e["kind"] == "app.start"), "tr")
+        if lang != LANG:
+            raise SystemExit(f"{root}: recorded in {lang!r}, building --lang {LANG}; record it with "
+                             f"`tools/record-demo.sh … {LANG}`")
         duration = float(run("ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
                              str(root / "panel.mov")))
         return Run(root, events, start["first_frame_unix_ms"], duration)
@@ -203,7 +215,10 @@ class Fixture:
         return self.titles.get(thread) or self.new_task.get("title", "")
 
     def english(self, spoken: str, thread: str) -> str:
-        """The fixture's English for a spoken Turkish line (catch-up lines get `Still working.`)."""
+        """English runs: the spoken line. Turkish runs: the fixture's English for it (catch-up
+        lines get `Still working.`)."""
+        if LANG == "en":
+            return re.sub(r"\s+", " ", re.sub(r"[`*_]", "", spoken.replace("🔊", " "))).strip()
         if norm(spoken).endswith(norm(WAIT_TEXT)) and thread in self.waits:
             return self.waits[thread]
         prefix = ""
@@ -299,7 +314,8 @@ def cue_spans(r: Run) -> list[Caption]:
                 # These stay up until the next cue.
                 nxt = next((a for a in acts[i + 1:] if a["in"]["beat"] in CUES), None)
                 end = r.t(nxt) if nxt else r.duration
-            out.append(Caption(r.t(e), max(end, r.t(e) + 2.0), "", CUES[beat], "cue"))
+            cue = CUES[beat] if isinstance(CUES[beat], str) else CUES[beat][LANG]
+            out.append(Caption(r.t(e), max(end, r.t(e) + 2.0), "", cue, "cue"))
     return out
 
 
@@ -546,7 +562,7 @@ def social_card(panel: Image.Image, mark: Mark, out: Path) -> None:
     for line in wrap(d, TAGLINE, font(46, "Semibold"), w - tx - 60):
         d.text((tx, y2), line, font=font(46, "Semibold"), fill=TEXT)
         y2 += 58
-    d.text((tx, y2 + 22), FOOTNOTE, font=font(26, "Medium"), fill=MUTED)
+    d.text((tx, y2 + 22), FOOTNOTES[LANG], font=font(26, "Medium"), fill=MUTED)
     d.text((tx, h - 110), REPO_URL, font=font(30, "Semibold"), fill=ACCENT)
     img.convert("RGB").save(out, optimize=True)
 
@@ -584,22 +600,26 @@ SOCIAL_OUTRO = 2.5
 
 
 def badges(clip: Clip, r: Run, end: float) -> list[Caption]:
-    """The Turkish UI words a clip shows, in English, and the computer-use shortcut."""
+    """Turkish runs: the Turkish UI words a clip shows, in English. Both: the computer-use
+    shortcut and the T3 switch."""
     a = r.action
+    en = LANG == "en"
     if clip.name == "attention":
         # Once the card has slid in.
-        return [Caption(a("attention") + 0.3, end, "", "seni bekliyor = is waiting for you", "badge")]
+        return [] if en else [Caption(a("attention") + 0.3, end, "", "seni bekliyor = is waiting for you", "badge")]
     if clip.name == "reply":
-        return [Caption(a("reply") - 0.2, a("send"), "", "Cevapla = Reply: you dictate", "badge"),
-                Caption(a("send"), end, "", "Gönder = Send", "badge")]
+        return [Caption(a("reply") - 0.2, a("send"), "", "Reply: you dictate" if en else "Cevapla = Reply: you dictate",
+                        "badge"),
+                Caption(a("send"), end, "", "Send" if en else "Gönder = Send", "badge")]
     if clip.name == "new-task":
         return [Caption(a("new_task") - 0.2, a("task_send"), "", "+ = New task: you dictate", "badge"),
-                Caption(a("task_send"), end, "", "Gönder = Send", "badge")]
+                Caption(a("task_send"), end, "", "Send" if en else "Gönder = Send", "badge")]
     if clip.name == "computer":
         stop = a("computer_stop") - 0.4
-        return [Caption(a("computer") - 0.2, stop, "", "Ajan ekranını kullanıyor = an agent is using your screen",
-                        "badge"),
-                Caption(stop, end, "", "Durdur = Stop. From any app:", "badge", ["⌃", "⌥", "⎋"])]
+        return [Caption(a("computer") - 0.2, stop, "", "An agent is using your screen" if en else
+                        "Ajan ekranını kullanıyor = an agent is using your screen", "badge"),
+                Caption(stop, end, "", "Stop. From any app:" if en else "Durdur = Stop. From any app:", "badge",
+                        ["⌃", "⌥", "⎋"])]
     if clip.name == "theme":
         return [Caption(a("t3_light"), a("t3_dark"), "", "In T3: appearance → Light", "badge"),
                 Caption(a("t3_dark"), end, "", "In T3: appearance → Dark", "badge")]
@@ -668,7 +688,7 @@ def social_sizzle(clips: list[tuple[Path, float, float]], mark: Mark, out: Path,
     wordmark(intro, mark, w / 2, 470, 120, center=True)
     d = ImageDraw.Draw(intro)
     d.text((w / 2, 680), TAGLINE, font=font(50, "Semibold"), fill=TEXT, anchor="mm")
-    d.text((w / 2, 760), FOOTNOTE, font=font(30, "Medium"), fill=MUTED, anchor="mm")
+    d.text((w / 2, 760), FOOTNOTES[LANG], font=font(30, "Medium"), fill=MUTED, anchor="mm")
     outro = background(w, h)
     wordmark(outro, mark, w / 2, 430, 110, center=True)
     d = ImageDraw.Draw(outro)
@@ -712,10 +732,16 @@ def social_sizzle(clips: list[tuple[Path, float, float]], mark: Mark, out: Path,
 
 
 def main() -> None:
-    if len(sys.argv) not in (2, 3):
+    global LANG
+    args = sys.argv[1:]
+    if "--lang" in args:
+        i = args.index("--lang")
+        LANG = args[i + 1] if i + 1 < len(args) else ""
+        del args[i:i + 2]
+    if LANG not in FOOTNOTES or len(args) not in (1, 2):
         sys.exit(__doc__)
-    root = Path(sys.argv[1])
-    media = Path(sys.argv[2]) if len(sys.argv) == 3 else REPO / "docs/media"
+    root = Path(args[0])
+    media = Path(args[1]) if len(args) == 2 else REPO / "docs/media" / ("en" if LANG == "en" else "")
     (media / "clips").mkdir(parents=True, exist_ok=True)
     dark, light = Run.load(root / "demo-dark"), Run.load(root / "demo-light")
     runs = {c.name: Run.load(root / c.name) for c in CLIPS}
@@ -736,7 +762,7 @@ def main() -> None:
         d = ImageDraw.Draw(base)
         wordmark(base, mark, 900, 82, 72)
         d.text((900, 195), TAGLINE, font=font(40, "Semibold"), fill=MUTED)
-        d.text((900, 1010), FOOTNOTE, font=font(28, "Medium"), fill=MUTED)
+        d.text((900, 1010), FOOTNOTES[LANG], font=font(28, "Medium"), fill=MUTED)
         # Ends as the new task's acknowledgement ends (the run mutes what follows).
         end = before_muted(speech, dark.action("heard"))
         compose_video(dark, captions, audio, land, base, media / "demo.mp4", tmp, (0.0, end))

@@ -23,7 +23,7 @@ use crate::speech::{MessageSource, Speech};
 use crate::t3::{self, Message, Meta, ProjectMeta, RawThread};
 use crate::telemetry::{Telemetry, lock, ms, now_unix_ms, rfc3339_from_ms};
 use crate::{
-    ComputerSession, ComputerView, Config, CoreEvent, NEW_TASK, ProjectIcon, ThreadView, latest_model, task_argv,
+    ComputerSession, ComputerView, Config, CoreEvent, Lang, NEW_TASK, ProjectIcon, ThreadView, latest_model, task_argv,
     task_title,
 };
 
@@ -86,6 +86,9 @@ struct FxThread {
     /// Spoken speaker label (else derived from the title).
     #[serde(default)]
     label: Option<String>,
+    /// English speaker label (`TELLAL_LANG=en`; else derived from the title).
+    #[serde(default)]
+    label_en: Option<String>,
     status: String,
     #[serde(default)]
     provider: String,
@@ -134,6 +137,9 @@ struct FxStep {
     text: Option<String>,
     #[serde(default)]
     en: Option<String>,
+    /// The whole English text (`TELLAL_LANG=en`), when the body is not English already.
+    #[serde(default)]
+    text_en: Option<String>,
     #[serde(default)]
     status: Option<String>,
     /// `true`: an approval request starts waiting for the user; `false`: it is gone.
@@ -226,6 +232,9 @@ struct FxTaskStep {
     text: String,
     #[serde(default)]
     en: Option<String>,
+    /// The whole English text (`TELLAL_LANG=en`), when the body is not English already.
+    #[serde(default)]
+    text_en: Option<String>,
     #[serde(default)]
     status: Option<String>,
 }
@@ -287,6 +296,48 @@ fn validate(fx: &Fixture) -> anyhow::Result<()> {
             if s.text.trim().is_empty() || s.status.as_deref().is_some_and(|st| st.trim().is_empty()) {
                 bail!("new_task: step at {} s has an empty text or status", s.after_s);
             }
+        }
+    }
+    Ok(())
+}
+
+/// `TELLAL_LANG=en`: every Turkish text the demo shows or speaks becomes its English field. A
+/// text with a `🔊` line keeps its (English) body and speaks `en` (`text_en` replaces the whole
+/// text, for bodies that name Turkish paths); any other text becomes `en`. Missing English is an
+/// error, so an English run never speaks Turkish.
+fn to_english(fx: &mut Fixture) -> anyhow::Result<()> {
+    fn spoken(text: &mut String, en: Option<&str>, full: Option<&str>, what: &dyn std::fmt::Display) -> anyhow::Result<()> {
+        if let Some(full) = full {
+            *text = full.to_owned();
+            return Ok(());
+        }
+        let Some(en) = en else { bail!("{what}: no English (`en`)") };
+        *text = match text.find("🔊") {
+            Some(at) => format!("{}🔊 {en}", &text[..at]),
+            None => en.to_owned(),
+        };
+        Ok(())
+    }
+    for t in &mut fx.threads {
+        t.label = t.label_en.take();
+        for m in &mut t.messages {
+            spoken(&mut m.text, m.en.as_deref(), None, &format_args!("thread {:?}: message", t.id))?;
+        }
+        for s in &mut t.script {
+            if let Some(text) = &mut s.text {
+                spoken(text, s.en.as_deref(), s.text_en.as_deref(), &format_args!("thread {:?}: step at {} s", t.id, s.at_s))?;
+            }
+        }
+        if let Some(r) = &mut t.reply {
+            spoken(&mut r.dictation, r.dictation_en.as_deref(), None, &format_args!("thread {:?}: reply dictation", t.id))?;
+            spoken(&mut r.ack, r.ack_en.as_deref(), None, &format_args!("thread {:?}: reply ack", t.id))?;
+        }
+    }
+    if let Some(nt) = &mut fx.new_task {
+        spoken(&mut nt.dictation, nt.dictation_en.as_deref(), None, &"new_task: dictation")?;
+        spoken(&mut nt.ack, nt.ack_en.as_deref(), None, &"new_task: ack")?;
+        for s in &mut nt.steps {
+            spoken(&mut s.text, s.en.as_deref(), s.text_en.as_deref(), &format_args!("new_task: step at {} s", s.after_s))?;
         }
     }
     Ok(())
@@ -384,7 +435,13 @@ impl Demo {
         let parsed = std::fs::read(path)
             .with_context(|| format!("read demo fixture {}", path.display()))
             .and_then(|b| serde_json::from_slice::<Fixture>(&b).with_context(|| format!("parse demo fixture {}", path.display())))
-            .and_then(|fx| validate(&fx).map(|()| fx));
+            .and_then(|fx| validate(&fx).map(|()| fx))
+            .and_then(|mut fx| {
+                if cfg.lang == Lang::En {
+                    to_english(&mut fx)?;
+                }
+                Ok(fx)
+            });
         let mut fx = match parsed {
             Ok(fx) => fx,
             Err(e) => {
@@ -1099,7 +1156,7 @@ mod tests {
         // Shaped like the real cua-driver's sessions: a client, no app or action label.
         assert!(c.sessions.iter().all(|s| s.app.is_none() && s.action.is_none()), "computer sessions real-shaped");
         for t in &fx.threads {
-            assert!(t.label.is_some(), "{}: label", t.id);
+            assert!(t.label.is_some() && t.label_en.is_some(), "{}: label", t.id);
             assert!(t.messages.iter().filter(|m| m.role == "assistant").all(|m| m.en.is_some()), "{}: message en", t.id);
             assert!(t.script.iter().filter(|s| s.text.is_some() || s.waiting == Some(true)).all(|s| s.en.is_some()), "{}: step en", t.id);
             if let Some(r) = &t.reply {
@@ -1110,5 +1167,34 @@ mod tests {
                       "created_ago_s": 1, "updated_ago_s": 1}]}"#;
         assert!(validate(&serde_json::from_str(bad).expect("parses")).is_err());
         assert!(serde_json::from_str::<Fixture>(r#"{"projects": [], "threads": [], "typo": 1}"#).is_err());
+    }
+
+    /// `TELLAL_LANG=en`: no Turkish letter is left in anything the demo shows or speaks, and
+    /// the summary line keeps its grouped numbers.
+    #[test]
+    fn repo_fixture_in_english() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../demo/fixture.json");
+        let mut fx: Fixture = serde_json::from_slice(&std::fs::read(path).expect("fixture readable")).expect("fixture parses");
+        to_english(&mut fx).expect("fixture has English");
+        let turkish = |s: &str| s.chars().any(|c| "çğıöşüÇĞİÖŞÜâ".contains(c));
+        let mut texts: Vec<&str> = Vec::new();
+        for t in &fx.threads {
+            texts.extend(t.label.as_deref());
+            texts.extend(t.messages.iter().map(|m| m.text.as_str()));
+            texts.extend(t.script.iter().filter_map(|s| s.text.as_deref()));
+            texts.extend(t.reply.iter().flat_map(|r| [r.dictation.as_str(), r.ack.as_str()]));
+        }
+        let nt = fx.new_task.as_ref().expect("new_task");
+        texts.extend([nt.dictation.as_str(), nt.ack.as_str(), nt.title.as_str()]);
+        texts.extend(nt.steps.iter().map(|s| s.text.as_str()));
+        for text in &texts {
+            assert!(!turkish(text), "Turkish left: {text:?}");
+        }
+        let batch = fx.threads.iter().find(|t| t.id == "t-batch").expect("t-batch");
+        let summary = batch.script[0].text.as_deref().expect("summary text");
+        assert!(summary.starts_with("Batch finished"), "body kept: {summary:?}");
+        assert!(summary.ends_with("🔊 Of the 80 tasks, 20 got stuck, 30 failed, the rest finished with warnings. Shall we start with the errors?"));
+        let reply = fx.threads[0].reply.as_ref().expect("reply");
+        assert_eq!(reply.ack, "🔊 Okay, pushing the fix. I'll drop the PR link here once it's open.");
     }
 }

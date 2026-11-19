@@ -11,7 +11,7 @@
   ],
   "threads": [
     {
-      "id": "t-checkout", "project": "p-web", "title": "Fix flaky checkout tests", "label": "Ödeme testleri",
+      "id": "t-checkout", "project": "p-web", "title": "Fix flaky checkout tests", "label": "Ödeme testleri", "label_en": "Checkout tests",
       "status": "running", "provider": "claude", "model": "claude-sonnet-4-5",
       "pinned": false, "settled": false, "snoozed": false,
       "created_ago_s": 840, "updated_ago_s": 40, "running_for_s": 780,
@@ -34,7 +34,7 @@
       }
     },
     {
-      "id": "t-backfill", "project": "p-billing", "title": "Backfill currency on legacy invoices", "label": "Fatura göçü",
+      "id": "t-backfill", "project": "p-billing", "title": "Backfill currency on legacy invoices", "label": "Fatura göçü", "label_en": "Billing migration",
       "status": "running", "provider": "codex", "model": "gpt-5-codex",
       "pinned": false, "settled": false, "snoozed": false,
       "created_ago_s": 2100, "updated_ago_s": 300, "running_for_s": 1320,
@@ -55,7 +55,7 @@
       }
     },
     {
-      "id": "t-crash", "project": "p-mobile", "title": "Investigate Android crash on resume", "label": "Android çökmesi",
+      "id": "t-crash", "project": "p-mobile", "title": "Investigate Android crash on resume", "label": "Android çökmesi", "label_en": "Android crash",
       "status": "running", "provider": "omp", "model": "claude-sonnet-4-5",
       "pinned": false, "settled": false, "snoozed": false,
       "created_ago_s": 3300, "updated_ago_s": 90, "running_for_s": 2700,
@@ -73,7 +73,7 @@
       ]
     },
     {
-      "id": "t-notes", "project": "scratch", "title": "Write meeting notes in TextEdit", "label": "Toplantı notları",
+      "id": "t-notes", "project": "scratch", "title": "Write meeting notes in TextEdit", "label": "Toplantı notları", "label_en": "Meeting notes",
       "status": "running", "provider": "omp", "model": "claude-sonnet-4-5",
       "pinned": false, "settled": false, "snoozed": false,
       "created_ago_s": 900, "updated_ago_s": 30, "running_for_s": 900,
@@ -87,11 +87,12 @@
         {"at_s": 67, "text": "Belgeyi masaüstüne toplantı notları adıyla kaydettim.", "en": "I saved the document to the desktop as meeting notes."},
         {"at_s": 73, "status": "completed",
          "text": "Saved `~/Desktop/Toplantı Notları.rtf`: 3 decisions, 2 action items with owners.\n\n🔊 Toplantı notları TextEdit'te yazıldı ve masaüstüne kaydedildi.",
+         "text_en": "Saved `~/Desktop/Meeting Notes.rtf`: 3 decisions, 2 action items with owners.\n\n🔊 The meeting notes were written in TextEdit and saved to the desktop.",
          "en": "The meeting notes were written in TextEdit and saved to the desktop."}
       ]
     },
     {
-      "id": "t-batch", "project": "p-web", "title": "Run 80 refactor tasks in a batch", "label": "Toplu görevler",
+      "id": "t-batch", "project": "p-web", "title": "Run 80 refactor tasks in a batch", "label": "Toplu görevler", "label_en": "Batch tasks",
       "status": "running", "provider": "codex", "model": "gpt-5-codex",
       "pinned": false, "settled": false, "snoozed": false,
       "created_ago_s": 11700, "updated_ago_s": 120, "running_for_s": 11520,
@@ -102,11 +103,11 @@
       "script": [
         {"at_s": 15, "status": "completed",
          "text": "Batch finished: 80 tasks in 3 h 12 min.\n\n- 30 failed: `batch/errors.md`\n- 20 stuck on a timeout: `batch/stuck.md`\n- 30 finished with warnings\n\n🔊 80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?",
-         "en": "Of the 80 tasks, 20 got stuck, 30 failed and the rest finished with warnings. Shall we start with the errors?"}
+         "en": "Of the 80 tasks, 20 got stuck, 30 failed, the rest finished with warnings. Shall we start with the errors?"}
       ]
     },
     {
-      "id": "t-onboarding", "project": "p-mobile", "title": "Redesign onboarding screens", "label": "Karşılama ekranları",
+      "id": "t-onboarding", "project": "p-mobile", "title": "Redesign onboarding screens", "label": "Karşılama ekranları", "label_en": "Onboarding",
       "status": "completed", "provider": "omp", "model": "gpt-5",
       "pinned": false, "settled": false, "snoozed": false,
       "created_ago_s": 7200, "updated_ago_s": 360,
@@ -118,7 +119,7 @@
       ]
     },
     {
-      "id": "t-release", "project": "p-mobile", "title": "Prepare release notes", "label": "Sürüm notları",
+      "id": "t-release", "project": "p-mobile", "title": "Prepare release notes", "label": "Sürüm notları", "label_en": "Release notes",
       "status": "completed", "provider": "codex", "model": "gpt-5-codex",
       "pinned": true, "settled": false, "snoozed": false,
       "created_ago_s": 93600, "updated_ago_s": 3000,
@@ -130,7 +131,7 @@
       ]
     },
     {
-      "id": "t-react19", "project": "p-web", "title": "Upgrade to React 19", "label": "React 19 geçişi",
+      "id": "t-react19", "project": "p-web", "title": "Upgrade to React 19", "label": "React 19 geçişi", "label_en": "React 19 upgrade",
       "status": "idle", "provider": "cursor", "model": "composer-1",
       "pinned": false, "settled": false, "snoozed": true,
       "created_ago_s": 10800, "updated_ago_s": 7200,
@@ -140,7 +141,7 @@
       ]
     },
     {
-      "id": "t-idempotency", "project": "p-billing", "title": "Add idempotency keys to payment API", "label": "Ödeme anahtarları",
+      "id": "t-idempotency", "project": "p-billing", "title": "Add idempotency keys to payment API", "label": "Ödeme anahtarları", "label_en": "Payment keys",
       "status": "completed", "provider": "claude", "model": "claude-opus-4-1",
       "pinned": false, "settled": true, "snoozed": false,
       "created_ago_s": 18000, "updated_ago_s": 10800,
@@ -181,6 +182,7 @@
       {"after_s": 12, "text": "Her gün için bir klasör açtım, dosyaları taşıyorum.", "en": "I made a folder for each day and I'm moving the files."},
       {"after_s": 18, "status": "completed",
        "text": "Moved 37 screenshots into 9 dated folders under `~/Desktop/Ekran Görüntüleri/`.\n\n🔊 Ekran görüntüleri 9 tarih klasörüne taşındı, masaüstü artık temiz.",
+       "text_en": "Moved 37 screenshots into 9 dated folders under `~/Desktop/Screenshots/`.\n\n🔊 The screenshots were moved into 9 date folders; the desktop is clean now.",
        "en": "The screenshots were moved into 9 date folders; the desktop is clean now."}
     ]
   }

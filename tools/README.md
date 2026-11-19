@@ -16,34 +16,45 @@ real T3 threads, and only the panel's own window is captured. The icon is drawn 
 ## Re-recording
 
 Needs macOS 14+, Xcode command line tools (`swiftc`, `swift`), `ffmpeg`/`ffprobe`, Python 3.10+
-with `numpy` and `Pillow`, the voice model (`scripts/fetch-models.sh`), and Screen Recording
-permission for the terminal that runs the scripts (System Settings → Privacy & Security → Screen
-Recording).
+with `numpy` and `Pillow`, the voice of the language you record (`scripts/fetch-models.sh tr` or
+`scripts/fetch-models.sh en`), an unlocked screen (a locked Mac draws no new frames), and Screen
+Recording permission for the terminal that runs the scripts (System Settings → Privacy &
+Security → Screen Recording).
+
+Two sets, same file names: Turkish (`tr`, the default) in `docs/media`, English (`en`) in
+`docs/media/en`. The language is the last argument of `record-demo.sh` (`TELLAL_LANG` for the
+run: UI strings and the fixture's spoken text; `en` speaks the fixture's English fields with the
+English voice) and `--lang` of `build-media.py`, which refuses runs recorded in the other one.
 
 ```sh
 export CARGO_TARGET_DIR=target/ui-dev
 cargo build -p tellal --release
+# Turkish → docs/media
 tools/record-demo.sh target/ui-dev/media all       # ~8 min: 2 walkthroughs + 7 clips, window top right
-tools/build-media.py target/ui-dev/media           # → docs/media
+tools/build-media.py target/ui-dev/media
+# English → docs/media/en
+tools/record-demo.sh target/ui-dev/media-en all en
+tools/build-media.py target/ui-dev/media-en --lang en
 ```
 
 A panel that is already running is left alone (the recorded run turns both global shortcuts off).
 The recorded window sits where a normal panel would and ignores the mouse, so clicks and hover
 reach whatever is below it; `build-media.py` still refuses a run that logged a real click or key.
 
-One recording at a time (`build-media.py` needs them all, so rebuild afterwards):
+One recording at a time (`build-media.py` needs them all, so rebuild afterwards); for English
+append ` en` (and record into `target/ui-dev/media-en/…`):
 
 | Run dir | Command |
 |---|---|
 | `demo-dark` | `tools/record-demo.sh target/ui-dev/media/demo-dark demo dark` |
 | `demo-light` | `tools/record-demo.sh target/ui-dev/media/demo-light demo light` |
-| `listen` | `tools/record-demo.sh target/ui-dev/media/listen clip:listen:t-checkout` |
-| `summary` | `tools/record-demo.sh target/ui-dev/media/summary clip:summary:t-batch` |
-| `attention` | `tools/record-demo.sh target/ui-dev/media/attention clip:attention:t-backfill` |
-| `reply` | `tools/record-demo.sh target/ui-dev/media/reply clip:reply` |
-| `new-task` | `tools/record-demo.sh target/ui-dev/media/new-task clip:new-task` |
-| `computer` | `tools/record-demo.sh target/ui-dev/media/computer clip:computer:t-notes` |
-| `theme` | `tools/record-demo.sh target/ui-dev/media/theme clip:theme:t-onboarding` |
+| `listen` | `tools/record-demo.sh target/ui-dev/media/listen clip:listen:t-checkout dark` |
+| `summary` | `tools/record-demo.sh target/ui-dev/media/summary clip:summary:t-batch dark` |
+| `attention` | `tools/record-demo.sh target/ui-dev/media/attention clip:attention:t-backfill dark` |
+| `reply` | `tools/record-demo.sh target/ui-dev/media/reply clip:reply dark` |
+| `new-task` | `tools/record-demo.sh target/ui-dev/media/new-task clip:new-task dark` |
+| `computer` | `tools/record-demo.sh target/ui-dev/media/computer clip:computer:t-notes dark` |
+| `theme` | `tools/record-demo.sh target/ui-dev/media/theme clip:theme:t-onboarding dark` |
 
 ### The walkthrough (`TELLAL_SELFTEST=demo`)
 
@@ -88,7 +99,7 @@ captions are in the fixture.
 
 | File | From |
 |---|---|
-| `clips/<clip>.mp4` | 1080 × 1350 (4:5), 6–20 s: the clip's window of its run, title on top, a badge translating the Turkish UI words it shows (⌃⌥⎋ keycaps in `computer`, the T3 switch in `theme`), English captions below, the Turkish voice |
+| `clips/<clip>.mp4` | 1080 × 1350 (4:5), 6–20 s: the clip's window of its run, title on top, a badge (Turkish set: translating the Turkish UI words it shows; English set: naming them), ⌃⌥⎋ keycaps in `computer`, the T3 switch in `theme`, English captions below, the run's voice |
 | `clips/<clip>.gif` | the same clip, silent, 480 px wide; frame rate lowered until ≤ 4 MB |
 | `tellal-social.mp4` | 1080 × 1350, ≤ 45 s: a title card, each clip's highlight (`CLIPS[].highlight`), an end card |
 | `demo.mp4` | 1920 × 1080: the dark walkthrough, audio, English captions, cue lines |
@@ -103,11 +114,12 @@ captions are in the fixture.
   (`<run>/audio/<seq>.wav`); the WAV is placed at `event time − play_ms`, with the gaps of
   `toggle_pause` clicks on the same thread cut in, mixed and normalized. A clip cuts its window
   out of that track (never in the middle of a line at its start).
-- **Captions.** The English text comes from the fixture (`en` on messages and script steps,
-  `dictation_en`, `ack_en`, the new task's `en`s), matched to the spoken Turkish line; a catch-up
-  line (`Hâlâ çalışıyor. …`) is captioned `Still working. …`, the spoken `senden cevap bekliyor.`
-  with the waiting step's `en`. A caption shows while its line plays; dictated text is captioned
-  while it sits in the dock.
+- **Captions.** Turkish runs: the English text comes from the fixture (`en` on messages and
+  script steps, `dictation_en`, `ack_en`, the new task's `en`s), matched to the spoken Turkish
+  line; a catch-up line (`Hâlâ çalışıyor. …`) is captioned `Still working. …`, the spoken
+  `senden cevap bekliyor.` with the waiting step's `en`. English runs: the spoken English line
+  itself (no translation). A caption shows while its line plays; dictated text (`dictation_en`)
+  is captioned while it sits in the dock.
 - **Sync.** `recorder.jsonl`'s `start` event has the wall-clock time of the first video frame;
   every event time is mapped onto the video with it.
 - **Mark.** The app mark is drawn from `crates/app/assets/logo.svg` with AppKit (`swift`).
@@ -116,7 +128,8 @@ captions are in the fixture.
 
 Check the result before publishing: `ffprobe` every file, look at frames, e.g.
 `ffmpeg -i docs/media/clips/listen.mp4 -vf "fps=9/$(ffprobe -v error -show_entries format=duration -of csv=p=0 docs/media/clips/listen.mp4),scale=360:-2,tile=3x3" -frames:v 1 grid.png`,
-and read the audio back: `ffmpeg -i docs/media/clips/summary.mp4 -ar 16000 -ac 1 s.wav && whisper-cli -m ~/.cache/whisper/ggml-large-v3-turbo-q8_0.bin -l tr s.wav`.
+and read the audio back: `ffmpeg -i docs/media/clips/summary.mp4 -ar 16000 -ac 1 s.wav && whisper-cli -m ~/.cache/whisper/ggml-large-v3-turbo-q8_0.bin -l tr s.wav`
+(English set: `docs/media/en/clips/summary.mp4`, `-l en`).
 
 ### The real-T3 hero clip (`docs/media/clips/real-t3.mp4`)
 

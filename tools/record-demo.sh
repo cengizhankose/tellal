@@ -3,29 +3,38 @@
 # (ScreenCaptureKit, tools/record-window.swift). Silent: TELLAL_OUTPUT_VOLUME=0; the voice is still
 # synthesized and saved as WAVs in the run dir, so tools/build-media.py can rebuild the audio.
 #
-# Usage: tools/record-demo.sh <out-dir> [demo|shots|clip:<name>[:<thread>]] [dark|light]
-#        tools/record-demo.sh <root-dir> all    # everything tools/build-media.py needs:
-#                                               # <root-dir>/{demo-dark,demo-light,<clip>...}
+# Usage: tools/record-demo.sh <out-dir> [demo|shots|clip:<name>[:<thread>]] [dark|light] [tr|en]
+#        tools/record-demo.sh <root-dir> all [tr|en]  # everything tools/build-media.py needs:
+#                                                     # <root-dir>/{demo-dark,demo-light,<clip>...}
+# Language (default tr): TELLAL_LANG for the UI and the fixture's spoken text (`en`: its English
+# fields, spoken by the English voice; install it first: scripts/fetch-models.sh en).
 # Output: <out-dir>/panel.mov (ProRes 4444 with alpha, 2x), <out-dir>/recorder.jsonl,
 #         <out-dir>/logs/<run>/events.jsonl + audio/*.wav
 # Binary: $CARGO_TARGET_DIR/release/tellal (default target/ui-dev), built if missing.
 set -euo pipefail
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
-usage="usage: tools/record-demo.sh <out-dir> [demo|shots|clip:<name>[:<thread>]] [dark|light] | <root-dir> all"
+usage="usage: tools/record-demo.sh <out-dir> [demo|shots|clip:<name>[:<thread>]] [dark|light] [tr|en] | <root-dir> all [tr|en]"
 out="${1:?$usage}"
 mode="${2:-demo}"
-appearance="${3:-dark}"
+if [[ "$mode" == all ]]; then
+  appearance=dark
+  lang="${3:-tr}"
+else
+  appearance="${3:-dark}"
+  lang="${4:-tr}"
+fi
+[[ "$lang" == tr || "$lang" == en ]] || { echo "$usage" >&2; exit 2; }
 
 # The README clips (crates/app/src/panel/selftest.rs `Clip`) and the fixture thread each one
 # selects or tunes in to.
 clips=(listen:t-checkout summary:t-batch attention:t-backfill reply new-task computer:t-notes theme:t-onboarding)
 
 if [[ "$mode" == all ]]; then
-  "$0" "$out/demo-dark" demo dark
-  "$0" "$out/demo-light" demo light
+  "$0" "$out/demo-dark" demo dark "$lang"
+  "$0" "$out/demo-light" demo light "$lang"
   for clip in "${clips[@]}"; do
-    "$0" "$out/${clip%%:*}" "clip:$clip" dark
+    "$0" "$out/${clip%%:*}" "clip:$clip" dark "$lang"
   done
   exit
 fi
@@ -59,7 +68,7 @@ python3 "$repo/tools/t3-appearance.py" "$app_data" "$appearance" >/dev/null
 
 # TELLAL_HOTKEY / TELLAL_STOP_HOTKEY off: never compete with a panel that is already running for
 # the global shortcuts.
-TELLAL_T3_APP_DATA="$app_data" TELLAL_DEMO="$repo/demo/fixture.json" TELLAL_OUTPUT_VOLUME=0 \
+TELLAL_T3_APP_DATA="$app_data" TELLAL_DEMO="$repo/demo/fixture.json" TELLAL_LANG="$lang" TELLAL_OUTPUT_VOLUME=0 \
   TELLAL_SELFTEST="$mode" TELLAL_HOTKEY=off TELLAL_STOP_HOTKEY=off TELLAL_LOG_ROOT="$logs" \
   "$panel" >"$out/panel.stdout" 2>"$out/panel.stderr" &
 pid=$!
