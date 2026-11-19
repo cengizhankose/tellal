@@ -16,36 +16,36 @@ Needs a Mac with Apple Silicon and macOS 13.4 or newer, and [T3 Code](https://gi
 
 ## What it does
 
-Each clip is 6–20 s of the real panel running on demo data ([`demo/fixture.json`](demo/fixture.json)). The voice is Turkish; the clips have English captions. GIFs are silent; the links play with sound.
+Each clip is 6–20 s of the real panel running on demo data ([`demo/fixture.json`](demo/fixture.json)), in English with the English voice and captions (the [Turkish README](README.tr.md) shows the Turkish set). GIFs are silent; the links play with sound.
 
 | | |
 |---|---|
-| <img src="docs/media/clips/listen.gif" width="320" alt="Unmuting a running thread: a catch-up line, then live steps"> | **Listen to a thread.** Unmute it like a radio channel: one catch-up sentence, then one sentence per step while the agent works. [▶ With sound](docs/media/clips/listen.mp4) |
-| <img src="docs/media/clips/summary.gif" width="320" alt="A batch run finishes and its one-sentence summary is spoken"> | **Hear the outcome.** When a run ends you hear its one-sentence 🔊 summary ("20 of 80 tasks got stuck, 30 failed… start with the errors?"); the full report stays in T3. [▶ With sound](docs/media/clips/summary.mp4) |
-| <img src="docs/media/clips/attention.gif" width="320" alt="A thread starts waiting for approval; the attention card appears and jumps to it"> | **Know when an agent needs you.** A thread waiting for an answer or approval raises the attention card; one click jumps to it. [▶ With sound](docs/media/clips/attention.mp4) |
-| <img src="docs/media/clips/reply.gif" width="320" alt="Cevapla, dictated reply, Gönder, spoken acknowledgement"> | **Reply by voice.** `Cevapla` (Reply) starts [Wispr Flow](https://wisprflow.ai) dictation, `Gönder` (Send) passes it to the thread with `t3 thread send`, and the agent's answer is read out. [▶ With sound](docs/media/clips/reply.mp4) |
-| <img src="docs/media/clips/new-task.gif" width="320" alt="Plus button, dictated task, Gönder, the new thread is selected and narrated"> | **Start a task by voice.** `+` (or N), dictate, `Gönder`: a new T3 thread starts (`t3 thread start`) and the panel is already listening to it. [▶ With sound](docs/media/clips/new-task.mp4) |
-| <img src="docs/media/clips/computer.gif" width="320" alt="Computer-use banner with the client and its last action time, then Durdur clears it"> | **See and stop computer use.** While an agent drives the screen through [cua-driver](https://github.com/trycua/cua), a banner says so, with the client and how long ago it last acted (cua-driver reports no app or action); `Durdur` (Stop), or ⌃⌥⎋ from any app, ends every session. [▶ With sound](docs/media/clips/computer.mp4) |
-| <img src="docs/media/clips/theme.gif" width="320" alt="T3 switches from dark to light and back; the panel follows"> | **Looks like T3.** Colours and font follow the theme picked in T3, light or dark, live. [▶ With sound](docs/media/clips/theme.mp4) |
+| <img src="docs/media/en/clips/listen.gif" width="320" alt="Unmuting a running thread: a catch-up line, then live steps"> | **Listen to a thread.** Unmute it like a radio channel: one catch-up sentence, then one sentence per step while the agent works. [▶ With sound](docs/media/en/clips/listen.mp4) |
+| <img src="docs/media/en/clips/summary.gif" width="320" alt="A batch run finishes and its one-sentence summary is spoken"> | **Hear the outcome.** When a run ends you hear its one-sentence 🔊 summary ("Of the 80 tasks, 20 got stuck, 30 failed… Shall we start with the errors?"); the full report stays in T3. [▶ With sound](docs/media/en/clips/summary.mp4) |
+| <img src="docs/media/en/clips/attention.gif" width="320" alt="A thread starts waiting for approval; the attention card appears and jumps to it"> | **Know when an agent needs you.** A thread waiting for an answer or approval raises the attention card; one click jumps to it. [▶ With sound](docs/media/en/clips/attention.mp4) |
+| <img src="docs/media/en/clips/reply.gif" width="320" alt="Reply, dictated reply, Send, spoken acknowledgement"> | **Reply by voice.** `Reply` starts [Wispr Flow](https://wisprflow.ai) dictation, `Send` passes it to the thread with `t3 thread send`, and the agent's answer is read out. [▶ With sound](docs/media/en/clips/reply.mp4) |
+| <img src="docs/media/en/clips/new-task.gif" width="320" alt="Plus button, dictated task, Send, the new thread is selected and narrated"> | **Start a task by voice.** `+` (or N), dictate, `Send`: a new T3 thread starts (`t3 thread start`) and the panel is already listening to it. [▶ With sound](docs/media/en/clips/new-task.mp4) |
+| <img src="docs/media/en/clips/computer.gif" width="320" alt="Computer-use banner with the client and its last action time, then Stop clears it"> | **See and stop computer use.** While an agent drives the screen through [cua-driver](https://github.com/trycua/cua), a banner says so, with the client and how long ago it last acted (cua-driver reports no app or action); `Stop`, or ⌃⌥⎋ from any app, ends every session. [▶ With sound](docs/media/en/clips/computer.mp4) |
+| <img src="docs/media/en/clips/theme.gif" width="320" alt="T3 switches from dark to light and back; the panel follows"> | **Looks like T3.** Colours and font follow the theme picked in T3, light or dark, live. [▶ With sound](docs/media/en/clips/theme.mp4) |
 
-[Full walkthrough with sound (16:9, ~70 s)](docs/media/demo.mp4) · [45 s cut for social (4:5)](docs/media/tellal-social.mp4). macOS on Apple Silicon only (see [Install](#install)).
+[Full walkthrough with sound (16:9, ~70 s)](docs/media/en/demo.mp4) · [45 s cut for social (4:5)](docs/media/en/tellal-social.mp4). macOS on Apple Silicon only (see [Install](#install)).
 
 <details>
 <summary>Screenshots</summary>
 
 | Dark | Light |
 |---|---|
-| ![Panel, dark T3 theme](docs/media/panel-dark.png) | ![Panel, light T3 theme](docs/media/panel-light.png) |
+| ![Panel, dark T3 theme](docs/media/en/panel-dark.png) | ![Panel, light T3 theme](docs/media/en/panel-light.png) |
 
 | Now playing | Reply dock | Metrics drawer | Compact |
 |---|---|---|---|
-| ![Now playing bar](docs/media/now-playing.png) | ![Reply dock with dictation](docs/media/reply.png) | ![Metrics drawer](docs/media/drawer.png) | ![Compact mode](docs/media/compact.png) |
+| ![Now playing bar](docs/media/en/now-playing.png) | ![Reply dock with dictation](docs/media/en/reply.png) | ![Metrics drawer](docs/media/en/drawer.png) | ![Compact mode](docs/media/en/compact.png) |
 
 | Computer use | Computer-use permissions | New task by voice |
 |---|---|---|
-| ![Banner while an agent uses the screen, with Durdur](docs/media/computer.png) | ![Permission row above the status line](docs/media/computer-permissions.png) | ![Reply dock in new-task mode](docs/media/new-task.png) |
+| ![Banner while an agent uses the screen, with Stop](docs/media/en/computer.png) | ![Permission row above the status line](docs/media/en/computer-permissions.png) | ![Reply dock in new-task mode](docs/media/en/new-task.png) |
 
-![The walkthrough at 1x, silent: attention card, reply, compact mode](docs/media/demo.gif)
+![The walkthrough at 1x, silent: attention card, reply, compact mode](docs/media/en/demo.gif)
 
 </details>
 

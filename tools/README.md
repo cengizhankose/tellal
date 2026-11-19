@@ -99,7 +99,7 @@ captions are in the fixture.
 
 | File | From |
 |---|---|
-| `clips/<clip>.mp4` | 1080 × 1350 (4:5), 6–20 s: the clip's window of its run, title on top, a badge (Turkish set: translating the Turkish UI words it shows; English set: naming them), ⌃⌥⎋ keycaps in `computer`, the T3 switch in `theme`, English captions below, the run's voice |
+| `clips/<clip>.mp4` | 1080 × 1350 (4:5), 6–24 s (English lines run longer): the clip's window of its run, title on top, a badge (Turkish set: translating the Turkish UI words it shows; English set: naming them), ⌃⌥⎋ keycaps in `computer`, the T3 switch in `theme`, English captions below, the run's voice (each voice's WAVs resampled to 48 kHz) |
 | `clips/<clip>.gif` | the same clip, silent, 480 px wide; frame rate lowered until ≤ 4 MB |
 | `tellal-social.mp4` | 1080 × 1350, ≤ 45 s: a title card, each clip's highlight (`CLIPS[].highlight`), an end card |
 | `demo.mp4` | 1920 × 1080: the dark walkthrough, audio, English captions, cue lines |

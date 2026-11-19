@@ -237,9 +237,15 @@ class Fixture:
 
 
 def read_wav(path: Path) -> np.ndarray:
+    """Mono 16-bit WAV at [`RATE`] (each voice has its own rate: linear resampling)."""
     with wave.open(str(path)) as w:
-        assert w.getsampwidth() == 2 and w.getnchannels() == 1 and w.getframerate() == RATE, path
-        return np.frombuffer(w.readframes(w.getnframes()), dtype="<i2").astype(np.float32) / 32768
+        assert w.getsampwidth() == 2 and w.getnchannels() == 1, path
+        rate = w.getframerate()
+        samples = np.frombuffer(w.readframes(w.getnframes()), dtype="<i2").astype(np.float32) / 32768
+    if rate == RATE:
+        return samples
+    n = int(round(len(samples) * RATE / rate))
+    return np.interp(np.arange(n) * (rate / RATE), np.arange(len(samples)), samples).astype(np.float32)
 
 
 def build_audio(r: Run, fx: Fixture, out: Path) -> list[Caption]:
@@ -653,8 +659,9 @@ def build_clip(clip: Clip, r: Run, fx: Fixture, mark: Mark, out: Path, tmp: Path
         if c.start < start < c.end:
             start = c.start - 0.3
     end = before_muted(speech, r.action(clip.end[0]) + clip.end[1])
-    if not 6 <= end - start <= 20:
-        raise SystemExit(f"clip {clip.name}: {end - start:.1f} s (want 6–20 s)")
+    # English lines run longer than Turkish ones.
+    if not 6 <= end - start <= 24:
+        raise SystemExit(f"clip {clip.name}: {end - start:.1f} s (want 6–24 s)")
     captions = settle(speech + dictation_captions(r, fx, "speech") + badges(clip, r, end))
 
     w, h = 1080, 1350
