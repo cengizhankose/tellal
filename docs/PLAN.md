@@ -1,6 +1,6 @@
 # Tellal: endişeler ve çalışma planı
 
-Kaynak: 10 Kasım 2026 isteği (çift tık, uygulamada açma, Cevapla + Wispr, başlarken onay cümlesi, radyo kanalları + video kontrolleri). Durum sütunu v0.2 (`178fb5d` ve sonrası) itibarıyla.
+Kaynak: 10 Kasım 2026 isteği (çift tık, uygulamada açma, Cevapla + Wispr, başlarken onay cümlesi, radyo kanalları + video kontrolleri). Durum sütunu v0.4 (`cab2bcc` ve sonrası) itibarıyla.
 
 ## Endişeler → kararlar
 
@@ -23,7 +23,7 @@ Kaynak: 10 Kasım 2026 isteği (çift tık, uygulamada açma, Cevapla + Wispr, b
 | 15 | Birden çok kanal aynı anda konuşursa karışır | Tek seferde tek ses, gelen sırasıyla. Konuşan kanal değişince ya da 20 sn sessizlikten sonra önce thread başlığı okunur | ✅ |
 | 16 | Hızlı yazan agent'ta kuyruk şişer | Satırda kuyruk sayacı + "canlıya geç" | ✅ |
 | 17 | Onay/soru bekleyen thread kaçar | `seni bekliyor` rozeti; kanal dinleniyorsa "senden cevap bekliyor" okunur | ✅ (canlı denenmedi) |
-| 18 | Panelin klavye kısayolu yok | Paneli aç/kapat, geç, duraklat için global kısayollar | ⏳ Faz 3 |
+| 18 | Panelin klavye kısayolu yok | Paneli aç/kapat, geç, duraklat için global kısayollar | ◐ Global ⌃⌥Space (göster/gizle) ve ⌃⌥⎋ (bilgisayar kullanımını durdur) var; global ⏸/⏭ Faz 3 |
 
 ## Fazlar
 
@@ -48,7 +48,8 @@ Kaynak: 10 Kasım 2026 isteği (çift tık, uygulamada açma, Cevapla + Wispr, b
 
 ### Faz 4: ses ve kaynak
 - ✅ Daha doğal Türkçe ses: 59 denemelik karşılaştırmadan sonra EMA Lightning (ONNX, Rust içinde) seçildi; RSS ~250–300 MB → ~150–200 MB, tıklama→ses ~300 → 247 ms ([research/tts](../research/tts/README.md)).
-- Tek ses olarak EMA kalıyor (11 Kasım: canlı kullanımda RSS ort. 173 / en çok 209 MB, CPU ort. %6, cümle başına üretim p50 144 ms). Kalan tek fikir: tamamlanmamış (streaming) mesajın ilk cümlesini erken okumak; canlıda mesaj→ses gecikmesinin 4–6,5 sn'si T3'ün mesajı bitirmesini beklemekten geliyor, ses üretimi ~0,2 sn.
+- Türkçe ses olarak EMA kalıyor (11 Kasım: canlı kullanımda RSS ort. 173 / en çok 209 MB, CPU ort. %6, cümle başına üretim p50 144 ms). Kalan tek fikir: tamamlanmamış (streaming) mesajın ilk cümlesini erken okumak; canlıda mesaj→ses gecikmesinin 4–6,5 sn'si T3'ün mesajı bitirmesini beklemekten geliyor, ses üretimi ~0,2 sn.
+- ✅ v0.4: İngilizce arayüz (`TELLAL_LANG`) ve İngilizce ses (Supertonic 2, 96 MB); sesler ilk açılışta indirilir; imzalı ve notarize DMG ([README](../README.md#languages-and-voices)).
 
 ## Bilinen eksikler (v0.2)
 - Denenmedi: `N yeni` rozeti, `seni bekliyor`, "Durduruldu." okunması, panelden ⏸/⏭/canlıya geç butonlarına gerçek tık (aynı işlevler sürücüyle denendi), Cevapla'yı açıkken başka satıra taşımak, IME (marked text).

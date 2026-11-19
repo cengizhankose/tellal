@@ -19,11 +19,11 @@ Sources:
 6. **Meaning never by colour alone** (E: G1-5). Status = icon shape + colour + tooltip text.
 7. **Motion explains state, never decorates** (A: DS §56; E: G1-10, G1-11). Nothing moves continuously unless the user started it (audio they unmuted). Running threads get a *static* activity glyph, not a spinner. Honour macOS Reduce Motion.
 8. **Legible** (E: G1-3, G1-4). Body 13 px, secondary 12 px, nothing under 11 px (11 only for badges and section labels). Text ≥ 4.5:1 contrast on its background in every theme.
-9. **Speak the user's words** (E: G2-2, G3-11, G3-12). Turkish UI copy, short, first word carries meaning; errors say what happened and what to do.
+9. **Speak the user's words** (E: G2-2, G3-11, G3-12). UI copy in the user's language (Turkish or English, `TELLAL_LANG`, default = macOS language), short, first word carries meaning; errors say what happened and what to do. English copy follows T3's own English wording where T3 has one: shelf names (Pinned, Working, Active, Snoozed, Settled) and compact times (`now`, `5m`, `3h`, `2d`; working timer `<1m`, `16m`, `1h 9m`). Every string lives in `crates/app/src/strings.rs`; Turkish examples below have English counterparts there.
 
 ## 2. Identity (T3 parity)
 
-- Header mirrors T3's sidebar header: the Tellal mark (`logo.svg`, Lucide's megaphone, 16 px in `accent`) followed by the wordmark **Tellal** in T3's wordmark treatment (bold, 14 px). A T3-style pill (16 px tall, 11 px text) appears only when the panel is *not* live: `bağlanıyor`, `ses yükleniyor`, `hata`; when live a 6 px success dot (tooltip `canlı`). While an agent may act on the screen a second pill, pointer icon + `ekran` in `danger`, sits next to it (also in compact mode).
+- Header mirrors T3's sidebar header: the Tellal mark (`logo.svg`, Lucide's megaphone, 16 px in `accent`) followed by the wordmark **Tellal** in T3's wordmark treatment (bold, 14 px). A T3-style pill (16 px tall, 11 px text) appears only when the panel is *not* live: `bağlanıyor` / connecting, `ses yükleniyor` / loading voice, `ses yok` / no voice (no voice installed that can speak), `ses iniyor` / downloading voice (in `info`), `hata` / error; when live a 6 px success dot (tooltip `canlı`). While an agent may act on the screen a second pill, pointer icon + `ekran` in `danger`, sits next to it (also in compact mode).
 - The app mark is our own (do not reuse T3's logo as ours): a rounded square with a "T3" monogram and a sound-wave notch, `crates/app/assets/logo.svg`. It ships in the assets (about/tooltip use is optional) but is not shown in the header.
 - Provider marks on rows like T3 shows them (Claude, OpenAI/Codex, ACP registry for omp, …): 14 px at 60 % opacity, T3's brand colours where it has them; generic ACP-registry marks get T3's 2-letter instance tile (`OM`, `OF`); unknown providers a 2-letter monogram. Tooltip = provider + model.
 - Every row shows its project: the T3 project icon (`ThreadView.project_icon`, lucide name + T3 colour map), the "No project" dashed square, or T3's generated two-letter monogram tile in the name-hashed identity colour (`projectIdentity.ts`), exactly as T3 falls back.
@@ -88,6 +88,8 @@ Allowed continuous motion, only while audio the user enabled is playing: the pla
 ├─────────────────────────────────────────┤
 │ ⛉ Bilgisayar kullanımı: izin [İzin ver]│ permission row (installed, permissions missing/unknown)
 ├─────────────────────────────────────────┤
+│ English voice not installed  [Download] │ voice row (needed voice missing/downloading/failed)
+├─────────────────────────────────────────┤
 │ ● 14 thread · 1 dinleniyor     ölçümler ▴│ status line; click opens the metrics drawer
 └─────────────────────────────────────────┘
 ```
@@ -115,9 +117,13 @@ Keep v0.2 behaviour (Wispr hands-free, paste/type, auto-send). Restyle to tokens
 ### Status line + metrics drawer
 - Status line: connection dot + `N thread · M dinleniyor` + `ölçümler`.
 - Drawer (expands `normal`): grid of the v0.2 HUD numbers (RSS, CPU, T3 poll, live poll, TTS, RTF, click→audio, msg→audio, dictation, queue, run dir) + two 60-second sparklines (RSS, CPU) from the 1 s `live_stats()` samples. Clicking the run dir opens it in Finder (v0.2).
+- Drawer **Voices** section (below the grid, when `Core::voices()` is non-empty): a 26 px block for the title (`Sesler` / Voices) and one 26 px line per voice: 6 px state dot (success = ready, info = downloading, danger = failed, muted = not installed), the voice name (500), `language · size` or `language · state` in `text_muted`, and on the right `hazır` / ready, a ghost download button, a 60 px progress track + percent, or a ghost Retry. The drawer grows by 26 + 26 × voices px.
+
+### Voice row
+- 32 px row directly above the status line (below the permission row), only while the voice the panel needs (the UI language's, or `TELLAL_VOICE`'s) is not ready; fades in at `normal`. Missing: download icon in `info`, `İngilizce ses yüklü değil` / `English voice not installed`, button `Sesi indir (96 MB)` / `Download voice (96 MB)`. Downloading: dashed-circle icon in `info`, `İngilizce ses iniyor · 12 / 96 MB` / `Downloading the English voice · 12 / 96 MB`, tabular percent on the right and a 3 px `accent` track under the text. Failed: warning icon in `danger`, `… ses inmedi: <error>` / `… voice download failed: <error>`, ghost `Tekrar dene` / `Retry`. Key `D` triggers the row's action. The UI language's voice starts downloading by itself at first run, so most users only see the progress state; when it is ready the row leaves and a toast says `Ses hazır: <name>` / `Voice ready: <name>`.
 
 ### States
-- Loading: header pill `bağlanıyor` / `ses yükleniyor`; list shows 3 placeholder rows *without* shimmer (E: skeleton myth).
+- Loading: header pill `bağlanıyor` / `ses yükleniyor`; list shows 3 placeholder rows *without* shimmer (E: skeleton myth). No usable voice: pill `ses yok` or `ses iniyor` plus the voice row.
 - Empty: icon + `Şu an açık thread yok` + `T3'te yeni bir thread başlatınca burada görünür.`
 - Error (`CoreEvent::Error`): inline banner under the header, `danger` icon, message + action (`Tekrar dene` / `Kayıtları aç`), dismissible.
 
@@ -151,6 +157,7 @@ Agents (omp in T3, or any MCP client) drive the screen through the local cua-dri
 | Esc | close dock / search / drawer, in that order |
 | N | new task by voice (dock in new-task mode) |
 | I | `İzin ver` on the computer-use permission row (only while it shows) |
+| D | the voice row's action: download or retry the needed voice (only while it shows) |
 | ⌘. | stop every computer-use session (works while typing too) |
 | Global ⌃⌥Space (env `TELLAL_HOTKEY`) | show/hide the panel from any app |
 | Global ⌃⌥⎋ (env `TELLAL_STOP_HOTKEY`) | stop every computer-use session from any app |
@@ -187,7 +194,7 @@ Parent decision (2026-11-11): where this spec and T3 differ on look and feel, T3
 11. **Progress bar**: drawn from the latest `channels()` snapshot, which the pump polls every 150 ms while a channel is audible (core has no per-tick event and `now_total_ms` grows while synthesis is still running, so interpolating toward the total would overshoot). Static under Reduce Motion and while paused.
 12. **Reply dock success**: the dock closes at once and `✓ Gönderildi` (spring) appears as a toast; v0.2 kept the dock 1.2 s with an in-place chip. All other v0.2 behaviour is unchanged (Wispr hands-free, focus/activate/restore, paste/typing, History fill-or-compare, auto-send after Gönder, retarget, logs).
 13. **Error banner**: `Tekrar dene` appears only when the failed action is known and repeatable (opening a thread); other errors offer `Kayıtları aç` and dismiss.
-14. **Window height**: computed from fixed region heights (header 40, banner 76, attention 48, search 44, sections 32, rows 36/56, player 112, dock 116, status 32, drawer 236), clamped to 160–640; past 640 the list scrolls. Changes animate at `normal`, compact ↔ full at `slow`; Reduce Motion jumps.
+14. **Window height**: computed from fixed region heights (header 40, banner 76, attention 48, search 44, sections 32, rows 36/56, player 112, dock 116, permission row 32, voice row 32, status 32, drawer 288 + 26 + 26 per voice when voices are listed), clamped to 160–640; past 640 the list scrolls. Changes animate at `normal`, compact ↔ full at `slow`; Reduce Motion jumps.
 15. **Global shortcut**: hide = `orderOut`; show = `makeKeyAndOrderFront` on the non-activating panel, so it takes the keyboard without bringing the app forward. Re-hiding re-activates the app that was frontmost. `TELLAL_HOTKEY=off` disables it (used by test instances).
 16. **Additions not in T3**: the attention card, the Now playing bar, the listen toggle, the reply dock and the metrics drawer are panel features with no T3 counterpart; they follow the tokens and T3's control styles.
 17. **Computer use and new task** (v0.4): the computer-use banner, the `ekran` pill, the permission row, the drawer section and the `+` new-task action have no T3 counterpart. The banner sits *above* the attention card and the error banner (stopping an agent that acts on the screen outranks answering one). The emergency stop's global default is ⌃⌥⎋: not taken by macOS (⌘⌥⎋ is Force Quit), registrable through Carbon without Accessibility permission, and next to Force Quit in meaning; ⌘. is the in-panel stop (macOS's "cancel/stop" convention). The banner's elapsed time is at minute resolution on purpose (no ticking seconds). `Durdur` is the only `danger`-filled control in the panel.

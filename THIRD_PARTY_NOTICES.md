@@ -45,21 +45,76 @@ Turkish text normalizer (numbers, times, percentages, abbreviations) before synt
 
 ### ONNX Runtime — MIT
 
-Runs the voice model. The [`ort`](https://github.com/pykeio/ort) crate (MIT OR Apache-2.0)
+Runs the voice models. The [`ort`](https://github.com/pykeio/ort) crate (MIT OR Apache-2.0)
 downloads Microsoft's prebuilt ONNX Runtime at build time and copies the library next to the
 binary. ONNX Runtime: MIT License, Copyright (c) Microsoft Corporation,
 <https://github.com/microsoft/onnxruntime/blob/main/LICENSE>.
+
+### Voice downloads — `ureq` (MIT OR Apache-2.0), `hmac-sha256` (ISC)
+
+The app downloads voices itself: [`ureq`](https://github.com/algesten/ureq) 3.5.1 (MIT OR
+Apache-2.0) fetches the files over HTTPS with macOS's TLS, and
+[`hmac-sha256`](https://github.com/jedisct1/rust-hmac-sha256) 1.1.15 (ISC, Copyright (c)
+Frank Denis) checks each file's pinned SHA-256 sum.
+
+### Supertonic reference code — MIT
+
+`crates/core/src/supertonic.rs` ports the inference helper of Supertone's reference
+implementation ([`supertone-oss-archive/supertonic`](https://github.com/supertone-oss-archive/supertonic),
+`rust/src/helper.rs`), MIT License,
+<https://github.com/supertone-oss-archive/supertonic/blob/main/LICENSE>.
 
 ## Downloaded at run time (not redistributed)
 
 ### EMA Lightning voice model — Apache-2.0
 
-The Turkish voice. [`scripts/fetch-models.sh`](scripts/fetch-models.sh) downloads the ONNX export
-[`ozcancelik/ema-lightning-onnx`](https://huggingface.co/ozcancelik/ema-lightning-onnx) of
-[EMA Lightning](https://huggingface.co/canberkkkkkk/ema-lightning) into
-`~/Library/Application Support/tellal/models/`, together with its `LICENSE` and `NOTICE`. The
-weights are not part of this repository or of any build. Apache License 2.0; see the model
-cards for attribution.
+The Turkish voice (`tr-ema-lightning`). The app (or [`scripts/fetch-models.sh`](scripts/fetch-models.sh))
+downloads the ONNX export [`ozcancelik/ema-lightning-onnx`](https://huggingface.co/ozcancelik/ema-lightning-onnx)
+of [EMA Lightning](https://huggingface.co/canberkkkkkk/ema-lightning) at a pinned revision into
+`~/Library/Application Support/tellal/models/ema-lightning-onnx/`, together with its `LICENSE`
+and `NOTICE`. The weights are not part of this repository, of any build or of the DMG. Apache
+License 2.0; see the model cards for attribution.
+
+### Supertonic 2 voice model — BigScience OpenRAIL-M
+
+The English voice (`en-supertonic-2`, voice style `M1`). The app (or `scripts/fetch-models.sh en`)
+downloads, at pinned revisions, into `~/Library/Application Support/tellal/models/supertonic-2-en/`:
+
+- from [Supertone's `Supertone/supertonic-2`](https://huggingface.co/Supertone/supertonic-2):
+  `tts.json`, `unicode_indexer.json`, `voice_styles/M1.json`, `duration_predictor.onnx`,
+  `text_encoder.onnx` and the `LICENSE`, which is installed next to the weights;
+- from the sherpa-onnx maintainer's Hugging Face repository
+  [`csukuangfj2/sherpa-onnx-supertonic-tts-int8-2026-03-06`](https://huggingface.co/csukuangfj2/sherpa-onnx-supertonic-tts-int8-2026-03-06):
+  the int8-quantized `vector_estimator.int8.onnx` and `vocoder.int8.onnx` (derivatives of
+  Supertone's weights, under the same licence).
+
+The weights are not part of this repository, of any build or of the DMG. Published by Supertone;
+licensed under the BigScience OpenRAIL-M License,
+<https://huggingface.co/Supertone/supertonic-2/blob/main/LICENSE>. The licence is royalty-free
+but not an OSI licence: its use-based restrictions (paragraph 5 and Attachment A) apply to you
+as a user of Tellal's English voice, and Tellal passes them on here. In short, you agree not to
+use the model or its output:
+
+- in any way that violates applicable national, federal, state, local or international law;
+- to exploit or harm minors;
+- to generate or spread verifiably false information meant to harm others;
+- to generate or spread personal identifiable information that can be used to harm someone;
+- to generate or spread content without expressly and intelligibly disclaiming that it is
+  machine-generated;
+- to defame, disparage or harass others;
+- to impersonate others (e.g. deepfakes) without their consent;
+- for fully automated decision making that adversely affects an individual's legal rights or
+  creates or modifies a binding obligation;
+- to discriminate against or harm people based on social behaviour or personal or personality
+  characteristics, or on legally protected characteristics;
+- to exploit vulnerabilities of a group (age, social, physical or mental characteristics) so as
+  to distort someone's behaviour in a way that causes or is likely to cause physical or
+  psychological harm;
+- to provide medical advice or interpret medical results;
+- for administration of justice, law enforcement, immigration or asylum processes (e.g.
+  predicting that someone will commit fraud or a crime).
+
+This summary is not the licence; the full text (installed as `supertonic-2-en/LICENSE`) governs.
 
 ## Rust dependencies
 
