@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Tellal app icon: the town crier's megaphone (geometry from Lucide `megaphone`,
+       lucide-static v0.564.0, ISC) on a dark rounded square. Rendered to icon.png. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#26222b"/>
+      <stop offset="1" stop-color="#111014"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#e83e8c" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#e83e8c" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="230" fill="url(#bg)"/>
+  <rect x="1.5" y="1.5" width="1021" height="1021" rx="228.5" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="3"/>
+  <circle cx="512" cy="512" r="400" fill="url(#glow)"/>
+  <g transform="translate(512 512) scale(32) translate(-12 -12.4)" fill="none" stroke="#e83e8c" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M11 6a13 13 0 0 0 8.4-2.8A1 1 0 0 1 21 4v12a1 1 0 0 1-1.6.8A13 13 0 0 0 11 14H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"/>
+    <path d="M6 14a12 12 0 0 0 2.4 7.2 2 2 0 0 0 3.2-2.4A8 8 0 0 1 10 14"/>
+    <path d="M8 6v8"/>
+  </g>
+</svg>

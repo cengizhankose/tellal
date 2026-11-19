@@ -1,15 +1,17 @@
 # tools: recording the demo media
 
-Everything in [`docs/media`](../docs/media) except the real-T3 hero clip (`clips/real-t3.*`) is
-made from the demo fixture ([`demo/fixture.json`](../demo/fixture.json)), never from real T3
-threads, and only the panel's own window is captured.
+Everything in [`docs/media`](../docs/media) except the real-T3 hero clip (`clips/real-t3.*`) and the
+app icon is made from the demo fixture ([`demo/fixture.json`](../demo/fixture.json)), never from
+real T3 threads, and only the panel's own window is captured. The icon is drawn by hand in
+`icon.svg`; `icon.png` is its 512 px render: `sips -s format png docs/media/icon.svg --out /tmp/icon.png`
+(ImageMagick's built-in SVG renderer draws it black), then `magick /tmp/icon.png -resize 512x512 -strip docs/media/icon.png`.
 
 | File | What it does |
 |---|---|
 | `record-window.swift` | Records one window by `CGWindowID` with ScreenCaptureKit (`SCContentFilter(desktopIndependentWindow:)`): nothing else on screen can enter the frame. Up to 60 fps, ProRes 4444 with alpha, 2x. The panel changes height while it runs, so every frame is placed top-left in a fixed 380 × 640 pt canvas. Stops when the given pid exits. |
 | `record-demo.sh` | Runs `tellal` with `TELLAL_DEMO=demo/fixture.json TELLAL_OUTPUT_VOLUME=0 TELLAL_HOTKEY=off TELLAL_STOP_HOTKEY=off TELLAL_SELFTEST=<mode>`, waits for `ui.ready` (window number) and records the window until the run quits. Silent: the voice is synthesized with normal timing and saved as WAVs, but not played. `all` records every run `build-media.py` needs. |
 | `t3-appearance.py` | Private copy of T3's theme settings (`Local Storage/leveldb`) with `t3code:theme-appearance-mode` forced to `light` or `dark`, for `TELLAL_T3_APP_DATA`; called again on the same copy it switches the appearance (the panel follows within ~2 s). T3's own files are only read. `record-demo.sh` makes one per run and deletes it afterwards. |
-| `build-media.py` | Builds every file in `docs/media` (except `clips/real-t3.*`) from those recordings (see below). |
+| `build-media.py` | Builds every file in `docs/media` (except `clips/real-t3.*` and `icon.*`) from those recordings (see below). |
 
 ## Re-recording
 
