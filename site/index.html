@@ -1,0 +1,1000 @@
+<!doctype html>
+<html lang="en" data-theme="t3-chat-dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tellal — A voice for your T3 Code agents</title>
+  <meta name="description" content="A floating native macOS panel built in Rust + GPUI that turns your T3 Code agent threads into local neural-voice radio channels. Zero API cost, Wispr Flow voice replies, cua-driver kill switch, and Tailscale mobile handoff." />
+  <meta name="theme-color" content="#0c080e" />
+  <link rel="canonical" href="https://tellal.cengizhankose.com/" />
+  <meta property="og:url" content="https://tellal.cengizhankose.com/" />
+  <meta property="og:title" content="Tellal — A voice for your T3 Code agents" />
+  <meta property="og:description" content="Follow multiple coding agents without watching them. Local English & Turkish neural voices on Apple Silicon, zero API cost, open source." />
+  <meta property="og:image" content="https://tellal.cengizhankose.com/media/social-card.png" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Tellal — A voice for your T3 Code agents" />
+  <meta name="twitter:description" content="Local macOS voice panel for T3 Code agents. Zero cloud API cost, English & Turkish ONNX voices, open source." />
+  <meta name="twitter:image" content="https://tellal.cengizhankose.com/media/social-card.png" />
+  <link rel="icon" type="image/svg+xml" href="media/icon.svg" />
+  <link rel="apple-touch-icon" href="media/icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..600;1,9..144,400..600&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Subtle noise texture overlay -->
+  <div class="grain-layer" aria-hidden="true"></div>
+
+  <!-- Floating Instrument Navigation -->
+  <header class="nav-shell" id="top-nav">
+    <nav class="nav-bar" aria-label="Primary">
+      <a href="#top" class="brand" aria-label="Tellal home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 6a13 13 0 0 0 8.4-2.8A1 1 0 0 1 21 4v12a1 1 0 0 1-1.6.8A13 13 0 0 0 11 14H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"/>
+            <path d="M6 14a12 12 0 0 0 2.4 7.2 2 2 0 0 0 3.2-2.4A8 8 0 0 1 10 14"/>
+            <path d="M8 6v8"/>
+          </svg>
+        </span>
+        <span class="brand-name">Tellal</span>
+        <span class="live-dot" title="v0.4.0 · Apple Silicon"></span>
+        <span class="brand-version">v0.4</span>
+      </a>
+
+      <div class="nav-links">
+        <a href="#reel" data-i18n="nav.demo">Demo</a>
+        <a href="#voices" data-i18n="nav.voices">Voices</a>
+        <a href="#capabilities" data-i18n="nav.features">Capabilities</a>
+        <a href="#architecture" data-i18n="nav.architecture">Architecture</a>
+        <a href="#install" data-i18n="nav.install">Install</a>
+      </div>
+
+      <div class="nav-controls">
+        <!-- Live T3 Theme Sync Switcher -->
+        <div class="theme-rail" role="group" aria-label="Live T3 Theme Sync">
+          <span class="theme-rail-label" data-i18n="nav.theme">Theme</span>
+          <button type="button" class="theme-dot is-active" data-set-theme="t3-chat-dark" title="T3 Chat Dark" style="--swatch:#e83e8c;--swatch-bg:#171019"></button>
+          <button type="button" class="theme-dot" data-set-theme="t3-chat-light" title="T3 Chat Light" style="--swatch:#c91d6d;--swatch-bg:#f3ebf2"></button>
+          <button type="button" class="theme-dot" data-set-theme="grove" title="Grove" style="--swatch:#22c55e;--swatch-bg:#0e1712"></button>
+          <button type="button" class="theme-dot" data-set-theme="ocean" title="Ocean" style="--swatch:#38bdf8;--swatch-bg:#0d1522"></button>
+          <button type="button" class="theme-dot" data-set-theme="ember" title="Ember" style="--swatch:#f97316;--swatch-bg:#19110c"></button>
+          <button type="button" class="theme-dot" data-set-theme="iris" title="Iris" style="--swatch:#a78bfa;--swatch-bg:#120f21"></button>
+        </div>
+
+        <!-- Bilingual Toggle -->
+        <div class="lang-switch" role="group" aria-label="Language">
+          <button type="button" class="lang-btn is-active" data-set-lang="en">EN</button>
+          <button type="button" class="lang-btn" data-set-lang="tr">TR</button>
+        </div>
+
+        <a href="https://github.com/cengizhankose/tellal" target="_blank" rel="noreferrer" class="icon-link" aria-label="GitHub Repository" title="GitHub">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.57.1.78-.25.78-.55 0-.27-.01-1.17-.02-2.12-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.68 0-1.25.45-2.28 1.18-3.08-.12-.29-.51-1.46.11-3.04 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.76 0c2.2-1.49 3.17-1.18 3.17-1.18.62 1.58.23 2.75.11 3.04.74.8 1.18 1.83 1.18 3.08 0 4.41-2.69 5.39-5.26 5.67.41.36.78 1.06.78 2.13 0 1.54-.01 2.78-.01 3.16 0 .31.21.66.79.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/>
+          </svg>
+        </a>
+
+        <a href="https://github.com/cengizhankose/tellal/releases/latest" target="_blank" rel="noreferrer" class="btn btn-primary btn-sm">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span data-i18n="nav.download">Download</span>
+        </a>
+      </div>
+    </nav>
+  </header>
+
+  <main id="top">
+    <!-- ==================== HERO ==================== -->
+    <section class="hero">
+      <canvas id="soundfield" class="soundfield-canvas" aria-hidden="true"></canvas>
+      <div class="hero-glow" aria-hidden="true"></div>
+
+      <div class="container hero-grid">
+        <!-- Left Copy Column -->
+        <div class="hero-copy">
+          <div class="eyebrow">
+            <span class="eyebrow-dot"></span>
+            <span data-i18n="hero.eyebrow">Native Rust + GPUI panel for T3 Code · Apple Silicon</span>
+          </div>
+
+          <h1 class="hero-title" id="hero-title">
+            <span data-i18n="hero.titleStart">A</span>
+            <em class="serif-accent" data-i18n="hero.titleAccent">voice</em>
+            <span data-i18n="hero.titleEnd">for your T3 Code agents.</span>
+          </h1>
+
+          <p class="hero-sub" data-i18n="hero.subtitle">
+            Run nine coding agents at once without babysitting tabs. Tellal floats above every macOS Space, narrates live steps and spoken summaries using local neural voices, and lets you reply or stop computer use in one keystroke.
+          </p>
+
+          <div class="hero-actions">
+            <a href="https://github.com/cengizhankose/tellal/releases/latest" target="_blank" rel="noreferrer" class="btn btn-primary btn-lg">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span data-i18n="hero.ctaDownload">Download Tellal 0.4.0</span>
+              <span class="btn-meta">.dmg</span>
+            </a>
+
+            <button type="button" class="btn btn-secondary btn-lg" id="hero-listen-btn">
+              <span class="play-ring" aria-hidden="true">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+              </span>
+              <span data-i18n="hero.ctaListen">Hear real voice</span>
+            </button>
+
+            <button type="button" class="btn btn-ghost btn-lg" id="open-walkthrough-btn">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><polygon points="10 9 15 12 10 15 10 9" fill="currentColor" stroke="none"/></svg>
+              <span data-i18n="hero.ctaFilm">70s walkthrough</span>
+            </button>
+          </div>
+
+          <!-- Real Benchmark Trust Bar -->
+          <div class="hero-specs" role="list">
+            <div class="spec-item" role="listitem">
+              <span class="spec-value">$0</span>
+              <span class="spec-label" data-i18n="hero.specApi">cloud API cost</span>
+            </div>
+            <div class="spec-sep" aria-hidden="true"></div>
+            <div class="spec-item" role="listitem">
+              <span class="spec-value">247 ms</span>
+              <span class="spec-label" data-i18n="hero.specLatency">click → audio</span>
+            </div>
+            <div class="spec-sep" aria-hidden="true"></div>
+            <div class="spec-item" role="listitem">
+              <span class="spec-value">1.7%</span>
+              <span class="spec-label" data-i18n="hero.specCpu">idle CPU</span>
+            </div>
+            <div class="spec-sep" aria-hidden="true"></div>
+            <div class="spec-item" role="listitem">
+              <span class="spec-value">EN · TR</span>
+              <span class="spec-label" data-i18n="hero.specVoices">local ONNX</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Interactive Tellal Panel Simulator -->
+        <div class="hero-stage">
+          <div class="stage-halo" aria-hidden="true"></div>
+          <div class="stage-kbd-float" aria-hidden="true">
+            <kbd>⌃⌥Space</kbd>
+            <span data-i18n="hero.floatHint">Always on top · Click any channel</span>
+          </div>
+
+          <!-- Interactive Panel Window (Authentic 380px GPUI NSPanel) -->
+          <div class="tellal-panel" id="sim-panel" role="region" aria-label="Interactive Tellal panel demo">
+            <!-- Header 40px -->
+            <div class="tp-header">
+              <div class="tp-brand">
+                <svg class="tp-logo" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M11 6a13 13 0 0 0 8.4-2.8A1 1 0 0 1 21 4v12a1 1 0 0 1-1.6.8A13 13 0 0 0 11 14H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"/>
+                  <path d="M6 14a12 12 0 0 0 2.4 7.2 2 2 0 0 0 3.2-2.4A8 8 0 0 1 10 14"/>
+                  <path d="M8 6v8"/>
+                </svg>
+                <span class="tp-title">Tellal</span>
+                <span class="tp-live-dot" title="live"></span>
+                <span class="tp-pill tp-pill-danger" id="tp-screen-pill" hidden>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 4 7.07 17 2.51-7.39L21 11.07z"/></svg>
+                  <span data-i18n="panel.screenPill">screen</span>
+                </span>
+                <span class="tp-pill tp-pill-info" id="tp-phone-pill" hidden>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></svg>
+                  <span data-i18n="panel.phonePill">on phone</span>
+                </span>
+              </div>
+
+              <div class="tp-head-actions">
+                <button type="button" class="tp-icon-btn" id="tp-new-task-btn" title="New task by voice (N)" aria-label="New task by voice">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                </button>
+                <button type="button" class="tp-icon-btn" id="tp-metrics-btn" title="Metrics drawer" aria-label="Toggle metrics drawer">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>
+                </button>
+                <button type="button" class="tp-icon-btn" id="tp-compact-btn" title="Compact mode (⌘⇧C)" aria-label="Toggle compact mode">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Computer Use Banner (Safety First — visible even in compact mode!) -->
+            <div class="tp-computer-banner" id="tp-computer-banner" hidden>
+              <div class="tp-cu-left">
+                <svg class="tp-cu-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m4 4 7.07 17 2.51-7.39L21 11.07z"/></svg>
+                <div class="tp-cu-body">
+                  <div class="tp-cu-top">
+                    <strong data-i18n="panel.cuTitle">An agent is using your screen</strong>
+                    <span class="tp-pill tp-pill-danger" data-i18n="panel.cuSessions">3 sessions</span>
+                    <span class="tp-cu-time">&lt;1m</span>
+                  </div>
+                  <div class="tp-cu-sub" data-i18n="panel.cuSub">omp · last action: now</div>
+                </div>
+              </div>
+              <button type="button" class="tp-cu-stop" id="tp-cu-stop-btn">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                <span data-i18n="panel.cuStop">Stop</span>
+              </button>
+            </div>
+
+            <!-- Collapsible Main Content (hides in Compact Mode) -->
+            <div class="tp-body" id="tp-body">
+              <!-- Attention Card -->
+              <button type="button" class="tp-attention" id="tp-attention-card">
+                <span class="tp-attn-icon" aria-hidden="true">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                </span>
+                <span class="tp-attn-text">
+                  <strong data-i18n="panel.attnCount">1 thread waiting for you</strong>
+                  <span class="tp-attn-proj">· billing-api</span>
+                </span>
+                <svg class="tp-attn-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+
+              <!-- Thread List (rendered dynamically by app.js for EN/TR & interactive state) -->
+              <div class="tp-list" id="tp-list" role="listbox" aria-label="Agent threads"></div>
+            </div>
+
+            <!-- Reply / New Task Dock -->
+            <div class="tp-dock" id="tp-dock" hidden>
+              <div class="tp-dock-head">
+                <span class="tp-dock-label" id="tp-dock-label">→ Backfill currency on legacy invoices</span>
+              </div>
+              <div class="tp-dock-input-wrap">
+                <input type="text" class="tp-dock-input" id="tp-dock-input" autocomplete="off" />
+              </div>
+              <div class="tp-dock-foot">
+                <span class="tp-dock-chip" id="tp-dock-chip">
+                  <span class="tp-chip-dot"></span>
+                  <span id="tp-dock-chip-text">Wispr listening…</span>
+                </span>
+                <div class="tp-dock-btns">
+                  <button type="button" class="tp-btn-ghost" id="tp-dock-cancel" data-i18n="panel.cancel">Cancel</button>
+                  <button type="button" class="tp-btn-send" id="tp-dock-send">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    <span data-i18n="panel.send">Send</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Now Playing Bar -->
+            <div class="tp-player" id="tp-player">
+              <div class="tp-player-top">
+                <div class="tp-eq" id="tp-eq" aria-hidden="true">
+                  <span></span><span></span><span></span>
+                </div>
+                <span class="tp-player-meta" id="tp-player-meta">acme-web · Fix flaky checkout tests</span>
+                <span class="tp-pill tp-pill-accent" id="tp-player-queue" data-i18n="panel.readyBadge">real audio</span>
+              </div>
+              <p class="tp-player-caption" id="tp-player-caption">
+                Fixed the test to wait for the cart request; running the full suite now.
+              </p>
+              <div class="tp-player-controls">
+                <div class="tp-progress" id="tp-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                  <div class="tp-progress-fill" id="tp-progress-fill"></div>
+                </div>
+                <div class="tp-ctrl-btns">
+                  <button type="button" class="tp-ctrl-btn" id="tp-play-pause" title="Play / Pause (P)" aria-label="Play or pause">
+                    <svg id="tp-play-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+                    <svg id="tp-pause-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" hidden><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                  </button>
+                  <button type="button" class="tp-ctrl-btn" id="tp-skip" title="Skip to next channel (→)" aria-label="Skip channel">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+                  </button>
+                  <button type="button" class="tp-ctrl-btn" id="tp-mute-all" title="Mute all (M)" aria-label="Mute all">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Metrics Drawer (expandable) -->
+            <div class="tp-drawer" id="tp-drawer" hidden>
+              <div class="tp-drawer-grid">
+                <div class="tp-metric"><span>RSS</span><strong>161 MB</strong></div>
+                <div class="tp-metric"><span>CPU</span><strong>1.7 %</strong></div>
+                <div class="tp-metric"><span>TTS</span><strong>148 ms</strong></div>
+                <div class="tp-metric"><span>RTF</span><strong>0.04</strong></div>
+                <div class="tp-metric"><span>click → audio</span><strong>247 ms</strong></div>
+                <div class="tp-metric"><span>cua-driver</span><strong>0.38.0</strong></div>
+              </div>
+              <div class="tp-drawer-voices">
+                <div class="tp-drawer-sub" data-i18n="panel.drawerVoices">Voices</div>
+                <div class="tp-voice-row">
+                  <span><i class="vdot"></i><strong>EMA Lightning</strong> <em>Turkish · 35 MB</em></span>
+                  <span class="vready" data-i18n="panel.ready">ready</span>
+                </div>
+                <div class="tp-voice-row">
+                  <span><i class="vdot"></i><strong>Supertonic 2</strong> <em>English · 96 MB</em></span>
+                  <span class="vready" data-i18n="panel.ready">ready</span>
+                </div>
+              </div>
+              <div class="tp-sparklines">
+                <div class="tp-spark">
+                  <div class="tp-spark-head"><span>RSS · 60s</span><strong>161 MB</strong></div>
+                  <div class="tp-bars tp-bars-info" id="spark-rss"></div>
+                </div>
+                <div class="tp-spark">
+                  <div class="tp-spark-head"><span>CPU · 60s</span><strong>1.7%</strong></div>
+                  <div class="tp-bars tp-bars-accent" id="spark-cpu"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Status Footer -->
+            <div class="tp-footer">
+              <div class="tp-foot-left">
+                <span class="tp-live-dot"></span>
+                <span id="tp-status-text">6 threads · 1 listening</span>
+              </div>
+              <button type="button" class="tp-foot-btn" id="tp-drawer-toggle">
+                <span data-i18n="panel.metrics">metrics</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+
+            <!-- Spring Toast -->
+            <div class="tp-toast" id="tp-toast" role="status" aria-live="polite" hidden></div>
+          </div>
+
+          <!-- Interactive Scenario Controls underneath the panel -->
+          <div class="sim-controls" role="group" aria-label="Try interactive panel states">
+            <button type="button" class="sim-chip is-pulse" data-sim="listen">
+              <span class="sim-dot"></span>
+              <span data-i18n="sim.listen">Play channel audio</span>
+            </button>
+            <button type="button" class="sim-chip" data-sim="reply">
+              <span data-i18n="sim.reply">Voice reply</span>
+            </button>
+            <button type="button" class="sim-chip" data-sim="computer">
+              <span data-i18n="sim.computer">Screen-use alert</span>
+            </button>
+            <button type="button" class="sim-chip" data-sim="drawer">
+              <span data-i18n="sim.drawer">Metrics</span>
+            </button>
+            <button type="button" class="sim-chip" data-sim="compact">
+              <span data-i18n="sim.compact">Compact</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== ETYMOLOGY & MANIFESTO ==================== -->
+    <section class="manifesto-band reveal">
+      <div class="container manifesto-grid">
+        <div class="etymology-block">
+          <div class="etymology-head">
+            <span class="etymology-word">tel·lal</span>
+            <span class="etymology-ipa">/tɛlˈlɑːl/</span>
+            <span class="etymology-pos" data-i18n="etymology.pos">n. · Ottoman</span>
+          </div>
+          <p class="etymology-def" data-i18n="etymology.def">
+            The town crier who walked the streets announcing the news out loud — and to English ears, a <em>tell-all</em>. Now, a quiet floating voice for parallel coding agents.
+          </p>
+        </div>
+
+        <div class="pillars-row">
+          <div class="pillar">
+            <span class="pillar-num">01</span>
+            <h3 data-i18n="pillars.p1Title">Radio channels, not chat tabs</h3>
+            <p data-i18n="pillars.p1Body">Unmute any thread for one catch-up line, live step updates, and a crisp 🔊 spoken outcome while full diffs stay in T3.</p>
+          </div>
+          <div class="pillar">
+            <span class="pillar-num">02</span>
+            <h3 data-i18n="pillars.p2Title">100% local on Apple Silicon</h3>
+            <p data-i18n="pillars.p2Body">Tiny ONNX neural voices run in-process on your CPU. No ElevenLabs keys, no proxies, no per-character billing, nothing leaves your Mac.</p>
+          </div>
+          <div class="pillar">
+            <span class="pillar-num">03</span>
+            <h3 data-i18n="pillars.p3Title">Calm, native, focus-safe</h3>
+            <p data-i18n="pillars.p3Body">Built with Rust and Zed's GPUI inside a non-activating NSPanel. Floats over every Space and fullscreen window without stealing focus.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== REAL RECORDINGS THEATRE ==================== -->
+    <section class="section" id="reel">
+      <div class="container">
+        <div class="section-head reveal">
+          <div class="section-kicker" data-i18n="reel.kicker">Real macOS captures · Real local voice</div>
+          <h2 class="section-title">
+            <span data-i18n="reel.titleStart">Every workflow, recorded</span>
+            <em class="serif-accent" data-i18n="reel.titleAccent">live.</em>
+          </h2>
+          <p class="section-sub" data-i18n="reel.sub">
+            Zero motion-graphics fakes. Seven unedited captures of Tellal running on Apple Silicon — click any chapter and toggle sound to hear the actual local TTS engine.
+          </p>
+        </div>
+
+        <div class="reel-theatre reveal">
+          <!-- Chapter Tracklist -->
+          <div class="reel-chapters" id="reel-chapters" role="tablist" aria-label="Feature clips"></div>
+
+          <!-- Video Stage -->
+          <div class="reel-stage">
+            <div class="reel-chrome">
+              <div class="reel-chrome-left">
+                <span class="reel-rec-dot"></span>
+                <span class="reel-chrome-title" id="reel-active-title">01 · Listen to a thread</span>
+              </div>
+              <div class="reel-chrome-right">
+                <button type="button" class="reel-sound-btn" id="reel-sound-toggle" aria-pressed="false">
+                  <svg id="reel-vol-off" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/></svg>
+                  <svg id="reel-vol-on" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                  <span id="reel-sound-label" data-i18n="reel.unmute">Unmute audio</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="reel-video-frame">
+              <video id="reel-video" autoplay loop muted playsinline preload="metadata">
+                <source src="media/en/clips/listen.mp4" type="video/mp4" />
+              </video>
+            </div>
+
+            <div class="reel-footer">
+              <p class="reel-caption" id="reel-active-desc">
+                Unmute a thread like a radio channel: one catch-up sentence, then one concise sentence per step while the agent works.
+              </p>
+              <button type="button" class="btn btn-secondary btn-sm" id="reel-full-demo-btn">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+                <span data-i18n="reel.fullDemo">Full 70s walkthrough (1080p)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== DUAL LOCAL NEURAL VOICES ==================== -->
+    <section class="section" id="voices">
+      <div class="container">
+        <div class="section-head reveal">
+          <div class="section-kicker" data-i18n="voices.kicker">In-process ONNX Runtime · CPU Provider</div>
+          <h2 class="section-title">
+            <span data-i18n="voices.titleStart">Two neural voices.</span>
+            <em class="serif-accent" data-i18n="voices.titleAccent">Zero cloud bills.</em>
+          </h2>
+          <p class="section-sub" data-i18n="voices.sub">
+            Selected from a 59-run Whisper read-back bake-off across 21 open models. Both engines are ported straight to Rust, SHA-256 verified, and auto-switched per utterance with TELLAL_VOICE=auto.
+          </p>
+        </div>
+
+        <div class="voices-grid reveal">
+          <!-- English Voice Card -->
+          <article class="voice-card" data-voice-card="en">
+            <div class="voice-top">
+              <div>
+                <span class="voice-lang-badge">English · M1</span>
+                <h3>Supertonic 2</h3>
+              </div>
+              <button type="button" class="voice-play-btn" data-audition="en" aria-label="Play English Supertonic 2 sample">
+                <svg class="v-play" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+                <svg class="v-pause" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" hidden><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                <span data-i18n="voices.audition">Audition</span>
+              </button>
+            </div>
+
+            <blockquote class="voice-quote">
+              “Of the 80 tasks, 20 got stuck, 30 failed, the rest finished with warnings. Shall we start with the errors?”
+            </blockquote>
+
+            <div class="voice-wave" id="wave-en" aria-hidden="true"></div>
+
+            <div class="voice-specs">
+              <div><span>Size</span><strong>96 MB (int8)</strong></div>
+              <div><span>Sample rate</span><strong>44.1 kHz</strong></div>
+              <div><span>Pipeline</span><strong>8-step flow</strong></div>
+              <div><span>License</span><strong>OpenRAIL-M</strong></div>
+            </div>
+
+            <div class="lexicon-strip">
+              <span class="lex-tag">EN Normalizer</span>
+              <code>https://… · #8f2a1c</code>
+              <span class="lex-arrow">→</span>
+              <code class="lex-out">URLs &amp; hashes dropped cleanly</code>
+            </div>
+          </article>
+
+          <!-- Turkish Voice Card -->
+          <article class="voice-card" data-voice-card="tr">
+            <div class="voice-top">
+              <div>
+                <span class="voice-lang-badge">Türkçe · 8.6M params</span>
+                <h3>EMA Lightning</h3>
+              </div>
+              <button type="button" class="voice-play-btn" data-audition="tr" aria-label="Play Turkish EMA Lightning sample">
+                <svg class="v-play" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+                <svg class="v-pause" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" hidden><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                <span data-i18n="voices.audition">Audition</span>
+              </button>
+            </div>
+
+            <blockquote class="voice-quote">
+              “80 görevin 20'si takıldı, 30'u hata verdi, kalanı uyarıyla bitti. Hatalardan mı başlayalım?”
+            </blockquote>
+
+            <div class="voice-wave" id="wave-tr" aria-hidden="true"></div>
+
+            <div class="voice-specs">
+              <div><span>Size</span><strong>35 MB</strong></div>
+              <div><span>Sample rate</span><strong>48 kHz</strong></div>
+              <div><span>Cold load</span><strong>~0.6 s</strong></div>
+              <div><span>License</span><strong>Apache-2.0</strong></div>
+            </div>
+
+            <div class="lexicon-strip">
+              <span class="lex-tag">TR Lexicon</span>
+              <code>PR'ı deploy et</code>
+              <span class="lex-arrow">→</span>
+              <code class="lex-out">pi ar'ı diploy et</code>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== CAPABILITIES BENTO ==================== -->
+    <section class="section" id="capabilities">
+      <div class="container">
+        <div class="section-head reveal">
+          <div class="section-kicker" data-i18n="bento.kicker">Crafted down to the last pixel &amp; packet</div>
+          <h2 class="section-title">
+            <span data-i18n="bento.titleStart">Every detail built for</span>
+            <em class="serif-accent" data-i18n="bento.titleAccent">deep flow.</em>
+          </h2>
+        </div>
+
+        <div class="bento-grid">
+          <!-- BENTO 1: Computer-Use Kill Switch -->
+          <div class="bento-card bento-span-7 reveal">
+            <div class="bento-head">
+              <span class="bento-badge badge-danger" data-i18n="bento.cuBadge">cua-driver · Safety First</span>
+              <h3 data-i18n="bento.cuTitle">See when an agent touches your screen. Kill it from anywhere.</h3>
+              <p data-i18n="bento.cuDesc">
+                When an MCP agent drives macOS via cua-driver, a persistent crimson banner tracks live sessions and last action time — even in compact mode. Hit Stop or press the global shortcut from any app to revoke every session instantly.
+              </p>
+            </div>
+
+            <div class="kill-switch-demo">
+              <div class="ks-keys">
+                <button type="button" class="mac-keycap-group" id="ks-trigger" title="Simulate emergency stop">
+                  <kbd class="keycap">⌃</kbd>
+                  <kbd class="keycap">⌥</kbd>
+                  <kbd class="keycap keycap-wide">⎋</kbd>
+                </button>
+                <div class="ks-status" id="ks-status">
+                  <span class="ks-badge is-live" id="ks-badge">3 live sessions · omp</span>
+                  <span class="ks-cmd">cua-driver revoke --all</span>
+                </div>
+              </div>
+              <p class="ks-note" data-i18n="bento.cuHint">Click the keycap combo to test instant revocation (Carbon hotkey — zero Accessibility permission required).</p>
+            </div>
+          </div>
+
+          <!-- BENTO 2: Mobile Access over Tailscale (Tall) -->
+          <div class="bento-card bento-span-5 bento-row-2 reveal">
+            <div class="bento-head">
+              <span class="bento-badge badge-info" data-i18n="bento.mobBadge">Tailscale Tailnet · HTTPS / WSS</span>
+              <h3 data-i18n="bento.mobTitle">Walk away from your desk. Take the voice on your phone.</h3>
+              <p data-i18n="bento.mobDesc">
+                Publish Tellal's loopback server with one Tailscale command. Tap the speaker on your phone and your Mac goes silent automatically. Reply with keyboard dictation or push-to-talk over BlackHole → Wispr Flow.
+              </p>
+            </div>
+
+            <!-- Interactive iPhone Frame -->
+            <div class="phone-stage">
+              <div class="iphone-frame" id="phone-demo">
+                <div class="iphone-notch"></div>
+                <div class="iphone-header">
+                  <span class="iphone-brand">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M11 6a13 13 0 0 0 8.4-2.8A1 1 0 0 1 21 4v12a1 1 0 0 1-1.6.8A13 13 0 0 0 11 14H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"/></svg>
+                    Tellal
+                  </span>
+                  <button type="button" class="iphone-speaker-btn is-on" id="phone-handoff-btn">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                    <span id="phone-handoff-label" data-i18n="bento.phoneOn">On phone</span>
+                  </button>
+                </div>
+
+                <div class="iphone-url">https://macbook.tailnet.ts.net:8455</div>
+
+                <div class="iphone-rows">
+                  <div class="iphone-row is-speaking">
+                    <span class="iphone-dot sky"></span>
+                    <div class="iphone-row-text">
+                      <strong>Fix flaky checkout tests</strong>
+                      <span>48/48 passing in 3 runs.</span>
+                    </div>
+                    <div class="tp-eq is-mini is-active"><span></span><span></span><span></span></div>
+                  </div>
+                  <div class="iphone-row">
+                    <span class="iphone-dot violet"></span>
+                    <div class="iphone-row-text">
+                      <strong>Backfill legacy invoices</strong>
+                      <span class="warn-txt">! Waiting for approval</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="iphone-ptt">
+                  <span class="ptt-pill">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+                    <span data-i18n="bento.ptt">Tap and talk · WSS → BlackHole</span>
+                  </span>
+                </div>
+
+                <div class="iphone-sec-bar">
+                  <span id="phone-mac-state" data-i18n="bento.macSilent">Mac muted · Tailscale-User-Login verified</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- BENTO 3: Written for the Ear ($aloud / $sesli) -->
+          <div class="bento-card bento-span-7 reveal">
+            <div class="bento-head-row">
+              <div>
+                <span class="bento-badge" data-i18n="bento.skillBadge">Agent Protocol · $aloud &amp; $sesli</span>
+                <h3 data-i18n="bento.skillTitle">Agents write for the ear, not a wall of logs.</h3>
+              </div>
+              <div class="seg-toggle" role="tablist">
+                <button type="button" class="seg-btn is-active" data-skill-view="aloud" role="tab" aria-selected="true" data-i18n="bento.withSkill">With $aloud</button>
+                <button type="button" class="seg-btn" data-skill-view="raw" role="tab" aria-selected="false" data-i18n="bento.withoutSkill">Without</button>
+              </div>
+            </div>
+
+            <div class="skill-preview" id="skill-preview">
+              <!-- Populated & toggled by app.js -->
+            </div>
+          </div>
+
+          <!-- BENTO 4: Live T3 Theme Sync -->
+          <div class="bento-card bento-span-6 reveal">
+            <div class="bento-head">
+              <span class="bento-badge" data-i18n="bento.themeBadge">app.asar + LevelDB · 200ms Cross-fade</span>
+              <h3 data-i18n="bento.themeTitle">Looks like a detached piece of T3 Code.</h3>
+              <p data-i18n="bento.themeDesc">
+                Reads your active built-in, custom, or environment theme directly from T3's localStorage and app.asar, then enforces OKLCH WCAG contrast floors automatically. Click any theme below — this entire page follows live.
+              </p>
+            </div>
+
+            <div class="theme-cards" id="bento-theme-cards">
+              <button type="button" class="theme-chip is-active" data-set-theme="t3-chat-dark">
+                <span class="tc-swatch" style="background:linear-gradient(135deg,#171019 50%,#e83e8c 50%)"></span>
+                <span class="tc-info"><strong>T3 Chat</strong><em>Dark · 18.7:1</em></span>
+              </button>
+              <button type="button" class="theme-chip" data-set-theme="t3-chat-light">
+                <span class="tc-swatch" style="background:linear-gradient(135deg,#f3ebf2 50%,#c91d6d 50%)"></span>
+                <span class="tc-info"><strong>T3 Chat</strong><em>Light · 16.9:1</em></span>
+              </button>
+              <button type="button" class="theme-chip" data-set-theme="grove">
+                <span class="tc-swatch" style="background:linear-gradient(135deg,#0e1712 50%,#22c55e 50%)"></span>
+                <span class="tc-info"><strong>Grove</strong><em>Emerald</em></span>
+              </button>
+              <button type="button" class="theme-chip" data-set-theme="ocean">
+                <span class="tc-swatch" style="background:linear-gradient(135deg,#0d1522 50%,#38bdf8 50%)"></span>
+                <span class="tc-info"><strong>Ocean</strong><em>Sapphire</em></span>
+              </button>
+              <button type="button" class="theme-chip" data-set-theme="ember">
+                <span class="tc-swatch" style="background:linear-gradient(135deg,#19110c 50%,#f97316 50%)"></span>
+                <span class="tc-info"><strong>Ember</strong><em>Amber</em></span>
+              </button>
+              <button type="button" class="theme-chip" data-set-theme="iris">
+                <span class="tc-swatch" style="background:linear-gradient(135deg,#120f21 50%,#a78bfa 50%)"></span>
+                <span class="tc-info"><strong>Iris</strong><em>Violet</em></span>
+              </button>
+            </div>
+          </div>
+
+          <!-- BENTO 5: Keyboard-First Native Instrument -->
+          <div class="bento-card bento-span-6 reveal">
+            <div class="bento-head">
+              <span class="bento-badge" data-i18n="bento.kbBadge">Zero mouse required · Global Hotkeys</span>
+              <h3 data-i18n="bento.kbTitle">Every action lives under your fingers.</h3>
+              <p class="kb-readout" id="kb-readout" data-i18n="bento.kbDefault">
+                Hover or tap any keycap to inspect its command.
+              </p>
+            </div>
+
+            <div class="kb-deck" id="kb-deck">
+              <button type="button" class="kb-item" data-kb="hotkey"><kbd>⌃⌥Space</kbd><span data-i18n="kb.hotkey">Show / hide panel</span></button>
+              <button type="button" class="kb-item" data-kb="listen"><kbd>Space</kbd><span data-i18n="kb.listen">Listen / mute</span></button>
+              <button type="button" class="kb-item" data-kb="reply"><kbd>R</kbd><span data-i18n="kb.reply">Voice reply</span></button>
+              <button type="button" class="kb-item" data-kb="newtask"><kbd>N</kbd><span data-i18n="kb.newtask">New voice task</span></button>
+              <button type="button" class="kb-item" data-kb="open"><kbd>⌘O</kbd><span data-i18n="kb.open">Open in T3</span></button>
+              <button type="button" class="kb-item" data-kb="pause"><kbd>P</kbd><span data-i18n="kb.pause">Pause voice</span></button>
+              <button type="button" class="kb-item" data-kb="skip"><kbd>→</kbd><span data-i18n="kb.skip">Okay, next</span></button>
+              <button type="button" class="kb-item" data-kb="live"><kbd>L</kbd><span data-i18n="kb.live">Jump to live</span></button>
+              <button type="button" class="kb-item" data-kb="mute"><kbd>M</kbd><span data-i18n="kb.mute">Mute all</span></button>
+              <button type="button" class="kb-item" data-kb="search"><kbd>⌘K</kbd><span data-i18n="kb.search">Filter threads</span></button>
+              <button type="button" class="kb-item" data-kb="compact"><kbd>⌘⇧C</kbd><span data-i18n="kb.compact">Compact mode</span></button>
+              <button type="button" class="kb-item is-danger" data-kb="stop"><kbd>⌃⌥⎋</kbd><span data-i18n="kb.stop">Kill screen use</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== ARCHITECTURE & NUMBERS ==================== -->
+    <section class="section" id="architecture">
+      <div class="container">
+        <div class="section-head reveal">
+          <div class="section-kicker" data-i18n="arch.kicker">Measured on Apple M4 Pro · Full local telemetry</div>
+          <h2 class="section-title">
+            <span data-i18n="arch.titleStart">Pure Rust under the hood.</span>
+            <em class="serif-accent" data-i18n="arch.titleAccent">Measured to the millisecond.</em>
+          </h2>
+        </div>
+
+        <!-- Signal Pipeline Diagram -->
+        <div class="pipeline-box reveal">
+          <div class="pipe-col">
+            <div class="pipe-label" data-i18n="arch.inputs">Read-Only Inputs</div>
+            <div class="pipe-node">
+              <strong>T3 Code Desktop</strong>
+              <span>t3 CLI · statev2.sqlite · app.asar + LevelDB</span>
+            </div>
+            <div class="pipe-node">
+              <strong>Wispr Flow</strong>
+              <span>hands-free URL · flow.sqlite history</span>
+            </div>
+            <div class="pipe-node">
+              <strong>cua-driver</strong>
+              <span>daemon socket · revoke --all</span>
+            </div>
+          </div>
+
+          <div class="pipe-connector" aria-hidden="true">
+            <div class="pipe-line"><span></span></div>
+          </div>
+
+          <div class="pipe-col pipe-col-core">
+            <div class="pipe-label">tellal-core (Rust)</div>
+            <div class="pipe-core-card">
+              <div class="pipe-stage">
+                <span class="pipe-tag">5s poll · 1s tail</span>
+                <strong>Channels + FIFO Queue</strong>
+                <p>SQLite change detection cuts CLI CPU by 75%. Multi-Mac SSH remotes supported.</p>
+              </div>
+              <div class="pipe-stage">
+                <span class="pipe-tag">ONNX Runtime · CPU</span>
+                <strong>Lexicon → Normalizer → TTS → rodio</strong>
+                <p>EMA Lightning (48 kHz) &amp; Supertonic 2 (44.1 kHz) synthesized just-in-time with prefetch.</p>
+              </div>
+              <div class="pipe-stage">
+                <span class="pipe-tag">Observability</span>
+                <strong>events.jsonl · metrics.jsonl · WAVs</strong>
+                <p>Every utterance, latency, and contrast check logged locally for tellal-report.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="pipe-connector" aria-hidden="true">
+            <div class="pipe-line"><span></span></div>
+          </div>
+
+          <div class="pipe-col">
+            <div class="pipe-label" data-i18n="arch.surfaces">Surfaces</div>
+            <div class="pipe-node is-accent">
+              <strong>Tellal GPUI App</strong>
+              <span>Non-activating NSPanel · Zero WebView · All Spaces</span>
+            </div>
+            <div class="pipe-node">
+              <strong>Phone Web App</strong>
+              <span>127.0.0.1:47870 · tailscale serve WSS · BlackHole PTT</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Benchmark Metrics Strip -->
+        <div class="bench-grid reveal">
+          <div class="bench-card">
+            <div class="bench-num">247<span>ms</span></div>
+            <div class="bench-title" data-i18n="bench.b1Title">Click → first audio</div>
+            <div class="bench-sub" data-i18n="bench.b1Sub">Synthesizes while opening audio device</div>
+            <div class="bench-bar"><span style="width:24%"></span></div>
+          </div>
+          <div class="bench-card">
+            <div class="bench-num">0.04<span>×</span></div>
+            <div class="bench-title" data-i18n="bench.b2Title">Synthesis RTF</div>
+            <div class="bench-sub" data-i18n="bench.b2Sub">30–250 ms per sentence on CPU</div>
+            <div class="bench-bar"><span style="width:14%"></span></div>
+          </div>
+          <div class="bench-card">
+            <div class="bench-num">1.69<span>%</span></div>
+            <div class="bench-title" data-i18n="bench.b3Title">60s idle CPU</div>
+            <div class="bench-sub" data-i18n="bench.b3Sub">Down 75% via read-only SQLite change ticks</div>
+            <div class="bench-bar"><span style="width:17%"></span></div>
+          </div>
+          <div class="bench-card">
+            <div class="bench-num">161<span>MB</span></div>
+            <div class="bench-title" data-i18n="bench.b4Title">Memory while speaking</div>
+            <div class="bench-sub" data-i18n="bench.b4Sub">Forced CPU provider vs ~700 MB CoreML</div>
+            <div class="bench-bar"><span style="width:23%"></span></div>
+          </div>
+        </div>
+
+        <!-- Authentic Build Story Callout -->
+        <div class="story-card reveal">
+          <div class="story-body">
+            <span class="bento-badge" data-i18n="story.badge">Open Source · MIT License</span>
+            <h3 data-i18n="story.title">Built in 48 hours inside a single T3 Code thread.</h3>
+            <p data-i18n="story.desc">
+              Dictated in Turkish with Wispr Flow, planned and built by coding agents, backed by a 59-run TTS bake-off, 28 T3 sidebar findings, and evidence-based UI rules. Open-sourced with its full design spec and benchmark reports.
+            </p>
+          </div>
+          <div class="story-links">
+            <a href="https://github.com/cengizhankose/tellal/blob/main/docs/JOURNEY.md" target="_blank" rel="noreferrer" class="story-link">
+              <span>JOURNEY.md</span>
+              <span data-i18n="story.journey">How it was built →</span>
+            </a>
+            <a href="https://github.com/cengizhankose/tellal/blob/main/docs/DESIGN.md" target="_blank" rel="noreferrer" class="story-link">
+              <span>DESIGN.md</span>
+              <span data-i18n="story.design">UI contract &amp; measurements →</span>
+            </a>
+            <a href="https://github.com/cengizhankose/tellal/blob/main/research/tts/bakeoff.md" target="_blank" rel="noreferrer" class="story-link">
+              <span>bakeoff.md</span>
+              <span data-i18n="story.bakeoff">59-run TTS bake-off →</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== INSTALL & QUICKSTART ==================== -->
+    <section class="section install-section" id="install">
+      <div class="container">
+        <div class="install-shell reveal">
+          <div class="install-header">
+            <div class="section-kicker" data-i18n="install.kicker">Apple Silicon · macOS 13.4+ · Developer ID Signed &amp; Notarized</div>
+            <h2 class="section-title">
+              <span data-i18n="install.titleStart">Up and listening in</span>
+              <em class="serif-accent" data-i18n="install.titleAccent">thirty seconds.</em>
+            </h2>
+          </div>
+
+          <div class="install-tabs" role="tablist">
+            <button type="button" class="install-tab is-active" data-install-tab="dmg" role="tab" aria-selected="true" data-i18n="install.tabDmg">Signed DMG</button>
+            <button type="button" class="install-tab" data-install-tab="source" role="tab" aria-selected="false" data-i18n="install.tabSource">Build / Demo Mode</button>
+            <button type="button" class="install-tab" data-install-tab="mobile" role="tab" aria-selected="false" data-i18n="install.tabMobile">Phone via Tailscale</button>
+          </div>
+
+          <!-- Panel 1: Signed DMG -->
+          <div class="install-panel is-active" data-install-panel="dmg">
+            <div class="dmg-cta-row">
+              <div class="dmg-info">
+                <img src="media/icon.png" alt="Tellal macOS App Icon" class="dmg-app-icon" width="60" height="60" />
+                <div>
+                  <h3>Tellal-0.4.0.dmg</h3>
+                  <p data-i18n="install.dmgMeta">Apple Silicon · macOS 13.4+ · Signed &amp; Notarized by Apple · MIT</p>
+                </div>
+              </div>
+              <a href="https://github.com/cengizhankose/tellal/releases/latest" target="_blank" rel="noreferrer" class="btn btn-primary btn-lg">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span data-i18n="install.downloadLatest">Download Latest Release</span>
+              </a>
+            </div>
+
+            <ol class="install-steps">
+              <li>
+                <span class="step-idx">1</span>
+                <div>
+                  <strong data-i18n="install.s1Title">Drag to Applications &amp; launch</strong>
+                  <p data-i18n="install.s1Body">Tellal floats above every Space with no Dock icon. Toggle anytime with ⌃⌥Space.</p>
+                </div>
+              </li>
+              <li>
+                <span class="step-idx">2</span>
+                <div>
+                  <strong data-i18n="install.s2Title">Voice downloads automatically</strong>
+                  <p data-i18n="install.s2Body">Downloads your language voice once (35 MB Turkish, 96 MB English), SHA-256 verified.</p>
+                </div>
+              </li>
+              <li>
+                <span class="step-idx">3</span>
+                <div>
+                  <strong data-i18n="install.s3Title">Unmute a thread &amp; install $aloud / $sesli</strong>
+                  <p data-i18n="install.s3Body">Add the skill to Claude Code, Codex, or omp so agents emit crisp spoken 🔊 summaries.</p>
+                </div>
+              </li>
+            </ol>
+          </div>
+
+          <!-- Panel 2: Build from Source & Demo -->
+          <div class="install-panel" data-install-panel="source" hidden>
+            <div class="code-box">
+              <div class="code-box-head">
+                <span>zsh · Rust 1.92+ · Demo mode needs no T3 install</span>
+                <button type="button" class="copy-btn" data-copy="git clone https://github.com/cengizhankose/tellal
+cd tellal
+./scripts/fetch-models.sh all
+cargo build --release --workspace
+TELLAL_DEMO=demo/fixture.json target/release/tellal">
+                  <span data-i18n="install.copy">Copy</span>
+                </button>
+              </div>
+              <pre><code><span class="c-muted"># Clone, fetch local ONNX voices (35 MB TR + 96 MB EN), and build</span>
+git clone https://github.com/cengizhankose/tellal
+cd tellal
+./scripts/fetch-models.sh all
+cargo build --release --workspace
+
+<span class="c-muted"># Run live with T3 Code — or try scripted demo mode without T3:</span>
+TELLAL_DEMO=demo/fixture.json target/release/tellal</code></pre>
+            </div>
+          </div>
+
+          <!-- Panel 3: Tailscale Mobile -->
+          <div class="install-panel" data-install-panel="mobile" hidden>
+            <div class="code-box">
+              <div class="code-box-head">
+                <span>zsh · Loopback 127.0.0.1:47870 → Private Tailnet HTTPS</span>
+                <button type="button" class="copy-btn" data-copy="tailscale serve --bg --https=8455 http://127.0.0.1:47870">
+                  <span data-i18n="install.copy">Copy</span>
+                </button>
+              </div>
+              <pre><code><span class="c-muted"># 1. Publish Tellal's loopback mobile server on your tailnet (once)</span>
+tailscale serve --bg --https=8455 http://127.0.0.1:47870
+
+<span class="c-muted"># 2. Optional for push-to-talk from phone mic → Wispr Flow</span>
+brew install --cask blackhole-2ch</code></pre>
+            </div>
+            <p class="install-footnote" data-i18n="install.mobileFoot">
+              Open the metrics drawer in Tellal → Mobile → click your https://&lt;mac&gt;.&lt;tailnet&gt;.ts.net:8455/ link to copy it. Requests without your Tailscale-User-Login are rejected with 403.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ==================== FOOTER ==================== -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11 6a13 13 0 0 0 8.4-2.8A1 1 0 0 1 21 4v12a1 1 0 0 1-1.6.8A13 13 0 0 0 11 14H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"/>
+              <path d="M6 14a12 12 0 0 0 2.4 7.2 2 2 0 0 0 3.2-2.4A8 8 0 0 1 10 14"/>
+              <path d="M8 6v8"/>
+            </svg>
+          </span>
+          <span class="brand-name">Tellal</span>
+        </div>
+        <p data-i18n="footer.tagline">A voice for your T3 Code agents. Open source, local-first, built in Rust + GPUI.</p>
+      </div>
+
+      <div class="footer-links">
+        <a href="https://github.com/cengizhankose/tellal" target="_blank" rel="noreferrer">GitHub</a>
+        <a href="https://github.com/cengizhankose/tellal/releases/latest" target="_blank" rel="noreferrer" data-i18n="footer.releases">Releases</a>
+        <a href="https://github.com/cengizhankose/tellal/blob/main/README.tr.md" target="_blank" rel="noreferrer">Türkçe README</a>
+        <a href="https://github.com/cengizhankose/tellal/blob/main/docs/DESIGN.md" target="_blank" rel="noreferrer" data-i18n="footer.design">Design Spec</a>
+        <a href="https://github.com/cengizhankose/tellal/blob/main/docs/JOURNEY.md" target="_blank" rel="noreferrer" data-i18n="footer.journey">Journey</a>
+        <a href="https://github.com/cengizhankose/tellal/blob/main/LICENSE" target="_blank" rel="noreferrer">MIT License</a>
+      </div>
+    </div>
+    <div class="container footer-bottom">
+      <span>© 2026 Cengizhan Köse · MIT License</span>
+      <span data-i18n="footer.credits">Built with GPUI, ONNX Runtime, EMA Lightning &amp; Supertonic 2 · Not affiliated with T3 / Ping Labs.</span>
+    </div>
+  </footer>
+
+  <!-- Full 70s HD Walkthrough Lightbox Modal -->
+  <div class="modal-backdrop" id="video-modal" hidden role="dialog" aria-modal="true" aria-label="Full Tellal walkthrough">
+    <div class="modal-dialog">
+      <div class="modal-bar">
+        <span id="modal-title" data-i18n="modal.title">Tellal — Full 70s Walkthrough (with local voice audio)</span>
+        <button type="button" class="modal-close" id="modal-close" aria-label="Close video">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <video id="modal-video" controls playsinline preload="none">
+        <source src="media/en/demo.mp4" type="video/mp4" />
+      </video>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
