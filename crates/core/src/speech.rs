@@ -16,6 +16,7 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, RwLock};
 use std::time::{Duration, Instant};
 
@@ -28,7 +29,7 @@ use crate::lexicon::Lexicon;
 use crate::supertonic::Supertonic;
 use crate::telemetry::{self, Telemetry, current_rss_mb, ms, now_unix_ms, rfc3339_from_ms, round2};
 use crate::voices::{VOICES, VoiceDef, Voices};
-use crate::{ChannelView, Config, CoreEvent, Lang, ThreadView, VoicePref, english, lang, t3};
+use crate::{ChannelView, Config, CoreEvent, Lang, ThreadView, VoicePref, english, lang, t3, tempo};
 
 /// Reads a thread's latest `n` complete messages (oldest → newest) for a catch-up line:
 /// `t3::latest_messages` or the demo fixture.
@@ -128,26 +129,32 @@ impl TtsEngine {
         }
     }
 
-    /// Synthesizes one sentence; logs `tts.synth` with the voice, the text as written, as
-    /// prepared (lexicon/normalizer) and as the model read it.
-    pub fn synth(&self, tel: &Telemetry, text: &str, wav: Option<&Path>) -> anyhow::Result<Synth> {
+    /// Synthesizes one sentence at the voice's normal pace, then time-stretches it to `speed`
+    /// ([`Config::speed`]; `tempo::stretch`, skipped at 1.0) so every duration derived from the
+    /// samples describes what plays. Logs `tts.synth` with the voice, the speed, the text as
+    /// written, as prepared (lexicon/normalizer) and as the model read it; `synth_ms` and RTF
+    /// include the stretch (`stretch_ms`).
+    pub fn synth(&self, tel: &Telemetry, text: &str, speed: f32, wav: Option<&Path>) -> anyhow::Result<Synth> {
         let start = Instant::now();
         let respelled = self.prepare(text);
         let res = match &mut *self.model.lock().unwrap_or_else(|p| p.into_inner()) {
             Model::Ema(m) => m.speak(&respelled),
             Model::Supertonic(m) => m.speak(&respelled),
         };
-        let synth_ms = ms(start.elapsed());
-        let input = json!({"voice": self.voice, "text": text, "chars": text.chars().count(),
+        let input = json!({"voice": self.voice, "speed": speed, "text": text, "chars": text.chars().count(),
                            "respelled": (respelled != text).then_some(&respelled)});
         let spoken = match res {
             Ok(s) => s,
             Err(e) => {
-                tel.event("tts.synth", Some(synth_ms), false, input, Value::Null, Some(&format!("{e:#}")));
+                tel.event("tts.synth", Some(ms(start.elapsed())), false, input, Value::Null, Some(&format!("{e:#}")));
                 return Err(e);
             }
         };
-        let samples = spoken.samples;
+        let stretched = Instant::now();
+        let samples =
+            if speed == 1.0 { spoken.samples } else { tempo::stretch(spoken.samples, self.sample_rate, speed) };
+        let stretch_ms = ms(stretched.elapsed());
+        let synth_ms = ms(start.elapsed());
         let audio_ms = round2(samples.len() as f64 * 1000.0 / f64::from(self.sample_rate));
         let rtf = if audio_ms > 0.0 { (synth_ms / audio_ms * 10_000.0).round() / 10_000.0 } else { 0.0 };
         tel.event(
@@ -156,7 +163,7 @@ impl TtsEngine {
             true,
             input,
             json!({"spoken": spoken.text, "pieces": spoken.pieces, "samples": samples.len(), "audio_ms": audio_ms,
-                   "rtf": rtf, "wav": wav}),
+                   "stretch_ms": round2(stretch_ms), "rtf": rtf, "wav": wav}),
             None,
         );
         tel.update_stats(|s| {
@@ -238,8 +245,8 @@ enum Prefetch {
     #[default]
     None,
     Failed,
-    /// Audio of every sentence by `voice`.
-    Ready { voice: &'static str, parts: Vec<Synth> },
+    /// Audio of every sentence by `voice` at `speed`.
+    Ready { voice: &'static str, speed: f32, parts: Vec<Synth> },
 }
 
 /// The audible utterance, or a paused one held by its channel.
@@ -500,6 +507,8 @@ struct Shared {
     /// `Config.lang`: the core's own lines and the language of undecidable text.
     lang: Lang,
     pref: VoicePref,
+    /// Speech speed as `f32` bits; read once per utterance when its synthesis starts.
+    speed: AtomicU32,
     state: Mutex<State>,
     wake: Condvar,
 }
@@ -507,6 +516,10 @@ struct Shared {
 impl Shared {
     fn lock(&self) -> MutexGuard<'_, State> {
         telemetry::lock(&self.state)
+    }
+
+    fn speed(&self) -> f32 {
+        f32::from_bits(self.speed.load(Ordering::Relaxed))
     }
 
     /// Publishes view changes (→ `ChannelsUpdated`; playback progress excluded) and HUD numbers,
@@ -701,6 +714,7 @@ impl Speech {
             voices,
             lang: cfg.lang,
             pref: cfg.voice,
+            speed: AtomicU32::new(cfg.speed.to_bits()),
             state: Mutex::new(State::default()),
             wake: Condvar::new(),
         });
@@ -727,6 +741,16 @@ impl Speech {
             std::thread::Builder::new().name("tellal-tts".into()).spawn(move || player_loop(&shared, &cfg))?;
         }
         Ok(Speech { shared, catchup_tx })
+    }
+
+    /// Speed of utterances synthesized from now on (see `Core::set_speed`).
+    pub(crate) fn speed(&self) -> f32 {
+        self.shared.speed()
+    }
+
+    /// Sets it (already clamped); returns the previous speed.
+    pub(crate) fn set_speed(&self, speed: f32) -> f32 {
+        f32::from_bits(self.shared.speed.swap(speed.to_bits(), Ordering::Relaxed))
     }
 
     /// Radio switch (see `Core::set_listening`).
@@ -1045,10 +1069,12 @@ fn open_device_async(tel: &Arc<Telemetry>, reason: &'static str) -> crossbeam_ch
     rx
 }
 
-/// Synthesized speaker labels per (voice, label).
-type Labels = HashMap<(&'static str, String), Vec<f32>>;
+/// Synthesized speaker labels per (voice, label, speed bits).
+type Labels = HashMap<(&'static str, String, u32), Vec<f32>>;
 
-/// Synthesizes and appends utterance `id` (label, then sentences or its prefetched audio).
+/// Synthesizes and appends utterance `id` at `speed` (label, then sentences or its prefetched
+/// audio when that has the same voice and speed).
+#[allow(clippy::too_many_arguments)]
 fn synthesize(
     sh: &Shared,
     engine: &TtsEngine,
@@ -1056,15 +1082,16 @@ fn synthesize(
     id: u64,
     label: Option<&str>,
     text: &str,
+    speed: f32,
     prefetch: Prefetch,
 ) {
     let tel = &*sh.tel;
     let sr = engine.sample_rate;
     if let Some(label) = label {
-        let key = (engine.voice, label.to_owned());
+        let key = (engine.voice, label.to_owned(), speed.to_bits());
         let samples = match labels.get(&key) {
             Some(s) => Some(s.clone()),
-            None => engine.synth(tel, label, None).ok().map(|s| {
+            None => engine.synth(tel, label, speed, None).ok().map(|s| {
                 labels.insert(key, s.samples.clone());
                 s.samples
             }),
@@ -1076,7 +1103,7 @@ fn synthesize(
         }
     }
     match prefetch {
-        Prefetch::Ready { voice, parts } if voice == engine.voice && !parts.is_empty() => {
+        Prefetch::Ready { voice, speed: at, parts } if voice == engine.voice && at == speed && !parts.is_empty() => {
             for s in parts {
                 if !sh.append(id, s.samples, sr, Some(s.synth_ms)) {
                     return;
@@ -1085,7 +1112,7 @@ fn synthesize(
         }
         _ => {
             for sentence in split_sentences(text) {
-                match engine.synth(tel, &sentence, None) {
+                match engine.synth(tel, &sentence, speed, None) {
                     Ok(s) => {
                         if !sh.append(id, s.samples, sr, Some(s.synth_ms)) {
                             return;
@@ -1107,9 +1134,10 @@ fn synthesize(
     sh.wake.notify_all();
 }
 
-fn prefetch(tel: &Telemetry, engine: &TtsEngine, text: &str) -> Prefetch {
-    let parts: anyhow::Result<Vec<Synth>> = split_sentences(text).iter().map(|s| engine.synth(tel, s, None)).collect();
-    parts.map_or(Prefetch::Failed, |parts| Prefetch::Ready { voice: engine.voice, parts })
+fn prefetch(tel: &Telemetry, engine: &TtsEngine, text: &str, speed: f32) -> Prefetch {
+    let parts: anyhow::Result<Vec<Synth>> =
+        split_sentences(text).iter().map(|s| engine.synth(tel, s, speed, None)).collect();
+    parts.map_or(Prefetch::Failed, |parts| Prefetch::Ready { voice: engine.voice, speed, parts })
 }
 
 /// Voices loaded on the `tellal-tts` thread: the preferred one at start (or once it turns
@@ -1220,15 +1248,16 @@ fn player_loop(sh: &Shared, cfg: &Config) {
             if let Some((thread, id, text, lang)) = next_head(&st) {
                 let label = if st.needs_label(&thread) { sh.label(&thread) } else { None };
                 drop(st);
+                let speed = sh.speed();
                 let audio = match engines.get(sh, cfg, lang) {
                     Some(engine) => {
                         if let Some(label) = label
-                            && !labels.contains_key(&(engine.voice, label.clone()))
-                            && let Ok(s) = engine.synth(tel, &label, None)
+                            && !labels.contains_key(&(engine.voice, label.clone(), speed.to_bits()))
+                            && let Ok(s) = engine.synth(tel, &label, speed, None)
                         {
-                            labels.insert((engine.voice, label), s.samples);
+                            labels.insert((engine.voice, label, speed.to_bits()), s.samples);
                         }
-                        prefetch(tel, engine, &text)
+                        prefetch(tel, engine, &text, speed)
                     }
                     None => Prefetch::Failed,
                 };
@@ -1272,7 +1301,9 @@ fn player_loop(sh: &Shared, cfg: &Config) {
                 let prefetched = std::mem::take(&mut item.prefetch);
                 let player = rodio::Player::connect_new(dev.mixer());
                 player.set_volume(cfg.output_volume);
-                let ready = matches!(&prefetched, Prefetch::Ready { voice, .. } if *voice == engine.voice);
+                let speed = sh.speed();
+                let ready = matches!(&prefetched, Prefetch::Ready { voice, speed: at, .. }
+                    if *voice == engine.voice && *at == speed);
                 let mut p = Playing::new(item, player, engine.voice, engine.sample_rate, label.clone(), ready);
                 p.device_open_ms = device_open_ms.take();
                 st.last_thread = Some(thread.clone());
@@ -1280,7 +1311,7 @@ fn player_loop(sh: &Shared, cfg: &Config) {
                 st.current = Some(p);
                 sh.commit(&mut st);
                 drop(st);
-                synthesize(sh, engine, &mut labels, id, label.as_deref(), &text, prefetched);
+                synthesize(sh, engine, &mut labels, id, label.as_deref(), &text, speed, prefetched);
                 st = sh.lock();
                 continue;
             }
@@ -1288,7 +1319,9 @@ fn player_loop(sh: &Shared, cfg: &Config) {
             && let Some((thread, id, text, lang)) = next_head(&st)
         {
             drop(st);
-            let audio = engines.get(sh, cfg, lang).map_or(Prefetch::Failed, |engine| prefetch(tel, engine, &text));
+            let speed = sh.speed();
+            let audio =
+                engines.get(sh, cfg, lang).map_or(Prefetch::Failed, |engine| prefetch(tel, engine, &text, speed));
             st = sh.lock();
             if let Some(item) = st.chans.get_mut(&thread).and_then(|c| c.queue.iter_mut().find(|i| i.id == id)) {
                 item.prefetch = audio;

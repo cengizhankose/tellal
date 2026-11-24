@@ -90,6 +90,7 @@ The UI is in English or Turkish (see [Languages and voices](#languages-and-voice
 
   Files come from pinned Hugging Face revisions, are checked against SHA-256 sums and land in `TELLAL_MODELS_DIR` (default `~/Library/Application Support/tellal/models`).
 - **Which voice speaks.** `TELLAL_VOICE=auto` (default) picks the voice per utterance from its language, so a Turkish thread is read in Turkish and an English one in English when both voices are installed; `tr` or `en` always uses that voice.
+- **Speech speed.** 1×, 1.25×, 1.5×, 1.75× or 2× from the `Speed` row in the metrics drawer's Voices section. The voice still speaks at its normal pace and the audio is time-stretched (WSOLA, same pitch); asking the models themselves to speak faster dropped words. It applies from the next message (audio already synthesized keeps its speed) and is remembered in `~/Library/Application Support/tellal/speed`. `TELLAL_SPEED` (0.75–2.0) overrides it at start.
 - **Downloads.** The UI language's voice downloads itself at first run. While the voice the panel needs is missing, downloading or failed, a row above the status line offers `Download voice`, shows progress or `Retry`; `D` does the same. The metrics drawer has a Voices list with every voice and its state, where the other voice can be downloaded too.
 - **Agent skills.** [`aloud`](skill/aloud/) (English, trigger `$aloud`) and [`sesli`](skill/sesli/) (Turkish, trigger `$sesli`) teach agents to write for the ear. Install: [`skill/aloud/README.md`](skill/aloud/README.md), [`skill/sesli/README.md`](skill/sesli/README.md). Replies sent from the panel start with `$aloud ` (English UI) or `$sesli ` (Turkish UI) to keep the skill on (`TELLAL_REPLY_PREFIX`).
 
@@ -165,6 +166,7 @@ All settings are environment variables.
 | `TELLAL_LIVE_POLL_MS` | `1000` | Live tail interval (new messages and waiting requests of listed threads) |
 | `TELLAL_LANG` | macOS preferred language (`tr*` → `tr`, else `en`) | UI language and the panel's own spoken lines: `en` or `tr` |
 | `TELLAL_VOICE` | `auto` | Which voice speaks: `auto` (per utterance, by its language), `tr` or `en` |
+| `TELLAL_SPEED` | the saved drawer setting, else `1.0` | Speech speed multiplier, `0.75`–`2.0` (clamped; `1.0` = each voice's normal pace). The drawer's `Speed` row changes it live and saves it to `~/Library/Application Support/tellal/speed` |
 | `TELLAL_MODELS_DIR` | `~/Library/Application Support/tellal/models` | Voice models, one directory per voice (`ema-lightning-onnx/`, `supertonic-2-en/`) |
 | `TELLAL_TTS_THREADS` | `2` | ONNX Runtime threads for the voice |
 | `TELLAL_LEXICON` | `~/Library/Application Support/tellal/lexicon.tsv` | Your pronunciation lexicon for the Turkish voice: `written<TAB>spoken` per line; a key ending in `*` also matches inflected forms. Overrides built-in entries. |
@@ -185,7 +187,7 @@ All settings are environment variables.
 
 Each run writes to `~/Library/Logs/tellal/<YYYYMMDD-HHMMSS-pid>/` (`latest` points to the newest). Nothing leaves the machine.
 
-- `events.jsonl`: one line per input or output, `{ts, run, seq, kind, dur_ms, ok, in, out, err}`. T3 calls (`t3.*`, with argv, duration, child CPU and RSS), live tail (`live.*`), channel actions (`channel.*`), speech (`speak.enqueue`, `tts.synth` with written / respelled / spoken text and RTF, `audio.play` with click→audio and message→audio), replies and dictation (`reply.*`, `wispr.history`), new tasks (`task.start`: argv, text, exit, stdout JSON), computer use (`computer.poll` with method, duration and child CPU; `computer.session_start` / `computer.action` / `computer.session_end`; `computer.stop` with sessions revoked; `computer.permissions_grant`), theme resolution (`theme.resolve`, contrast ratios) and every UI interaction (`ui.*`, with before/after state).
+- `events.jsonl`: one line per input or output, `{ts, run, seq, kind, dur_ms, ok, in, out, err}`. T3 calls (`t3.*`, with argv, duration, child CPU and RSS), live tail (`live.*`), channel actions (`channel.*`), speech (`speak.enqueue`, `tts.synth` with speed, written / respelled / spoken text and RTF, `audio.play` with click→audio and message→audio, `speed.set` with the old and new speed), replies and dictation (`reply.*`, `wispr.history`), new tasks (`task.start`: argv, text, exit, stdout JSON), computer use (`computer.poll` with method, duration and child CPU; `computer.session_start` / `computer.action` / `computer.session_end`; `computer.stop` with sessions revoked; `computer.permissions_grant`), theme resolution (`theme.resolve`, contrast ratios) and every UI interaction (`ui.*`, with before/after state).
 - `metrics.jsonl`: RSS, CPU, thread count, queue length and child CPU, once per second.
 - `audio/<seq>.wav`: every spoken utterance.
 
@@ -194,6 +196,7 @@ target/release/tellal-report latest   # per-kind p50/p95/max, RSS/CPU, poll cost
 target/release/tellal-bench           # voice: cold load, per-sentence synth ms and RTF, peak RSS (Turkish)
 target/release/tellal-bench --voice en   # same, English voice and English agent lines
 target/release/tellal-bench --corpus sentences.txt   # same, with your sentences (one per line)
+target/release/tellal-bench --voice en --speed 1.5   # same, at 1.5× (0.75–2.0; default 1.0)
 target/release/tellal-bench --download [ID ...]   # download voices (default all) into TELLAL_MODELS_DIR, checksums verified
 target/release/tellal-bench --t3      # cost of listing every project, 3 rounds
 target/release/tellal-bench --theme   # resolve the T3 theme once: ThemeView JSON, contrast table

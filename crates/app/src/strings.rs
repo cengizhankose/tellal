@@ -146,6 +146,8 @@ pub struct Strings {
     pub voice_ready: &'static str,
     pub voice_missing: &'static str,
     pub voice_failed: &'static str,
+    pub speed_title: &'static str,
+    pub speed_tip: &'static str,
 
     // Self-test samples (shown in the `shots` walk).
     pub sample_task: &'static str,
@@ -283,6 +285,8 @@ pub static TR: Strings = Strings {
     voice_ready: "hazır",
     voice_missing: "yüklü değil",
     voice_failed: "inmedi",
+    speed_title: "Hız",
+    speed_tip: "konuşma hızı · bir sonraki mesajdan itibaren geçerli",
 
     sample_task: "Masaüstündeki ekran görüntülerini tarihe göre klasörle.",
     sample_reply: "Testleri çalıştır, sonra özetle.",
@@ -419,6 +423,8 @@ pub static EN: Strings = Strings {
     voice_ready: "ready",
     voice_missing: "not installed",
     voice_failed: "failed",
+    speed_title: "Speed",
+    speed_tip: "speech speed · applies from the next message",
 
     sample_task: "Sort the screenshots on the desktop into folders by date.",
     sample_reply: "Run the tests, then summarize.",
@@ -641,6 +647,12 @@ impl Strings {
     pub fn toast_voice_ready(&self, v: &VoiceView) -> String {
         if self.tr() { format!("Ses hazır: {}", v.name) } else { format!("Voice ready: {}", v.name) }
     }
+
+    /// Speed step: `1,25×` / `1.25×`, `2×`.
+    pub fn speed_step(&self, speed: f32) -> String {
+        let step = format!("{speed}×");
+        if self.tr() { step.replace('.', ",") } else { step }
+    }
 }
 
 #[cfg(test)]
@@ -657,5 +669,7 @@ mod tests {
         assert_eq!(EN.percent(42, 100), "42%");
         assert_eq!(EN.section(Section::Settled), "Settled");
         assert_eq!(TR.section(Section::Settled), "Bitti");
+        assert_eq!(TR.speed_step(1.25), "1,25×");
+        assert_eq!(EN.speed_step(2.0), "2×");
     }
 }

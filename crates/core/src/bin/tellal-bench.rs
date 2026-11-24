@@ -4,7 +4,9 @@
 //!   `--voice en`: English agent lines), per-sentence numbers; each sentence is saved as
 //!   `<run_dir>/audio/bench-NN.wav` (unless `TELLAL_SAVE_AUDIO=0`) and the numbers as
 //!   `<run_dir>/bench.json` (read back by `research/tts/bakeoff/harness/readback_en.py --tellal`).
-//!   `--corpus FILE` reads the sentences from FILE instead (one per line).
+//!   `--corpus FILE` reads the sentences from FILE instead (one per line). `--speed F`
+//!   synthesizes at speed F (clamped to 0.75–2.0; default 1.0, the persisted panel speed and
+//!   `TELLAL_SPEED` are ignored).
 //! * `--play`: same, and play each sentence.
 //! * `--download [ID ...]`: download voices (default: every voice) into `TELLAL_MODELS_DIR`
 //!   through the app's downloader (pinned URLs, SHA-256, atomic install); fails unless all end
@@ -33,7 +35,7 @@ use std::time::{Duration, Instant};
 use serde_json::json;
 use tellal_core::telemetry::{self, Telemetry, ms};
 use tellal_core::tts::{TtsEngine, open_output, samples_source, write_wav};
-use tellal_core::{Config, Core, CoreEvent, Lang, NEW_TASK, ThreadView, VoiceState, t3, theme};
+use tellal_core::{Config, Core, CoreEvent, Lang, NEW_TASK, SPEED_MAX, SPEED_MIN, ThreadView, VoiceState, t3, theme};
 
 const CORPUS_TR: [&str; 10] = [
     "Tamam.",
@@ -133,20 +135,36 @@ fn main() -> anyhow::Result<()> {
             None if lang == Lang::En => CORPUS_EN.iter().map(|s| (*s).to_owned()).collect(),
             None => CORPUS_TR.iter().map(|s| (*s).to_owned()).collect(),
         };
-        bench_tts(&tel, &cfg, lang, &corpus, has("--play"))?;
+        let speed = match args.iter().position(|a| a == "--speed").and_then(|i| args.get(i + 1)) {
+            Some(v) => v
+                .parse::<f32>()
+                .ok()
+                .filter(|s| s.is_finite())
+                .ok_or_else(|| anyhow::anyhow!("--speed {v}: expected a number"))?
+                .clamp(SPEED_MIN, SPEED_MAX),
+            None => 1.0,
+        };
+        bench_tts(&tel, &cfg, lang, &corpus, speed, has("--play"))?;
     }
     println!("peak_rss_mb={:.1}", telemetry::peak_rss_mb());
     println!("run_dir={}", tel.run_dir().display());
     Ok(())
 }
 
-fn bench_tts(tel: &Arc<Telemetry>, cfg: &Config, lang: Lang, corpus: &[String], play: bool) -> anyhow::Result<()> {
+fn bench_tts(
+    tel: &Arc<Telemetry>,
+    cfg: &Config,
+    lang: Lang,
+    corpus: &[String],
+    speed: f32,
+    play: bool,
+) -> anyhow::Result<()> {
     let rss0 = telemetry::current_rss_mb();
     let t = Instant::now();
     let engine = TtsEngine::load(tel, cfg, lang)?;
     let load_ms = ms(t.elapsed());
     println!(
-        "voice={} cold_load_ms={load_ms:.1} rss_after_load_mb={:.1} (+{:.1}) sample_rate={} threads={}",
+        "voice={} speed={speed} cold_load_ms={load_ms:.1} rss_after_load_mb={:.1} (+{:.1}) sample_rate={} threads={}",
         engine.voice,
         telemetry::current_rss_mb(),
         telemetry::current_rss_mb() - rss0,
@@ -168,7 +186,7 @@ fn bench_tts(tel: &Arc<Telemetry>, cfg: &Config, lang: Lang, corpus: &[String], 
     let mut rows = Vec::with_capacity(corpus.len());
     for (i, text) in corpus.iter().enumerate() {
         let wav = cfg.save_audio.then(|| audio_dir.join(format!("bench-{:02}.wav", i + 1)));
-        let s = engine.synth(tel, text, wav.as_deref())?;
+        let s = engine.synth(tel, text, speed, wav.as_deref())?;
         if let Some(path) = &wav {
             write_wav(path, &s.samples, engine.sample_rate)?;
         }
@@ -185,7 +203,7 @@ fn bench_tts(tel: &Arc<Telemetry>, cfg: &Config, lang: Lang, corpus: &[String], 
     if let Some(p) = &player {
         p.sleep_until_end();
     }
-    let report = json!({"voice": engine.voice, "load_ms": load_ms, "sample_rate": engine.sample_rate,
+    let report = json!({"voice": engine.voice, "speed": speed, "load_ms": load_ms, "sample_rate": engine.sample_rate,
                         "threads": cfg.tts_threads, "peak_rss_mb": telemetry::peak_rss_mb(), "sentences": rows});
     std::fs::write(tel.run_dir().join("bench.json"), serde_json::to_vec_pretty(&report)?)?;
     Ok(())

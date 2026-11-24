@@ -1,16 +1,20 @@
 //! Voices: the row above the status line while the voice the panel needs (the UI language's, or
 //! `TELLAL_VOICE`'s) is not ready (download offer, progress, retry), and the metrics drawer's list
-//! of every voice with its state. `Core::voices()` is re-read on `VoicesUpdated`.
+//! of every voice with its state plus the speech speed control. `Core::voices()` is re-read on
+//! `VoicesUpdated`, `Core::speed()` on `SpeedChanged`.
 
 use gpui::{AnyElement, Context, FontWeight, Rgba, SharedString, div, prelude::*, px};
 use serde_json::{Value, json};
 use tellal_core::{VoiceState, VoiceView};
 
-use super::{DRAWER_H, Panel, VOICE_LINE_H, VOICE_ROW_H, VOICES_HEAD_H};
+use super::{DRAWER_H, Panel, SPEED_ROW_H, VOICE_LINE_H, VOICE_ROW_H, VOICES_HEAD_H};
 use crate::icons::{Icon, icon};
 use crate::motion;
 use crate::theme::{Tokens, TypeScale, alpha};
-use crate::widgets::{ButtonKind, tabular, text_button, tip};
+use crate::widgets::{ButtonKind, HIT, tabular, text_button, tip};
+
+/// The speed control's steps.
+const SPEED_STEPS: [f32; 5] = [1.0, 1.25, 1.5, 1.75, 2.0];
 
 fn state_json(state: &VoiceState) -> Value {
     match state {
@@ -50,7 +54,7 @@ impl Panel {
         if self.voices.is_empty() {
             DRAWER_H
         } else {
-            DRAWER_H + VOICES_HEAD_H + VOICE_LINE_H * self.voices.len() as f32
+            DRAWER_H + VOICES_HEAD_H + VOICE_LINE_H * self.voices.len() as f32 + SPEED_ROW_H
         }
     }
 
@@ -99,6 +103,14 @@ impl Panel {
         }
         self.log_action(source, "voice_download", None, json!({"voice": id, "before": state}));
         self.core.download_voice(id);
+        cx.notify();
+    }
+
+    /// A speed step clicked in the drawer.
+    pub(super) fn set_speed(&mut self, speed: f32, source: &str, cx: &mut Context<Panel>) {
+        self.log_action(source, "speed", None, json!({"before": self.speed, "speed": speed}));
+        self.core.set_speed(speed);
+        self.speed = self.core.speed();
         cx.notify();
     }
 
@@ -169,7 +181,8 @@ impl Panel {
         Some(motion::fade_in(row, "voice_row_in", motion::NORMAL, cx))
     }
 
-    /// The drawer's `Sesler` / `Voices` section: one line per voice with its state.
+    /// The drawer's `Sesler` / `Voices` section: one line per voice with its state, then the
+    /// `Hız` / `Speed` row (segmented 1×–2×, the active step accent-tinted).
     pub(super) fn render_voices_section(&self, t: &Tokens, ty: &TypeScale, cx: &mut Context<Panel>) -> Option<AnyElement> {
         if self.voices.is_empty() {
             return None;
@@ -224,12 +237,53 @@ impl Panel {
                 )
                 .child(right)
         });
+        let steps = SPEED_STEPS.map(|step| {
+            let active = (self.speed - step).abs() < 0.01;
+            tabular(
+                div()
+                    .id(SharedString::from(format!("speed_{step}")))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .h_full()
+                    .px_2()
+                    .rounded(px(5.))
+                    .cursor_pointer()
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(if active { t.accent } else { t.text_muted })
+                    .when(active, |d| d.bg(alpha(t.accent, 0.16)))
+                    .when(!active, |d| d.hover(|h| h.bg(t.surface_hover).text_color(t.text)))
+                    .child(s.speed_step(step))
+                    .on_click(cx.listener(move |panel, _, _, cx| panel.set_speed(step, "click", cx))),
+            )
+        });
+        let speed = div()
+            .id("speed_row")
+            .flex()
+            .items_center()
+            .gap_2()
+            .h(px(SPEED_ROW_H))
+            .tooltip(tip(s.speed_tip))
+            .child(div().flex_1().font_weight(FontWeight::MEDIUM).child(s.speed_title))
+            .child(
+                div()
+                    .flex()
+                    .flex_none()
+                    .h(px(HIT))
+                    .p(px(2.))
+                    .gap(px(2.))
+                    .rounded(px(7.))
+                    .border_1()
+                    .border_color(t.border)
+                    .children(steps),
+            );
         Some(
             div()
                 .flex()
                 .flex_col()
                 .child(div().h(px(18.)).font_weight(FontWeight::MEDIUM).child(s.voices_title))
                 .children(lines)
+                .child(speed)
                 .into_any_element(),
         )
     }

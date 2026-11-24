@@ -70,6 +70,8 @@ const VOICE_ROW_H: f32 = 32.;
 /// The drawer's voices section: gap + title + one line per voice.
 const VOICES_HEAD_H: f32 = 26.;
 const VOICE_LINE_H: f32 = 26.;
+/// The voices section's speed row (segmented control, 28 px hit height).
+const SPEED_ROW_H: f32 = 32.;
 const RADIUS: f32 = 14.;
 
 /// A row-body click remembered to detect the second click of a double-click.
@@ -184,6 +186,8 @@ pub struct Panel {
     voices: Vec<VoiceView>,
     /// Language of the voice the panel needs (`TELLAL_VOICE` = tr|en, else the UI language).
     voice_lang: Lang,
+    /// `Core::speed()`, refreshed on `SpeedChanged`.
+    speed: f32,
     /// Pending `ui.focus {action: "check"}` (records which app actually ended up frontmost).
     focus_check: Option<(Instant, &'static str)>,
 
@@ -223,6 +227,7 @@ impl Panel {
         let mut panel = Panel {
             stats: core.live_stats(),
             voices: core.voices(),
+            speed: core.speed(),
             voice_lang: match config.voice {
                 VoicePref::Only(lang) => lang,
                 VoicePref::Auto => core.lang(),
@@ -376,6 +381,7 @@ impl Panel {
                 }
                 CoreEvent::ThemeChanged => self.apply_theme(cx),
                 CoreEvent::VoicesUpdated => self.refresh_voices(),
+                CoreEvent::SpeedChanged => self.speed = self.core.speed(),
                 CoreEvent::ComputerUpdated => {
                     self.refresh_computer();
                 }

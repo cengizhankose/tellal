@@ -27,6 +27,7 @@ mod speech;
 mod supertonic;
 pub mod t3;
 pub mod telemetry;
+mod tempo;
 pub mod theme;
 mod voices;
 mod wispr;
@@ -105,6 +106,13 @@ pub struct Config {
     /// Which voice speaks. Env `TELLAL_VOICE` = `auto` (default: per utterance, by the
     /// utterance's language) | `tr` | `en`.
     pub voice: VoicePref,
+    /// Speech speed, a multiplier on each voice's normal pace: 0.75–2.0 (clamped; 1.0 =
+    /// normal). Env `TELLAL_SPEED`; unset or not a number = the number in [`Config::speed_path`]
+    /// (written by [`Core::set_speed`]); else 1.0.
+    pub speed: f32,
+    /// Where [`Core::set_speed`] keeps the speed (one number). Default
+    /// `~/Library/Application Support/tellal/speed`.
+    pub speed_path: PathBuf,
 }
 
 /// UI and speech language.
@@ -149,6 +157,21 @@ impl VoicePref {
     }
 }
 
+/// Slowest and fastest speech speed ([`Config::speed`]).
+pub const SPEED_MIN: f32 = 0.75;
+pub const SPEED_MAX: f32 = 2.0;
+
+/// A finite speed clamped to [`SPEED_MIN`]–[`SPEED_MAX`]; `None` for NaN/infinity.
+fn clamp_speed(speed: f32) -> Option<f32> {
+    speed.is_finite().then(|| speed.clamp(SPEED_MIN, SPEED_MAX))
+}
+
+/// `TELLAL_SPEED` if it is a number, else the persisted file's number, else 1.0 (clamped).
+fn startup_speed(env: Option<&str>, file: impl FnOnce() -> Option<String>) -> f32 {
+    let parse = |s: &str| s.trim().parse::<f32>().ok().and_then(clamp_speed);
+    env.and_then(parse).or_else(|| file().as_deref().and_then(parse)).unwrap_or(1.0)
+}
+
 /// One installable voice model.
 #[derive(Clone, Debug, PartialEq)]
 pub struct VoiceView {
@@ -176,6 +199,7 @@ impl Config {
         let var = |k: &str| std::env::var(k).ok().filter(|v| !v.trim().is_empty());
         let lang = var("TELLAL_LANG").and_then(|v| Lang::parse(&v)).unwrap_or_else(Lang::system);
         let support = home.join("Library/Application Support/tellal");
+        let speed_path = support.join("speed");
         Config {
             t3_bin: var("TELLAL_T3_BIN").map_or_else(|| home.join(".t3/bin/t3"), PathBuf::from),
             projects: var("TELLAL_PROJECTS").map(|v| {
@@ -217,6 +241,8 @@ impl Config {
             task_project: var("TELLAL_TASK_PROJECT"),
             lang,
             voice: var("TELLAL_VOICE").and_then(|v| VoicePref::parse(&v)).unwrap_or(VoicePref::Auto),
+            speed: startup_speed(var("TELLAL_SPEED").as_deref(), || std::fs::read_to_string(&speed_path).ok()),
+            speed_path,
         }
     }
 
@@ -234,6 +260,7 @@ impl Config {
             "demo": self.demo, "output_volume": self.output_volume,
             "cua_driver": self.cua_driver, "task_project": self.task_project,
             "lang": self.lang.code(), "voice": format!("{:?}", self.voice),
+            "speed": self.speed, "speed_path": self.speed_path,
         })
     }
 }
@@ -458,6 +485,8 @@ pub enum CoreEvent {
     TaskStarted { thread_id: Option<String>, ok: bool, detail: String },
     /// [`Core::voices`] changed (a download started, progressed, finished or failed).
     VoicesUpdated,
+    /// [`Core::speed`] changed ([`Core::set_speed`]).
+    SpeedChanged,
 }
 
 /// Cheap to clone; `Send + Sync`. All work runs on core-owned background threads.
@@ -479,6 +508,7 @@ struct Inner {
     project_names: Arc<RwLock<HashMap<String, String>>>,
     lang: Lang,
     voices: voices::Voices,
+    speed_path: PathBuf,
 }
 
 /// Where threads, messages, dictation and replies come from.
@@ -514,6 +544,7 @@ impl Core {
         let (tx, rx) = crossbeam_channel::unbounded();
         let threads = Arc::new(RwLock::new(Vec::new()));
         let reply_prefix = config.reply_prefix.clone();
+        let speed_path = config.speed_path.clone();
         let computer_view = Arc::new(RwLock::new(ComputerView::default()));
         let project_names = Arc::new(RwLock::new(HashMap::new()));
         let demo = match &config.demo {
@@ -574,6 +605,7 @@ impl Core {
             project_names,
             lang,
             voices,
+            speed_path,
         };
         Ok((Core { inner: Arc::new(inner) }, rx))
     }
@@ -759,6 +791,39 @@ impl Core {
     /// network (see `voices.rs`).
     pub fn download_voice(&self, id: &str) {
         self.inner.voices.download(id, "user");
+    }
+    /// Speech speed ([`Config::speed`] at start, then the last [`Core::set_speed`]).
+    pub fn speed(&self) -> f32 {
+        self.inner.speech.speed()
+    }
+    /// Sets the speech speed (clamped to [`SPEED_MIN`]–[`SPEED_MAX`]; NaN/infinity ignored) for
+    /// every utterance whose synthesis starts after this call; audio already synthesized keeps
+    /// its speed. Writes it to [`Config::speed_path`] (not in demo mode) and logs `speed.set`;
+    /// → `SpeedChanged`.
+    pub fn set_speed(&self, speed: f32) {
+        let inner = &*self.inner;
+        let Some(speed) = clamp_speed(speed) else { return };
+        let before = inner.speech.set_speed(speed);
+        let input = json!({"speed": speed, "before": before, "path": inner.speed_path});
+        let save = || -> std::io::Result<()> {
+            if let Some(dir) = inner.speed_path.parent() {
+                std::fs::create_dir_all(dir)?;
+            }
+            std::fs::write(&inner.speed_path, format!("{speed}\n"))
+        };
+        match &inner.source {
+            Source::Demo(_) => {
+                inner.tel.event("speed.set", None, true, input, json!({"saved": false, "skipped": "demo mode"}), None)
+            }
+            Source::T3 { .. } => match save() {
+                Ok(()) => inner.tel.event("speed.set", None, true, input, json!({"saved": true}), None),
+                Err(e) => {
+                    let err = format!("write {}: {e}", inner.speed_path.display());
+                    inner.tel.event("speed.set", None, false, input, json!({"saved": false}), Some(&err))
+                }
+            },
+        };
+        let _ = inner.events.send(CoreEvent::SpeedChanged);
     }
     /// Emergency stop: revoke every live cua-driver session (`cua-driver revoke --all`) so no
     /// agent can act on the screen until it reconnects. Non-blocking; → `ComputerUpdated`.
@@ -1036,5 +1101,21 @@ mod tests {
             utf8(task_argv(Path::new("/t3"), None, "Başlık", "proj-1")),
             ["/t3", "thread", "start", "--json", "--title", "Başlık", "proj-1", "-"]
         );
+    }
+
+    #[test]
+    fn startup_speed_env_then_file_then_default() {
+        let file = |s: &'static str| move || Some(s.to_owned());
+        let unread = || -> Option<String> { panic!("the file is read only without a valid TELLAL_SPEED") };
+        assert_eq!(startup_speed(Some(" 1.5 "), unread), 1.5);
+        assert_eq!(startup_speed(Some("3"), unread), SPEED_MAX);
+        assert_eq!(startup_speed(Some("0"), unread), SPEED_MIN);
+        // Not a number (or NaN/inf): the persisted value, a trailing newline included.
+        assert_eq!(startup_speed(Some("fast"), file("1.25\n")), 1.25);
+        assert_eq!(startup_speed(Some("NaN"), file("1.75")), 1.75);
+        assert_eq!(startup_speed(None, file("inf")), 1.0);
+        assert_eq!(startup_speed(None, file("")), 1.0);
+        assert_eq!(startup_speed(None, || None), 1.0);
+        assert_eq!(clamp_speed(f32::NAN), None);
     }
 }
